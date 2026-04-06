@@ -1,0 +1,16 @@
+[Unit]
+Description=FOUR-LIFE Agent API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/four-life
+ExecStartPre=-/bin/fuser -k 8030/tcp
+ExecStart=/usr/bin/python3 -m uvicorn agent.api:app --host 127.0.0.1 --port 8030 --log-level info
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
