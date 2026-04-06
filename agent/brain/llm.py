@@ -14,7 +14,7 @@ from agent.config import settings
 
 # DGrid uses OpenAI SDK format with provider/model naming
 DGRID_BASE_URL = "https://api.dgrid.ai/api/v1"
-DGRID_MODEL = "anthropic/claude-sonnet-4-20250514"
+DGRID_MODEL = "openai/gpt-4o"
 
 
 class LLMClient:
