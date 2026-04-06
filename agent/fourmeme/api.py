@@ -193,6 +193,15 @@ class FourMemeAPI:
         resp.raise_for_status()
         return resp.json().get("data", [])
 
+    async def get_new_tokens(self, page_size: int = 20) -> list[dict]:
+        """Get newly created tokens on Four.meme."""
+        resp = await self._client.post(
+            "/v1/public/token/ranking",
+            json={"pageNo": 1, "pageSize": page_size, "type": "NEW"},
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", [])
+
     async def get_token_detail(self, token_address: str) -> dict:
         """Get detailed info for a specific token."""
         resp = await self._client.get(

@@ -89,12 +89,12 @@ class FourLifeAgent:
         """
         logger.info("[THINK] Analyzing market...")
 
-        # Get current Four.meme landscape
+        # Get current Four.meme landscape via API (avoids RPC rate limits)
         trending = await self.api.get_trending()
-        current_block = await self.chain.get_block_number()
-        recent_creates = await self.chain.get_recent_creates(
-            from_block=current_block - 2000  # ~15 minutes of blocks
-        )
+        try:
+            recent_creates = await self.api.get_new_tokens()
+        except Exception:
+            recent_creates = []
 
         # Analyze narratives
         market_analysis = await self.narrative.analyze_market(trending, recent_creates)
