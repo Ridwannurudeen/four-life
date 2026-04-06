@@ -36,44 +36,89 @@ class FourMemeAPI:
     # ── Auth ──────────────────────────────────────────────────────────
 
     async def login(self) -> str:
-        """Authenticate via wallet signature. Returns JWT access token."""
-        # Step 1: get nonce
-        resp = await self._client.get(
-            "/v1/public/user/login/nonce",
-            params={"walletAddress": self.address.lower()},
-        )
-        resp.raise_for_status()
-        nonce = resp.json()["data"]
+        """Authenticate via wallet signature.
 
-        # Step 2: sign message
-        message = f"You are sign in Meme {nonce}"
+        Four.meme uses two auth paths:
+        1. New path: /mapi/defi/v3/public/wallet-direct/wallet/address/sign (Binance wallet)
+        2. Legacy path: /v1/public/user/login/nonce → /v1/public/user/login
+
+        We try legacy first, fall back to new path.
+        The meme-web-access header is used for API auth on the /meme-api base.
+        """
+        import time
+
+        # Try legacy auth first (from four-meme-agent reference)
+        try:
+            resp = await self._client.get(
+                "/v1/public/user/login/nonce",
+                params={"walletAddress": self.address.lower()},
+            )
+            if resp.status_code == 200:
+                nonce = resp.json()["data"]
+                message = f"You are sign in Meme {nonce}"
+                signable = encode_defunct(text=message)
+                signed = self.account.sign_message(signable)
+                signature = signed.signature.hex()
+                if not signature.startswith("0x"):
+                    signature = f"0x{signature}"
+
+                resp = await self._client.post(
+                    "/v1/public/user/login",
+                    json={
+                        "walletAddress": self.address.lower(),
+                        "signature": signature,
+                        "nonce": nonce,
+                        "loginType": "ETH",
+                    },
+                )
+                resp.raise_for_status()
+                self.access_token = resp.json()["data"]["accessToken"]
+                logger.info("Authenticated with Four.meme (legacy) as {}", self.address)
+                return self.access_token
+        except Exception as e:
+            logger.debug("Legacy auth failed: {}, trying new path", e)
+
+        # New auth path via /mapi/defi/
+        ts = str(int(time.time() * 1000))
+        message = f"Welcome to four.meme!\n\nThis request will not trigger a blockchain transaction or cost any gas fees.\n\nAuthentication nonce: {ts}"
         signable = encode_defunct(text=message)
         signed = self.account.sign_message(signable)
         signature = signed.signature.hex()
         if not signature.startswith("0x"):
             signature = f"0x{signature}"
 
-        # Step 3: login
-        resp = await self._client.post(
-            "/v1/public/user/login",
-            json={
-                "walletAddress": self.address.lower(),
-                "signature": signature,
-                "nonce": nonce,
-                "loginType": "ETH",
-            },
-        )
-        resp.raise_for_status()
-        self.access_token = resp.json()["data"]["accessToken"]
-        logger.info("Authenticated with Four.meme as {}", self.address)
+        # Use a separate client for the /mapi auth endpoint
+        async with httpx.AsyncClient(timeout=30) as auth_client:
+            resp = await auth_client.get(
+                "https://four.meme/mapi/defi/v3/public/wallet-direct/wallet/address/sign",
+                params={
+                    "address": self.address.lower(),
+                    "signature": signature,
+                    "message": message,
+                    "timestamp": ts,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("success") or data.get("code") == "000000":
+                    self.access_token = data.get("data", {}).get("token", "")
+                    if self.access_token:
+                        logger.info("Authenticated with Four.meme (new) as {}", self.address)
+                        return self.access_token
+
+        # If both fail, we can still use public endpoints + on-chain operations
+        logger.warning("Four.meme auth failed — running in public-only mode. "
+                       "Token creation will use on-chain directly.")
+        self.access_token = "public-only"
         return self.access_token
 
     @property
     def _auth_headers(self) -> dict:
-        if not self.access_token:
-            raise RuntimeError("Not authenticated — call login() first")
+        if not self.access_token or self.access_token == "public-only":
+            return {"Content-Type": "application/json"}
         return {
             "Authorization": f"Bearer {self.access_token}",
+            "meme-web-access": self.access_token,
             "Content-Type": "application/json",
         }
 
