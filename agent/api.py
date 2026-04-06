@@ -18,7 +18,12 @@ agent: FourLifeAgent | None = None
 async def lifespan(app: FastAPI):
     """Start agent in background on server boot."""
     global agent
-    agent = FourLifeAgent()
+    try:
+        agent = FourLifeAgent()
+    except Exception as e:
+        from loguru import logger
+        logger.warning("Agent init failed (missing keys?): {}. API running in read-only mode.", e)
+        agent = None
     yield
     if agent:
         await agent.stop()
@@ -39,6 +44,8 @@ app.add_middleware(
 
 @app.get("/.well-known/agent-registration.json")
 async def agent_card():
+    if not agent:
+        return JSONResponse({"name": "FOUR-LIFE", "status": "not configured"})
     card = agent.identity.generate_agent_card()
     return JSONResponse(card)
 
@@ -47,6 +54,20 @@ async def agent_card():
 
 @app.get("/api/status")
 async def status():
+    if not agent:
+        return {
+            "agent_name": "FOUR-LIFE",
+            "running": False,
+            "agent_id": None,
+            "wallet": "",
+            "total_launches": 0,
+            "total_graduations": 0,
+            "graduation_rate": 0,
+            "avg_peak_holders": 0,
+            "active_tokens": 0,
+            "global_learnings": [],
+            "message": "Agent not configured — add keys to .env",
+        }
     mem = agent.memory.memory
     return {
         "agent_name": "FOUR-LIFE",
@@ -66,6 +87,8 @@ async def status():
 
 @app.get("/api/tokens")
 async def list_tokens():
+    if not agent:
+        return {"tokens": []}
     tokens = []
     for addr, health in agent.monitor.state.tokens.items():
         concept = agent.active_concepts.get(addr, {})
@@ -89,6 +112,8 @@ async def list_tokens():
 
 @app.get("/api/tokens/{address}")
 async def token_detail(address: str):
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
     health = agent.monitor.state.tokens.get(address)
     if not health:
         return JSONResponse({"error": "Token not found"}, status_code=404)
@@ -133,6 +158,8 @@ async def token_detail(address: str):
 
 @app.get("/api/memory")
 async def memory():
+    if not agent:
+        return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
     mem = agent.memory.memory
     return {
         "total_launches": mem.total_launches,
@@ -165,6 +192,8 @@ async def memory():
 
 @app.get("/api/actions")
 async def actions(limit: int = 50):
+    if not agent:
+        return {"actions": []}
     all_actions = agent.lifecycle.action_log[-limit:]
     return {
         "actions": [
