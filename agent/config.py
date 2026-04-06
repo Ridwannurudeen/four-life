@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Bitquery
     bitquery_api_key: str = Field(default="", alias="BITQUERY_API_KEY")
 
+    # MYX V2
+    myx_router_address: str = Field(default="", alias="MYX_ROUTER_ADDRESS")
+    myx_pool_address: str = Field(default="", alias="MYX_POOL_ADDRESS")
+
     # Agent config
     agent_name: str = Field(default="FOUR-LIFE", alias="AGENT_NAME")
     agent_description: str = Field(

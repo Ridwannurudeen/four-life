@@ -182,6 +182,51 @@ async def actions(limit: int = 50):
     }
 
 
+# ── MYX V2 Perps ─────────────────────────────────────────────────────
+
+@app.get("/api/myx/status")
+async def myx_status():
+    if not agent.myx:
+        return {"enabled": False, "reason": "MYX not configured"}
+    try:
+        markets = await agent.myx.get_markets()
+        return {
+            "enabled": True,
+            "markets_count": len(markets),
+            "markets": markets[:10],
+        }
+    except Exception as e:
+        return {"enabled": True, "error": str(e)}
+
+
+@app.get("/api/myx/signal/{token_address}")
+async def myx_signal(token_address: str):
+    if not agent.myx_strategy:
+        return {"error": "MYX not configured"}
+
+    health = agent.monitor.state.tokens.get(token_address)
+    if not health:
+        return {"error": "Token not tracked"}
+
+    token_health = {
+        "name": health.name,
+        "symbol": health.symbol,
+        "health_score": health.health_score,
+        "phase": health.phase,
+        "buy_sell_ratio": health.buy_sell_ratio,
+        "holder_velocity": health.holder_velocity,
+        "curve_progress": health.curve_progress_pct,
+        "top_holder_pct": health.top_holder_pct,
+    }
+
+    try:
+        markets = await agent.myx.get_markets()
+        signal = await agent.myx_strategy.generate_signal(token_health, {"available_markets": len(markets)})
+        return {"signal": signal}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ── Manual Controls ──────────────────────────────────────────────────
 
 @app.post("/api/agent/start")

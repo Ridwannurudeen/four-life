@@ -18,6 +18,7 @@ from agent.memory.store import MemoryStore, LaunchRecord
 from agent.identity.registry import AgentIdentity
 from agent.social.twitter import TwitterClient
 from agent.lifecycle.engine import LifecycleEngine
+from agent.myx.client import MYXClient, MYXStrategy
 
 
 class FourLifeAgent:
@@ -40,6 +41,13 @@ class FourLifeAgent:
         self.lifecycle = LifecycleEngine(
             self.monitor, self.strategy, self.content_engine, self.memory, self.twitter
         )
+
+        # MYX V2 perp integration
+        self.myx = MYXClient(
+            router_address=settings.myx_router_address,
+            pool_address=settings.myx_pool_address,
+        ) if settings.myx_router_address else None
+        self.myx_strategy = MYXStrategy(self.myx) if self.myx else None
 
         # State
         self.active_concepts: dict[str, dict] = {}  # token_address -> concept
