@@ -1,0 +1,259 @@
+"""Real-time on-chain monitor for Four.meme token health."""
+
+import asyncio
+import time
+from dataclasses import dataclass, field
+from collections import defaultdict
+
+from loguru import logger
+from web3 import AsyncWeb3
+
+from agent.fourmeme.chain import FourMemeChain
+
+
+@dataclass
+class TokenHealth:
+    """Snapshot of a token's on-chain health metrics."""
+
+    address: str
+    name: str = ""
+    symbol: str = ""
+    creator: str = ""
+    created_at: float = 0.0
+    created_block: int = 0
+
+    # Holder metrics
+    unique_buyers: int = 0
+    unique_sellers: int = 0
+    holder_velocity: float = 0.0  # new holders per hour
+
+    # Volume metrics
+    total_buys: int = 0
+    total_sells: int = 0
+    buy_volume_bnb: float = 0.0
+    sell_volume_bnb: float = 0.0
+    buy_sell_ratio: float = 0.0
+
+    # Whale metrics
+    top_holder_pct: float = 0.0
+    whale_count: int = 0  # holders with >5% supply
+
+    # Bonding curve
+    curve_progress_pct: float = 0.0
+    current_price_wei: int = 0
+
+    # Derived scores
+    health_score: float = 0.0  # 0-100
+    graduation_probability: float = 0.0  # 0-1
+
+    # Phase tracking
+    age_hours: float = 0.0
+    phase: str = "nurture"  # nurture | defend | accelerate | graduated
+
+
+@dataclass
+class MonitorState:
+    """Tracks all monitored tokens and their health."""
+
+    tokens: dict[str, TokenHealth] = field(default_factory=dict)
+    buyer_sets: dict[str, set] = field(default_factory=lambda: defaultdict(set))
+    seller_sets: dict[str, set] = field(default_factory=lambda: defaultdict(set))
+    holder_balances: dict[str, dict[str, int]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(int))
+    )
+    last_scanned_block: int = 0
+
+
+class TokenMonitor:
+    """Monitors Four.meme tokens in real-time, computing health metrics."""
+
+    TOTAL_SUPPLY = 1_000_000_000
+    WHALE_THRESHOLD_PCT = 5.0
+    SCAN_INTERVAL_BLOCKS = 100  # ~50 seconds at 0.5s/block
+
+    def __init__(self, chain: FourMemeChain) -> None:
+        self.chain = chain
+        self.state = MonitorState()
+
+    async def track_token(self, token_address: str, name: str = "", symbol: str = "",
+                          creator: str = "", created_block: int = 0) -> None:
+        """Start tracking a token."""
+        health = TokenHealth(
+            address=token_address,
+            name=name,
+            symbol=symbol,
+            creator=creator,
+            created_at=time.time(),
+            created_block=created_block,
+        )
+        self.state.tokens[token_address] = health
+        logger.info("Now tracking {} ({}) at {}", name, symbol, token_address)
+
+    async def update_token(self, token_address: str) -> TokenHealth:
+        """Update health metrics for a tracked token."""
+        health = self.state.tokens.get(token_address)
+        if not health:
+            raise ValueError(f"Token {token_address} not tracked")
+
+        from_block = max(health.created_block, self.state.last_scanned_block)
+        current_block = await self.chain.get_block_number()
+
+        # Fetch trade events
+        trades = await self.chain.get_token_trades(
+            token_address, from_block=from_block, to_block=current_block
+        )
+
+        # Process buys
+        for buy in trades["buys"]:
+            self.state.buyer_sets[token_address].add(buy["buyer"])
+            self.state.holder_balances[token_address][buy["buyer"]] += buy["amount"]
+
+        # Process sells
+        for sell in trades["sells"]:
+            self.state.seller_sets[token_address].add(sell["seller"])
+            self.state.holder_balances[token_address][sell["seller"]] -= sell["amount"]
+
+        # Compute metrics
+        health.unique_buyers = len(self.state.buyer_sets[token_address])
+        health.unique_sellers = len(self.state.seller_sets[token_address])
+        health.total_buys += len(trades["buys"])
+        health.total_sells += len(trades["sells"])
+        health.buy_volume_bnb += sum(b["cost"] for b in trades["buys"]) / 1e18
+        health.sell_volume_bnb += sum(s["revenue"] for s in trades["sells"]) / 1e18
+
+        if health.total_sells > 0:
+            health.buy_sell_ratio = health.total_buys / health.total_sells
+        else:
+            health.buy_sell_ratio = float(health.total_buys) if health.total_buys > 0 else 0
+
+        # Age & phase
+        health.age_hours = (time.time() - health.created_at) / 3600
+        if health.age_hours < 6:
+            health.phase = "nurture"
+        elif health.age_hours < 24:
+            health.phase = "defend"
+        elif health.curve_progress_pct >= 100:
+            health.phase = "graduated"
+        else:
+            health.phase = "accelerate"
+
+        # Holder velocity
+        if health.age_hours > 0:
+            health.holder_velocity = health.unique_buyers / health.age_hours
+
+        # Whale analysis
+        balances = self.state.holder_balances[token_address]
+        active_balances = {a: b for a, b in balances.items() if b > 0}
+        if active_balances:
+            max_balance = max(active_balances.values())
+            health.top_holder_pct = (max_balance / self.TOTAL_SUPPLY) * 100
+            whale_threshold = self.TOTAL_SUPPLY * (self.WHALE_THRESHOLD_PCT / 100)
+            health.whale_count = sum(1 for b in active_balances.values() if b >= whale_threshold)
+
+        # Price & curve
+        try:
+            health.current_price_wei = await self.chain.get_price(token_address)
+        except Exception:
+            pass
+
+        # Bonding curve progress estimate from buy volume
+        # Curve fills at ~18 BNB
+        health.curve_progress_pct = min(100, (health.buy_volume_bnb / 18.0) * 100)
+
+        # Health score (0-100)
+        health.health_score = self._compute_health_score(health)
+
+        # Graduation probability
+        health.graduation_probability = self._compute_graduation_prob(health)
+
+        self.state.last_scanned_block = current_block
+        return health
+
+    def _compute_health_score(self, h: TokenHealth) -> float:
+        """Composite health score 0-100."""
+        score = 0.0
+
+        # Holder growth (0-30 points)
+        if h.holder_velocity >= 50:
+            score += 30
+        elif h.holder_velocity >= 20:
+            score += 20
+        elif h.holder_velocity >= 5:
+            score += 10
+        elif h.holder_velocity >= 1:
+            score += 5
+
+        # Buy/sell ratio (0-25 points)
+        if h.buy_sell_ratio >= 3:
+            score += 25
+        elif h.buy_sell_ratio >= 2:
+            score += 20
+        elif h.buy_sell_ratio >= 1.5:
+            score += 15
+        elif h.buy_sell_ratio >= 1:
+            score += 10
+
+        # Whale concentration (0-25 points, lower = better)
+        if h.top_holder_pct < 5:
+            score += 25
+        elif h.top_holder_pct < 10:
+            score += 20
+        elif h.top_holder_pct < 20:
+            score += 15
+        elif h.top_holder_pct < 40:
+            score += 5
+
+        # Curve progress (0-20 points)
+        score += min(20, h.curve_progress_pct / 5)
+
+        return round(min(100, score), 1)
+
+    def _compute_graduation_prob(self, h: TokenHealth) -> float:
+        """Estimate graduation probability based on current metrics."""
+        # Simple logistic-style model based on key signals
+        prob = 0.0
+
+        # Curve progress is the strongest predictor
+        if h.curve_progress_pct >= 80:
+            prob += 0.5
+        elif h.curve_progress_pct >= 50:
+            prob += 0.3
+        elif h.curve_progress_pct >= 25:
+            prob += 0.15
+
+        # Holder count matters
+        if h.unique_buyers >= 500:
+            prob += 0.2
+        elif h.unique_buyers >= 200:
+            prob += 0.1
+        elif h.unique_buyers >= 50:
+            prob += 0.05
+
+        # Buy pressure
+        if h.buy_sell_ratio >= 2:
+            prob += 0.15
+        elif h.buy_sell_ratio >= 1.5:
+            prob += 0.1
+
+        # Low whale concentration is good
+        if h.top_holder_pct < 10:
+            prob += 0.1
+
+        # Momentum (velocity)
+        if h.holder_velocity >= 20:
+            prob += 0.1
+        elif h.holder_velocity >= 5:
+            prob += 0.05
+
+        return round(min(1.0, prob), 3)
+
+    async def get_all_health(self) -> list[TokenHealth]:
+        """Update and return health for all tracked tokens."""
+        results = []
+        for addr in list(self.state.tokens.keys()):
+            try:
+                health = await self.update_token(addr)
+                results.append(health)
+            except Exception as e:
+                logger.error("Failed to update {}: {}", addr, e)
+        return results
