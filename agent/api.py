@@ -273,3 +273,65 @@ async def stop_agent():
     """Stop the agent loop."""
     await agent.stop()
     return {"status": "stopped"}
+
+
+# ── Manual Token Management ──────────────────────────────────────────
+
+@app.post("/api/agent/think")
+async def manual_think():
+    """Run one THINK cycle — analyze market and generate a concept."""
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+    concept = await agent.think()
+    if concept:
+        return {"concept": concept, "message": "Concept ready. Create this token on four.meme, then call /api/agent/track with the token address."}
+    return {"concept": None, "message": "Agent decided not to launch right now."}
+
+
+@app.post("/api/agent/track")
+async def manual_track(data: dict):
+    """Track an existing token for lifecycle management.
+
+    Body: {"token_address": "0x...", "name": "TokenName", "symbol": "TKN", "concept": {...}}
+    Use this after manually creating a token on four.meme.
+    """
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    token_address = data.get("token_address")
+    name = data.get("name", "")
+    symbol = data.get("symbol", "")
+    concept = data.get("concept", {"name": name, "symbol": symbol, "personality": "Degen crypto energy"})
+
+    if not token_address:
+        return JSONResponse({"error": "token_address required"}, status_code=400)
+
+    from agent.memory.store import LaunchRecord
+    import time
+
+    current_block = await agent.chain.get_block_number()
+
+    await agent.monitor.track_token(
+        token_address, name=name, symbol=symbol,
+        creator=agent.chain.account.address, created_block=current_block,
+    )
+
+    agent.memory.record_launch(LaunchRecord(
+        token_address=token_address,
+        name=name,
+        symbol=symbol,
+        narrative=concept.get("narrative", ""),
+        concept=concept,
+        launched_at=time.time(),
+        launch_block=current_block,
+    ))
+
+    agent.active_concepts[token_address] = concept
+
+    return {
+        "status": "tracking",
+        "token_address": token_address,
+        "name": name,
+        "symbol": symbol,
+        "message": "Token is now being managed by FOUR-LIFE lifecycle engine.",
+    }
