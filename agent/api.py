@@ -279,13 +279,34 @@ async def stop_agent():
 
 @app.post("/api/agent/think")
 async def manual_think():
-    """Run one THINK cycle — analyze market and generate a concept."""
+    """Run one THINK cycle — always generates a concept for manual creation."""
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
-    concept = await agent.think()
-    if concept:
-        return {"concept": concept, "message": "Concept ready. Create this token on four.meme, then call /api/agent/track with the token address."}
-    return {"concept": None, "message": "Agent decided not to launch right now."}
+
+    from agent.brain.llm import get_llm
+
+    # Get market data
+    trending = await agent.api.get_trending()
+    try:
+        recent = await agent.api.get_new_tokens()
+    except Exception:
+        recent = []
+
+    # Analyze narratives
+    market_analysis = await agent.narrative.analyze_market(trending, recent)
+    narrative = market_analysis.get("recommended_narrative", {})
+    narrative_name = narrative.get("name", "trending meme") if isinstance(narrative, dict) else str(narrative)
+
+    # Generate concept
+    existing_names = [lr.name for lr in agent.memory.memory.launches]
+    concept = await agent.narrative.generate_concept(narrative_name, existing_names)
+    concept["narrative"] = narrative_name
+    concept["market_analysis"] = market_analysis
+
+    return {
+        "concept": concept,
+        "message": "Concept ready. Create this token on four.meme, then POST to /api/agent/track with the token address.",
+    }
 
 
 @app.post("/api/agent/track")
