@@ -28,8 +28,8 @@ uvicorn[standard]==0.34.2
 # Scheduling & async
 apscheduler==3.11.0
 
-# Unibase / Membase
-membase>=0.1.0
+# Unibase / Membase (optional — sync works without it)
+# membase>=0.0.2
 
 # Utils
 loguru==0.7.3
