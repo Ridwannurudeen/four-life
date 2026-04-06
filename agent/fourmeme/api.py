@@ -185,14 +185,13 @@ class FourMemeAPI:
     # ── Market Data ───────────────────────────────────────────────────
 
     async def get_trending(self) -> list[dict]:
-        """Get trending/active tokens on Four.meme."""
-        resp = await self._client.get(
-            "/v1/public/ticker",
-            params={"pageNo": 1, "pageSize": 20, "status": "TRADING"},
+        """Get hot tokens on Four.meme."""
+        resp = await self._client.post(
+            "/v1/public/token/ranking",
+            json={"pageNo": 1, "pageSize": 20, "type": "HOT"},
         )
         resp.raise_for_status()
-        data = resp.json().get("data", {})
-        return data.get("list", data) if isinstance(data, dict) else data
+        return resp.json().get("data", [])
 
     async def get_token_detail(self, token_address: str) -> dict:
         """Get detailed info for a specific token."""
