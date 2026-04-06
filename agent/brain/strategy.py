@@ -3,19 +3,15 @@
 import json
 from datetime import datetime, timezone
 
-import anthropic
 from loguru import logger
 
 from agent.config import settings
+from agent.brain.llm import get_llm
 from agent.fourmeme.monitor import TokenHealth
 
 
 class StrategyEngine:
     """Decides WHEN to launch and WHAT to do at each lifecycle phase."""
-
-    def __init__(self) -> None:
-        self.client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        self.model = "claude-sonnet-4-20250514"
 
     async def should_launch(
         self,
@@ -40,12 +36,9 @@ class StrategyEngine:
                 "curve_progress": round(t.curve_progress_pct, 1),
             })
 
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=500,
-            messages=[{
-                "role": "user",
-                "content": f"""You are FOUR-LIFE, an autonomous meme token agent on Four.meme (BNB Chain).
+        return await get_llm().chat_json([{
+            "role": "user",
+            "content": f"""You are FOUR-LIFE, an autonomous meme token agent on Four.meme (BNB Chain).
 Should you launch a new token right now?
 
 CURRENT TIME (UTC): {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}
@@ -68,18 +61,7 @@ Consider:
 - If past launches show patterns, learn from them
 
 Respond in JSON: {{"should_launch": bool, "reason": str, "optimal_delay_minutes": int, "confidence": float}}"""
-            }],
-        )
-
-        try:
-            return json.loads(response.content[0].text)
-        except json.JSONDecodeError:
-            text = response.content[0].text
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(text[start:end])
-            return {"should_launch": False, "reason": "Failed to parse strategy", "optimal_delay_minutes": 60, "confidence": 0}
+        }])
 
     async def get_lifecycle_action(self, health: TokenHealth, concept: dict, memory_context: str = "") -> dict:
         """Get the next action for a token based on its current phase and health.
@@ -88,12 +70,9 @@ Respond in JSON: {{"should_launch": bool, "reason": str, "optimal_delay_minutes"
             dict with 'action_type' (post_content|transparency|alert|celebrate|defend|nothing),
             'content' (the actual post/message), 'urgency' (low|medium|high), 'reasoning'
         """
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": f"""You are FOUR-LIFE, managing the token {health.name} ({health.symbol}) on Four.meme.
+        return await get_llm().chat_json([{
+            "role": "user",
+            "content": f"""You are FOUR-LIFE, managing the token {health.name} ({health.symbol}) on Four.meme.
 
 TOKEN HEALTH:
 - Phase: {health.phase}
@@ -130,15 +109,4 @@ Respond in JSON: {{"action_type": str, "content": str, "urgency": str, "reasonin
 
 The content should be in the token's personality voice. Max 280 chars for Twitter.
 Make it genuinely engaging — not corporate, not cringe."""
-            }],
-        )
-
-        try:
-            return json.loads(response.content[0].text)
-        except json.JSONDecodeError:
-            text = response.content[0].text
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(text[start:end])
-            return {"action_type": "nothing", "content": "", "urgency": "low", "reasoning": "Parse failed"}
+        }])

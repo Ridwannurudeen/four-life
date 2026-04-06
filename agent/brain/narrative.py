@@ -1,20 +1,14 @@
 """Narrative analysis — detect trends, find gaps, generate token concepts."""
 
 import json
-from datetime import datetime
 
-import anthropic
 from loguru import logger
 
-from agent.config import settings
+from agent.brain.llm import get_llm
 
 
 class NarrativeEngine:
     """Analyzes trending narratives and generates token concepts."""
-
-    def __init__(self) -> None:
-        self.client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        self.model = "claude-sonnet-4-20250514"
 
     async def analyze_market(self, trending_tokens: list[dict], recent_creates: list[dict]) -> dict:
         """Analyze current Four.meme market for narrative opportunities.
@@ -25,12 +19,9 @@ class NarrativeEngine:
         token_summary = json.dumps(trending_tokens[:20], indent=2, default=str)
         recent_summary = json.dumps(recent_creates[:30], indent=2, default=str)
 
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""Analyze these meme tokens currently on Four.meme (BNB Chain).
+        return await get_llm().chat_json([{
+            "role": "user",
+            "content": f"""Analyze these meme tokens currently on Four.meme (BNB Chain).
 
 TRENDING TOKENS:
 {token_summary}
@@ -45,18 +36,7 @@ Identify:
 4. **recommended_narrative**: The single best narrative to launch into right now, with reasoning.
 
 Respond in JSON only. No markdown."""
-            }],
-        )
-
-        try:
-            return json.loads(response.content[0].text)
-        except json.JSONDecodeError:
-            text = response.content[0].text
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(text[start:end])
-            raise
+        }])
 
     async def generate_concept(self, narrative: str, avoid_names: list[str] = None) -> dict:
         """Generate a complete token concept for a given narrative.
@@ -67,12 +47,9 @@ Respond in JSON only. No markdown."""
         """
         avoid = json.dumps(avoid_names or [])
 
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""Create a meme token concept for Four.meme (BNB Chain launchpad).
+        return await get_llm().chat_json([{
+            "role": "user",
+            "content": f"""Create a meme token concept for Four.meme (BNB Chain launchpad).
 
 NARRATIVE TO TARGET: {narrative}
 AVOID THESE NAMES (already taken): {avoid}
@@ -90,27 +67,13 @@ Generate:
 Make it GENUINELY funny — not corporate, not generic. Think 4chan humor meets crypto Twitter.
 
 Respond in JSON only. No markdown."""
-            }],
-        )
-
-        try:
-            return json.loads(response.content[0].text)
-        except json.JSONDecodeError:
-            text = response.content[0].text
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(text[start:end])
-            raise
+        }])
 
     async def generate_image_prompt(self, concept: dict) -> str:
         """Generate a DALL-E prompt for the token's artwork."""
-        response = await self.client.messages.create(
-            model=self.model,
-            max_tokens=300,
-            messages=[{
-                "role": "user",
-                "content": f"""Create a DALL-E image prompt for a meme token logo.
+        return await get_llm().chat([{
+            "role": "user",
+            "content": f"""Create a DALL-E image prompt for a meme token logo.
 
 Token: {concept['name']} ({concept['symbol']})
 Lore: {concept['lore']}
@@ -124,6 +87,4 @@ Requirements:
 - NO text in the image
 
 Return ONLY the prompt, nothing else."""
-            }],
-        )
-        return response.content[0].text.strip()
+        }], max_tokens=300)

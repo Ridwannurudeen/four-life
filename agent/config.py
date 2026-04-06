@@ -17,8 +17,9 @@ class Settings(BaseSettings):
     bsc_wss_url: str = Field(default="wss://bsc-rpc.publicnode.com", alias="BSC_WSS_URL")
 
     # AI
-    anthropic_api_key: str = Field(alias="ANTHROPIC_API_KEY")
+    anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    dgrid_api_key: str = Field(default="", alias="DGRID_API_KEY")
 
     # Twitter
     twitter_bearer_token: str = Field(default="", alias="TWITTER_BEARER_TOKEN")
