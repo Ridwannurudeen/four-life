@@ -135,20 +135,28 @@ class FourMemeAPI:
         total_supply = int(bnb_config.get("totalAmount", 1_000_000_000))
         raised_amount = float(bnb_config.get("totalBAmount", 24))
 
+        sale_rate = float(bnb_config.get("saleRate", 0.8))
+
         body = {
             "name": name,
             "shortName": symbol,
-            "symbol": bnb_config.get("symbol", "BNB"),
             "desc": description,
-            "label": label,
-            "imgUrl": img_url,
             "totalSupply": total_supply,
             "raisedAmount": raised_amount,
-            "raisedToken": bnb_config.get("symbolAddress", ""),
-            "saleRate": 0,
+            "saleRate": sale_rate,
+            "reserveRate": 0,
+            "imgUrl": img_url,
+            "raisedToken": bnb_config,
             "launchTime": int(time.time() * 1000),
-            "dexType": "PANCAKE_SWAP",
+            "funGroup": False,
+            "label": label,
+            "lpTradingFee": 0.0025,
             "preSale": str(pre_sale_bnb),
+            "clickFun": False,
+            "symbol": bnb_config.get("symbol", "BNB"),
+            "dexType": "PANCAKE_SWAP",
+            "rushMode": False,
+            "onlyMPC": False,
             "feePlan": False,
         }
         if twitter:

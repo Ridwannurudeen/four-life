@@ -150,20 +150,30 @@ class FourLifeAgent:
             # Upload to Four.meme
             image_url = await self.api.upload_image(image_bytes)
 
-            # Prepare token
+            # Prepare token (no presale for now — keeps value calculation simple)
+            valid_labels = ["Meme", "AI", "Defi", "Games", "Infra", "De-Sci", "Social", "Depin", "Charity", "Others"]
+            label = concept.get("narrative", "AI")
+            if label not in valid_labels:
+                label = "AI"
+
             prep = await self.api.prepare_token(
                 name=concept["name"],
                 symbol=concept["symbol"],
                 description=concept["description"],
                 img_url=image_url,
-                label=concept.get("narrative", "Meme") if concept.get("narrative", "") in ["Meme", "AI", "Defi", "Games", "Infra", "De-Sci", "Social", "Depin", "Charity", "Others"] else "AI",
+                label=label,
+                pre_sale_bnb=0,
             )
+
+            # Calculate exact creation value from contract
+            creation_value = await self.chain.calculate_creation_value(pre_sale_bnb=0)
+            logger.info("[BIRTH] Creation value: {} wei", creation_value)
 
             # Create on-chain
             tx_hash = await self.chain.create_token(
                 create_arg=prep["create_arg"],
                 signature=prep["signature"],
-                dev_buy_bnb=0.01,  # Small dev buy for sniper protection
+                creation_fee_wei=creation_value,
             )
 
             # Find the token address from events

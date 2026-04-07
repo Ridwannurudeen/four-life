@@ -165,29 +165,63 @@ class FourMemeChain:
         self,
         create_arg: str,
         signature: str,
-        dev_buy_bnb: float = 0.0,
+        creation_fee_wei: int = 0,
     ) -> str:
         """Create token on-chain via TokenManager2.
 
         Args:
             create_arg: Hex-encoded createArg from Four.meme API
             signature: Server signature from Four.meme API
-            dev_buy_bnb: Optional BNB to buy as creator (sniper protection)
+            creation_fee_wei: Exact value in wei (from fee calculation)
 
         Returns:
             Transaction hash
         """
-        creation_fee = self.w3.to_wei(0.005, "ether")
-        dev_buy_wei = self.w3.to_wei(dev_buy_bnb, "ether") if dev_buy_bnb > 0 else 0
-        total_value = creation_fee + dev_buy_wei
-
         create_arg_bytes = bytes.fromhex(create_arg.replace("0x", ""))
         sig_bytes = bytes.fromhex(signature.replace("0x", ""))
 
         tx_func = self.contract.functions.createToken(create_arg_bytes, sig_bytes)
-        tx_hash = await self._send_tx(tx_func, value_wei=total_value)
+        tx_hash = await self._send_tx(tx_func, value_wei=creation_fee_wei)
         logger.info("Token created! tx: {}", tx_hash)
         return tx_hash
+
+    async def get_launch_fee(self) -> int:
+        """Read _launchFee() from TokenManager2."""
+        # Add ABI for fee functions
+        fee_abi = [
+            {"inputs": [], "name": "_launchFee", "outputs": [{"type": "uint256"}], "stateMutability": "view", "type": "function"},
+            {"inputs": [], "name": "_tradingFeeRate", "outputs": [{"type": "uint256"}], "stateMutability": "view", "type": "function"},
+        ]
+        fee_contract = self.w3.eth.contract(
+            address=self.w3.to_checksum_address(TOKEN_MANAGER_ADDRESS),
+            abi=fee_abi,
+        )
+        return await fee_contract.functions._launchFee().call()
+
+    async def get_trading_fee_rate(self) -> int:
+        """Read _tradingFeeRate() from TokenManager2."""
+        fee_abi = [
+            {"inputs": [], "name": "_tradingFeeRate", "outputs": [{"type": "uint256"}], "stateMutability": "view", "type": "function"},
+        ]
+        fee_contract = self.w3.eth.contract(
+            address=self.w3.to_checksum_address(TOKEN_MANAGER_ADDRESS),
+            abi=fee_abi,
+        )
+        return await fee_contract.functions._tradingFeeRate().call()
+
+    async def calculate_creation_value(self, pre_sale_bnb: float = 0) -> int:
+        """Calculate exact value to send with createToken tx.
+
+        Follows the reference: value = launchFee + presaleWei + tradingFee
+        """
+        launch_fee = await self.get_launch_fee()
+        if pre_sale_bnb <= 0:
+            return launch_fee
+
+        presale_wei = self.w3.to_wei(pre_sale_bnb, "ether")
+        trading_fee_rate = await self.get_trading_fee_rate()
+        trading_fee = (presale_wei * trading_fee_rate) // 10000
+        return launch_fee + presale_wei + trading_fee
 
     # ── Trading ───────────────────────────────────────────────────────
 
