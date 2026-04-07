@@ -287,6 +287,158 @@ function ConceptPanel() {
   );
 }
 
+/* ── Graduation Radar ──────────────────────────────────── */
+
+interface RadarToken {
+  token_address: string;
+  name: string;
+  symbol: string;
+  holders: number;
+  curve_progress: number;
+  volume_bnb: number;
+  increase_pct: number;
+  health_score: number;
+  graduation_probability: number;
+  status: string;
+}
+
+function RadarPanel() {
+  const [tokens, setTokens] = useState<RadarToken[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [planToken, setPlanToken] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Record<string, unknown> | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/api/graduation-radar?limit=20`)
+      .then((r) => r.json())
+      .then((data) => { setTokens(data.radar || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const generatePlan = useCallback(async (addr: string) => {
+    setPlanToken(addr);
+    setPlanLoading(true);
+    setPlan(null);
+    try {
+      const res = await fetch(`${API}/api/raise-plan/${addr}`, { method: "POST" });
+      const data = await res.json();
+      setPlan(data.plan || null);
+    } catch { /* ignore */ }
+    setPlanLoading(false);
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-br from-green-950/30 via-gray-900/80 to-cyan-950/30 border border-green-500/10 rounded-2xl p-6">
+        <h2 className="text-2xl font-bold">Graduation Radar</h2>
+        <p className="text-sm text-gray-400 mt-1">Live Four.meme tokens ranked by graduation probability. Updated every request.</p>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="inline-block w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-400 mt-3">Scanning Four.meme...</p>
+        </div>
+      ) : (
+        <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl overflow-hidden">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-4 py-2 text-[10px] text-gray-500 uppercase tracking-wider border-b border-gray-800/50">
+            <div>Token</div>
+            <div className="text-right">Holders</div>
+            <div className="text-right">Curve</div>
+            <div className="text-right">Volume</div>
+            <div className="text-right">Health</div>
+            <div className="text-right">Grad %</div>
+            <div></div>
+          </div>
+          {tokens.map((t, i) => (
+            <div key={t.token_address} className={`grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-4 py-3 items-center ${i % 2 === 0 ? "" : "bg-gray-800/10"} hover:bg-gray-800/30 transition-colors`}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 font-mono text-xs w-5">{i + 1}</span>
+                  <span className="font-medium text-sm truncate">{t.name}</span>
+                  <span className="text-gray-500 font-mono text-xs">${t.symbol}</span>
+                </div>
+              </div>
+              <div className="text-right font-mono text-sm">{t.holders}</div>
+              <div className="text-right">
+                <div className="inline-flex items-center gap-1">
+                  <div className="w-12 bg-gray-800 rounded-full h-1.5">
+                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, t.curve_progress)}%` }} />
+                  </div>
+                  <span className="text-xs font-mono">{t.curve_progress}%</span>
+                </div>
+              </div>
+              <div className="text-right font-mono text-xs text-gray-400">{t.volume_bnb} BNB</div>
+              <div className="text-right">
+                <span className={`font-mono text-sm font-bold ${t.health_score >= 70 ? "text-green-400" : t.health_score >= 40 ? "text-yellow-400" : "text-red-400"}`}>
+                  {t.health_score}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className={`font-mono text-sm font-bold ${t.graduation_probability >= 50 ? "text-green-400" : t.graduation_probability >= 25 ? "text-yellow-400" : "text-gray-400"}`}>
+                  {t.graduation_probability}%
+                </span>
+              </div>
+              <div>
+                <button
+                  onClick={() => generatePlan(t.token_address)}
+                  className="px-2 py-1 text-[10px] bg-cyan-900/30 text-cyan-400 border border-cyan-500/20 rounded hover:bg-cyan-900/50 transition-colors"
+                >
+                  Plan
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Raise Plan Display */}
+      {planToken && (
+        <div className="bg-gray-900/80 border border-cyan-500/10 rounded-xl p-5">
+          <h3 className="font-bold text-cyan-400 mb-3">72-Hour Raise Plan</h3>
+          {planLoading ? (
+            <div className="text-center py-6">
+              <div className="inline-block w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs text-gray-400 mt-2">Generating plan via DGrid AI...</p>
+            </div>
+          ) : plan ? (
+            <div className="space-y-4">
+              {(plan as { phases?: Array<{ name: string; actions: string[]; content_suggestions: string[]; risk_checks: string[] }> }).phases?.map((phase, i) => (
+                <div key={i} className="bg-gray-800/30 rounded-lg p-4">
+                  <h4 className="font-bold text-sm text-white mb-2">{phase.name}</h4>
+                  <div className="grid md:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <div className="text-gray-500 uppercase tracking-wider mb-1">Actions</div>
+                      {phase.actions?.map((a, j) => <div key={j} className="text-gray-300 mb-1">{a}</div>)}
+                    </div>
+                    <div>
+                      <div className="text-gray-500 uppercase tracking-wider mb-1">Content</div>
+                      {phase.content_suggestions?.map((c, j) => <div key={j} className="text-gray-400 mb-1">{c}</div>)}
+                    </div>
+                    <div>
+                      <div className="text-gray-500 uppercase tracking-wider mb-1">Risk Checks</div>
+                      {phase.risk_checks?.map((r, j) => <div key={j} className="text-yellow-500/70 mb-1">{r}</div>)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {(plan as { graduation_strategy?: string }).graduation_strategy && (
+                <div className="bg-green-950/20 border border-green-500/10 rounded-lg p-3">
+                  <div className="text-[10px] text-green-500 uppercase tracking-wider mb-1">Graduation Strategy</div>
+                  <p className="text-sm text-green-300">{(plan as { graduation_strategy: string }).graduation_strategy}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">Failed to generate plan.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Memory Panel ──────────────────────────────────────── */
 
 interface LaunchRecord {
@@ -428,7 +580,7 @@ export default function Dashboard() {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview" | "generate" | "memory">("overview");
+  const [tab, setTab] = useState<"overview" | "generate" | "radar" | "memory">("overview");
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -472,7 +624,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             {/* Tabs */}
             <nav className="flex gap-1 bg-gray-900/50 rounded-lg p-0.5">
-              {(["overview", "generate", "memory"] as const).map((t) => (
+              {(["overview", "generate", "radar", "memory"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -480,7 +632,7 @@ export default function Dashboard() {
                     tab === t ? "bg-gray-800 text-white" : "text-gray-500 hover:text-gray-300"
                   }`}
                 >
-                  {t === "overview" ? "Dashboard" : t === "generate" ? "Generate" : "Memory"}
+                  {t === "overview" ? "Dashboard" : t === "generate" ? "Generate" : t === "radar" ? "Radar" : "Memory"}
                 </button>
               ))}
             </nav>
@@ -646,6 +798,9 @@ export default function Dashboard() {
 
         {/* ── Generate Tab ── */}
         {tab === "generate" && <ConceptPanel />}
+
+        {/* ── Radar Tab ── */}
+        {tab === "radar" && <RadarPanel />}
 
         {/* ── Memory Tab ── */}
         {tab === "memory" && <MemoryPanel status={status} />}
