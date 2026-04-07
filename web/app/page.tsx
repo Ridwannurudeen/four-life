@@ -287,6 +287,140 @@ function ConceptPanel() {
   );
 }
 
+/* ── Memory Panel ──────────────────────────────────────── */
+
+interface LaunchRecord {
+  name: string;
+  symbol: string;
+  narrative: string;
+  launched_at: number;
+  peak_holders: number;
+  peak_health_score: number;
+  peak_curve_progress: number;
+  graduated: boolean;
+  what_worked: string[];
+  what_failed: string[];
+}
+
+function MemoryPanel({ status }: { status: AgentStatus | null }) {
+  const [launches, setLaunches] = useState<LaunchRecord[]>([]);
+
+  useEffect(() => {
+    fetch(`${API}/api/memory`)
+      .then((r) => r.json())
+      .then((data) => setLaunches(data.launches || []))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* Launch History */}
+      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-800/50">
+          <h2 className="font-bold">Launch History</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Every token the agent has created and managed</p>
+        </div>
+        {launches.length === 0 ? (
+          <div className="p-8 text-center text-gray-600 text-sm">No launches recorded yet.</div>
+        ) : (
+          <div className="divide-y divide-gray-800/50">
+            {launches.map((launch, i) => (
+              <div key={i} className="p-4 hover:bg-gray-800/20 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-bold">{launch.name}</span>
+                    <span className="text-gray-400 font-mono text-sm">${launch.symbol}</span>
+                    {launch.graduated ? (
+                      <span className="px-2 py-0.5 text-[10px] bg-green-900/40 text-green-400 border border-green-500/20 rounded font-mono">GRADUATED</span>
+                    ) : (
+                      <span className="px-2 py-0.5 text-[10px] bg-gray-800 text-gray-400 border border-gray-700 rounded font-mono">ACTIVE</span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-gray-600">
+                    {launch.launched_at ? new Date(launch.launched_at * 1000).toLocaleDateString() + " " + new Date(launch.launched_at * 1000).toLocaleTimeString() : "—"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-4 text-sm mt-2">
+                  <div>
+                    <div className="text-[10px] text-gray-600">Narrative</div>
+                    <div className="text-cyan-400 text-xs">{launch.narrative || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-600">Peak Holders</div>
+                    <div className="font-mono">{launch.peak_holders}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-600">Peak Health</div>
+                    <div className="font-mono">{launch.peak_health_score}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-600">Curve Peak</div>
+                    <div className="font-mono">{launch.peak_curve_progress}%</div>
+                  </div>
+                </div>
+                {(launch.what_worked.length > 0 || launch.what_failed.length > 0) && (
+                  <div className="mt-3 flex gap-4">
+                    {launch.what_worked.map((w, j) => (
+                      <span key={j} className="text-[10px] text-green-500">{w}</span>
+                    ))}
+                    {launch.what_failed.map((f, j) => (
+                      <span key={j} className="text-[10px] text-red-400">{f}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Learnings */}
+      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+        <h2 className="font-bold mb-4">Agent Learnings</h2>
+        {!status || status.global_learnings.length === 0 ? (
+          <p className="text-gray-600 text-sm">No learnings yet. The agent evaluates each launch after 72h and extracts patterns.</p>
+        ) : (
+          <div className="space-y-3">
+            {status.global_learnings.map((learning, i) => (
+              <div key={i} className="flex gap-3 text-sm">
+                <span className="text-gray-700 font-mono shrink-0 w-6 text-right">#{i + 1}</span>
+                <span className="text-gray-300">{learning}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Architecture */}
+      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+        <h2 className="font-bold mb-2">Architecture</h2>
+        <pre className="text-[10px] text-gray-500 font-mono leading-relaxed overflow-x-auto">{`
+FOUR-LIFE Agent Loop
+--------------------
+THINK  ->  Analyze Four.meme market via DGrid AI Gateway
+           Detect narrative gaps, trending themes, saturation
+           Generate token concept (name, lore, personality, memes)
+
+BIRTH  ->  Create token on Four.meme (via Agentic Mode API)
+           Generate artwork (DALL-E), upload, deploy on-chain
+           Post launch thread to Twitter/X
+
+RAISE  ->  Monitor health: holders, whales, buy/sell, curve progress
+           Phase management: nurture (0-6h) -> defend (6-24h) -> accelerate (24-72h)
+           Generate content, celebrate milestones, post transparency updates
+           Graduation probability prediction
+
+LEARN  ->  Evaluate outcomes after 72h
+           Record what worked/failed per narrative
+           Improve strategy for next launch via Unibase memory
+
+Stack: DGrid AI (LLM) | BNB Chain (web3) | ERC-8004 (identity) | Four.meme (launch) | MYX V2 (perps)
+        `.trim()}</pre>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Dashboard ────────────────────────────────────── */
 
 export default function Dashboard() {
@@ -514,51 +648,7 @@ export default function Dashboard() {
         {tab === "generate" && <ConceptPanel />}
 
         {/* ── Memory Tab ── */}
-        {tab === "memory" && status && (
-          <div className="space-y-6">
-            <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
-              <h2 className="font-bold mb-4">Agent Learnings</h2>
-              {status.global_learnings.length === 0 ? (
-                <p className="text-gray-600 text-sm">No learnings yet. The agent learns from each token lifecycle.</p>
-              ) : (
-                <div className="space-y-3">
-                  {status.global_learnings.map((learning, i) => (
-                    <div key={i} className="flex gap-3 text-sm">
-                      <span className="text-gray-700 font-mono shrink-0 w-6 text-right">#{i + 1}</span>
-                      <span className="text-gray-300">{learning}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
-              <h2 className="font-bold mb-2">Architecture</h2>
-              <pre className="text-[10px] text-gray-500 font-mono leading-relaxed overflow-x-auto">{`
-FOUR-LIFE Agent Loop
---------------------
-THINK  ->  Analyze Four.meme market via DGrid AI Gateway
-           Detect narrative gaps, trending themes, saturation
-           Generate token concept (name, lore, personality, memes)
-
-BIRTH  ->  Create token on Four.meme (via Agentic Mode API)
-           Generate artwork (DALL-E), upload, deploy on-chain
-           Post launch thread to Twitter/X
-
-RAISE  ->  Monitor health: holders, whales, buy/sell, curve progress
-           Phase management: nurture (0-6h) -> defend (6-24h) -> accelerate (24-72h)
-           Generate content, celebrate milestones, post transparency updates
-           Graduation probability prediction
-
-LEARN  ->  Evaluate outcomes after 72h
-           Record what worked/failed per narrative
-           Improve strategy for next launch via Unibase memory
-
-Stack: DGrid AI (LLM) | BNB Chain (web3) | ERC-8004 (identity) | Four.meme (launch) | MYX V2 (perps)
-              `.trim()}</pre>
-            </div>
-          </div>
-        )}
+        {tab === "memory" && <MemoryPanel status={status} />}
       </main>
 
       {/* Footer */}
