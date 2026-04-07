@@ -205,8 +205,8 @@ class FourLifeAgent:
             tx_hash = output["txHash"]
             logger.info("[BIRTH] Token created! tx: {}", tx_hash)
 
-            # Find the token address from tx receipt
-            receipt = await self.chain.w3.eth.get_transaction_receipt(tx_hash)
+            # Wait for tx confirmation then get receipt
+            receipt = await self.chain.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
             token_address = None
             for log in receipt["logs"]:
                 # Look for OwnershipTransferred from 0x0 — first log of new token
