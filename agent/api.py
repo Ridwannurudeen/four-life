@@ -215,7 +215,7 @@ async def actions(limit: int = 50):
 
 @app.get("/api/myx/status")
 async def myx_status():
-    if not agent.myx:
+    if not agent or not agent.myx:
         return {"enabled": False, "reason": "MYX not configured"}
     try:
         markets = await agent.myx.get_markets()
@@ -230,7 +230,7 @@ async def myx_status():
 
 @app.get("/api/myx/signal/{token_address}")
 async def myx_signal(token_address: str):
-    if not agent.myx_strategy:
+    if not agent or not agent.myx_strategy:
         return {"error": "MYX not configured"}
 
     health = agent.monitor.state.tokens.get(token_address)
@@ -259,7 +259,7 @@ async def myx_signal(token_address: str):
 @app.get("/api/myx/portfolio")
 async def myx_portfolio():
     """Get hedge portfolio summary across all tokens."""
-    if not agent.hedge_manager:
+    if not agent or not agent.hedge_manager:
         return {"enabled": False, "reason": "MYX not configured"}
     return agent.hedge_manager.get_portfolio_summary()
 
@@ -267,7 +267,7 @@ async def myx_portfolio():
 @app.get("/api/myx/positions/{token_address}")
 async def myx_positions(token_address: str):
     """Get all hedge positions for a specific token."""
-    if not agent.hedge_manager:
+    if not agent or not agent.hedge_manager:
         return {"enabled": False, "reason": "MYX not configured"}
     return {
         "token_address": token_address,
@@ -278,7 +278,7 @@ async def myx_positions(token_address: str):
 @app.post("/api/myx/evaluate/{token_address}")
 async def myx_evaluate(token_address: str):
     """Manually trigger a hedge evaluation for a token."""
-    if not agent.hedge_manager:
+    if not agent or not agent.hedge_manager:
         return {"error": "MYX not configured"}
 
     health = agent.monitor.state.tokens.get(token_address)
@@ -588,6 +588,8 @@ async def graduation_radar(limit: int = 20):
 async def start_agent():
     """Start the agent loop."""
     import asyncio
+    if not agent:
+        return {"error": "Agent not configured"}
     if not agent.running:
         asyncio.create_task(agent.run())
         return {"status": "started"}
@@ -597,6 +599,8 @@ async def start_agent():
 @app.post("/api/agent/stop")
 async def stop_agent():
     """Stop the agent loop."""
+    if not agent:
+        return {"error": "Agent not configured"}
     await agent.stop()
     return {"status": "stopped"}
 
