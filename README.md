@@ -1,8 +1,8 @@
 # FOUR-LIFE
 
-**The first AI agent that doesn't just launch tokens — it raises them.**
+**The AI growth operator for Four.meme launches.**
 
-FOUR-LIFE is an autonomous AI agent with on-chain identity (ERC-8004), persistent memory (Unibase), and social presence (Twitter/X) that creates meme tokens on [Four.meme](https://four.meme), then stays alive to grow them through a complete lifecycle: **THINK → BIRTH → RAISE → LEARN**.
+FOUR-LIFE helps Four.meme tokens survive after launch: it analyzes narratives, predicts graduation probability, creates token lore and content, monitors holder and curve health, posts transparent updates, and learns from every launch. Think of it as the post-launch lifecycle layer that Four.meme is missing.
 
 Built for the [Four.meme AI Sprint Hackathon](https://dorahacks.io/hackathon/fourmemeaisprint) on BNB Chain.
 
@@ -94,14 +94,28 @@ python server.py
 
 | Endpoint | Description |
 |----------|-------------|
+### Public Integration APIs (no auth required)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/health-score/{token}` | Health score, graduation probability, risk factors for any Four.meme token |
+| `GET /api/graduation-radar` | Ranks active Four.meme tokens by graduation probability |
+| `POST /api/raise-plan/{token}` | AI-generated 72-hour lifecycle plan for a token |
+| `GET /.well-known/agent-registration.json` | ERC-8004 agent card |
+
+### Agent Dashboard APIs
+
+| Endpoint | Description |
+|----------|-------------|
 | `GET /api/status` | Agent status, wallet, track record |
 | `GET /api/tokens` | All tracked tokens with health scores |
 | `GET /api/tokens/{address}` | Detailed token health + actions |
 | `GET /api/memory` | Agent memory, learnings, launch history |
 | `GET /api/actions` | Recent lifecycle actions log |
+| `POST /api/agent/think` | Run one THINK cycle, generate concept |
+| `POST /api/agent/track` | Track an existing token for lifecycle management |
 | `POST /api/agent/start` | Start agent loop |
 | `POST /api/agent/stop` | Stop agent loop |
-| `GET /.well-known/agent-registration.json` | ERC-8004 agent card |
 
 ## Bounty Integrations
 

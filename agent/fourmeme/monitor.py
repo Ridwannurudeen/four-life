@@ -71,9 +71,10 @@ class TokenMonitor:
     WHALE_THRESHOLD_PCT = 5.0
     SCAN_INTERVAL_BLOCKS = 100  # ~50 seconds at 0.5s/block
 
-    def __init__(self, chain: FourMemeChain) -> None:
+    def __init__(self, chain: FourMemeChain, graduation_threshold: float = 18.0) -> None:
         self.chain = chain
         self.state = MonitorState()
+        self.graduation_threshold = graduation_threshold  # BNB needed for graduation
 
     async def track_token(self, token_address: str, name: str = "", symbol: str = "",
                           creator: str = "", created_block: int = 0) -> None:
@@ -157,8 +158,9 @@ class TokenMonitor:
             pass
 
         # Bonding curve progress estimate from buy volume
-        # Curve fills at ~18 BNB
-        health.curve_progress_pct = min(100, (health.buy_volume_bnb / 18.0) * 100)
+        # Graduation threshold from Four.meme config (default 18 BNB for BNB pair)
+        graduation_bnb = self.graduation_threshold
+        health.curve_progress_pct = min(100, (health.buy_volume_bnb / graduation_bnb) * 100)
 
         # Health score (0-100)
         health.health_score = self._compute_health_score(health)

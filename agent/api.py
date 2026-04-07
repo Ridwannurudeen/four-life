@@ -256,6 +256,286 @@ async def myx_signal(token_address: str):
         return {"error": str(e)}
 
 
+# ── Public Integration APIs ──────────────────────────────────────────
+# These endpoints are designed for Four.meme to consume directly.
+# No auth required. Any token address works.
+
+@app.get("/api/health-score/{token_address}")
+async def public_health_score(token_address: str):
+    """Public health score for any Four.meme token.
+
+    Integration-ready: Four.meme can embed this on token pages.
+    Returns health score, graduation probability, risk metrics, and suggested actions.
+    """
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    try:
+        from agent.fourmeme.monitor import TokenHealth, TokenMonitor
+        from agent.fourmeme.chain import FourMemeChain
+
+        # Check if already tracked
+        health = agent.monitor.state.tokens.get(token_address)
+
+        if not health:
+            # Create a temporary monitor for this token
+            chain = agent.chain
+            current_block = await chain.get_block_number()
+
+            # Get token info from Four.meme API
+            try:
+                detail = await agent.api._client.post(
+                    "/public/token/ranking",
+                    json={"pageNo": 1, "pageSize": 50, "type": "HOT"},
+                )
+                tokens_data = detail.json().get("data", [])
+                token_info = next(
+                    (t for t in tokens_data if t.get("tokenAddress", "").lower() == token_address.lower()),
+                    None,
+                )
+            except Exception:
+                token_info = None
+
+            name = token_info.get("name", "") if token_info else ""
+            symbol = token_info.get("shortName", "") if token_info else ""
+            holders = int(token_info.get("hold", 0)) if token_info else 0
+            progress = float(token_info.get("progress", 0)) if token_info else 0
+            volume = float(token_info.get("volume", 0)) if token_info else 0
+
+            # Build a health snapshot from available data
+            health_score = 0.0
+            grad_prob = 0.0
+
+            # Score based on available metrics
+            if holders >= 500: health_score += 30
+            elif holders >= 200: health_score += 20
+            elif holders >= 50: health_score += 10
+
+            if progress >= 0.8: health_score += 25; grad_prob += 0.5
+            elif progress >= 0.5: health_score += 15; grad_prob += 0.3
+            elif progress >= 0.25: health_score += 8; grad_prob += 0.15
+
+            if holders >= 500: grad_prob += 0.2
+            elif holders >= 200: grad_prob += 0.1
+
+            if volume > 100: health_score += 20
+            elif volume > 10: health_score += 10
+
+            health_score = min(100, health_score)
+            grad_prob = min(1.0, grad_prob)
+
+            return {
+                "token_address": token_address,
+                "name": name,
+                "symbol": symbol,
+                "health_score": round(health_score, 1),
+                "graduation_probability": round(grad_prob * 100, 1),
+                "holders": holders,
+                "curve_progress": round(progress * 100, 1),
+                "volume_bnb": round(volume, 4),
+                "risk_factors": [],
+                "suggested_action": "Track this token with FOUR-LIFE for detailed lifecycle management.",
+                "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+            }
+
+        # Already tracked — return full metrics
+        risk_factors = []
+        if health.top_holder_pct > 30:
+            risk_factors.append(f"High whale concentration: top holder owns {health.top_holder_pct:.1f}%")
+        if health.buy_sell_ratio < 1:
+            risk_factors.append(f"Sell pressure exceeding buys: ratio {health.buy_sell_ratio:.2f}")
+        if health.holder_velocity < 1 and health.age_hours > 2:
+            risk_factors.append("Low holder growth velocity")
+
+        suggested = "No action needed."
+        if health.top_holder_pct > 30:
+            suggested = "Post transparency update showing holder distribution."
+        elif health.curve_progress_pct < 25 and health.age_hours > 12:
+            suggested = "Increase community engagement — post memes and milestone updates."
+        elif health.curve_progress_pct > 70:
+            suggested = "Push for graduation — coordinate community buying pressure."
+
+        return {
+            "token_address": token_address,
+            "name": health.name,
+            "symbol": health.symbol,
+            "health_score": health.health_score,
+            "graduation_probability": round(health.graduation_probability * 100, 1),
+            "phase": health.phase,
+            "age_hours": round(health.age_hours, 1),
+            "holders": health.unique_buyers,
+            "holder_velocity": round(health.holder_velocity, 1),
+            "buy_sell_ratio": round(health.buy_sell_ratio, 2),
+            "top_holder_pct": round(health.top_holder_pct, 1),
+            "whale_count": health.whale_count,
+            "curve_progress": round(health.curve_progress_pct, 1),
+            "buy_volume_bnb": round(health.buy_volume_bnb, 4),
+            "sell_volume_bnb": round(health.sell_volume_bnb, 4),
+            "risk_factors": risk_factors,
+            "suggested_action": suggested,
+            "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+        }
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/raise-plan/{token_address}")
+async def generate_raise_plan(token_address: str):
+    """Generate a 72-hour lifecycle raise plan for a token.
+
+    AI creates an actionable phased plan: 0-30min, 1-6h, 6-24h, 24-72h, post-graduation.
+    """
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    try:
+        from agent.brain.llm import get_llm
+
+        # Get token info
+        health = agent.monitor.state.tokens.get(token_address)
+        health_context = ""
+        if health:
+            health_context = f"""
+Token: {health.name} ({health.symbol})
+Current Phase: {health.phase}
+Age: {health.age_hours:.1f}h
+Health Score: {health.health_score}/100
+Holders: {health.unique_buyers}
+Buy/Sell Ratio: {health.buy_sell_ratio:.2f}
+Top Holder: {health.top_holder_pct:.1f}%
+Bonding Curve: {health.curve_progress_pct:.1f}%
+"""
+        else:
+            health_context = f"Token address: {token_address} (not currently tracked — no live metrics available)"
+
+        plan = await get_llm().chat_json([{
+            "role": "user",
+            "content": f"""You are FOUR-LIFE, an AI lifecycle agent for Four.meme tokens on BNB Chain.
+
+Generate a 72-hour Raise Plan for this token. The plan should help it graduate (reach 18 BNB bonding curve).
+
+{health_context}
+
+Create a phased action plan in JSON:
+{{
+  "token_address": "{token_address}",
+  "phases": [
+    {{
+      "name": "Launch (0-30 min)",
+      "actions": ["action 1", "action 2", ...],
+      "content_suggestions": ["tweet idea", ...],
+      "risk_checks": ["thing to monitor", ...]
+    }},
+    {{
+      "name": "Nurture (1-6 hours)",
+      "actions": [...],
+      "content_suggestions": [...],
+      "risk_checks": [...]
+    }},
+    {{
+      "name": "Defend (6-24 hours)",
+      "actions": [...],
+      "content_suggestions": [...],
+      "risk_checks": [...]
+    }},
+    {{
+      "name": "Accelerate (24-72 hours)",
+      "actions": [...],
+      "content_suggestions": [...],
+      "risk_checks": [...]
+    }},
+    {{
+      "name": "Post-Graduation",
+      "actions": [...],
+      "content_suggestions": [...],
+      "risk_checks": [...]
+    }}
+  ],
+  "graduation_strategy": "one sentence summary of the best path to graduation",
+  "risk_assessment": "key risks and how to mitigate them"
+}}
+
+Be specific and actionable. No vague advice. Reference actual metrics where available."""
+        }])
+
+        return {"plan": plan, "powered_by": "FOUR-LIFE | four-life.gudman.xyz"}
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/api/graduation-radar")
+async def graduation_radar(limit: int = 20):
+    """Public Graduation Radar — ranks active Four.meme tokens by graduation probability.
+
+    Useful for traders and creators to discover high-potential tokens.
+    """
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    try:
+        # Get hot tokens from Four.meme
+        hot_tokens = await agent.api.get_trending()
+        new_tokens = await agent.api.get_new_tokens(page_size=limit)
+
+        # Merge and deduplicate
+        seen = set()
+        all_tokens = []
+        for t in hot_tokens + new_tokens:
+            addr = t.get("tokenAddress", "")
+            if addr and addr not in seen:
+                seen.add(addr)
+                holders = int(t.get("hold", 0))
+                progress = float(t.get("progress", 0))
+                volume = float(t.get("volume", 0))
+                increase = float(t.get("increase", 0))
+
+                # Calculate scores
+                health_score = 0.0
+                grad_prob = 0.0
+
+                if holders >= 500: health_score += 30; grad_prob += 0.2
+                elif holders >= 200: health_score += 20; grad_prob += 0.1
+                elif holders >= 50: health_score += 10; grad_prob += 0.05
+
+                if progress >= 0.8: health_score += 25; grad_prob += 0.5
+                elif progress >= 0.5: health_score += 15; grad_prob += 0.3
+                elif progress >= 0.25: health_score += 8; grad_prob += 0.15
+
+                if volume > 100: health_score += 20; grad_prob += 0.1
+                elif volume > 10: health_score += 10; grad_prob += 0.05
+
+                if increase > 0.5: health_score += 15
+                elif increase > 0: health_score += 5
+
+                all_tokens.append({
+                    "token_address": addr,
+                    "name": t.get("name", ""),
+                    "symbol": t.get("shortName", ""),
+                    "holders": holders,
+                    "curve_progress": round(progress * 100, 1),
+                    "volume_bnb": round(volume, 2),
+                    "increase_pct": round(increase * 100, 1),
+                    "health_score": round(min(100, health_score), 1),
+                    "graduation_probability": round(min(100, grad_prob * 100), 1),
+                    "status": t.get("status", ""),
+                })
+
+        # Sort by graduation probability descending
+        all_tokens.sort(key=lambda x: x["graduation_probability"], reverse=True)
+
+        return {
+            "radar": all_tokens[:limit],
+            "total_scanned": len(all_tokens),
+            "timestamp": time.time(),
+            "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+        }
+
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 # ── Manual Controls ──────────────────────────────────────────────────
 
 @app.post("/api/agent/start")
