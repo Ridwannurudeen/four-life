@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -637,7 +638,12 @@ async def manual_think(_=Depends(require_auth)):
             recent = []
 
         # Analyze narratives
-        market_analysis = await agent.narrative.analyze_market(trending, recent)
+        try:
+            market_analysis = await agent.narrative.analyze_market(trending, recent)
+        except Exception as e:
+            logger.error("analyze_market failed: {}", e)
+            market_analysis = {"recommended_narrative": {"name": "trending meme", "reasoning": "fallback"}}
+
         narrative = market_analysis.get("recommended_narrative", {})
         narrative_name = narrative.get("name", "trending meme") if isinstance(narrative, dict) else str(narrative)
 
@@ -652,6 +658,7 @@ async def manual_think(_=Depends(require_auth)):
             "message": "Concept ready. Create this token on four.meme, then POST to /api/agent/track with the token address.",
         }
     except Exception as e:
+        logger.error("manual_think failed: {}", e)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
