@@ -16,17 +16,21 @@ class NarrativeEngine:
         Returns:
             dict with 'trending_narratives', 'saturated_themes', 'opportunity_gaps'
         """
-        token_summary = json.dumps(trending_tokens[:20], indent=2, default=str)
-        recent_summary = json.dumps(recent_creates[:30], indent=2, default=str)
+        # Trim to essential fields to stay within token limits
+        def slim(t: dict) -> dict:
+            return {k: t.get(k) for k in ("name", "shortName", "tag", "hold", "progress", "volume", "cap") if t.get(k)}
+
+        token_summary = json.dumps([slim(t) for t in trending_tokens[:10]], indent=2, default=str)
+        recent_summary = json.dumps([slim(t) for t in recent_creates[:10]], indent=2, default=str)
 
         return await get_llm().chat_json([{
             "role": "user",
             "content": f"""Analyze these meme tokens currently on Four.meme (BNB Chain).
 
-TRENDING TOKENS:
+TRENDING TOKENS (top 10):
 {token_summary}
 
-RECENTLY CREATED:
+RECENTLY CREATED (top 10):
 {recent_summary}
 
 Identify:
