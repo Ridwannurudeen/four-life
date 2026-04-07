@@ -147,7 +147,7 @@ class FourMemeAPI:
             "reserveRate": 0,
             "imgUrl": img_url,
             "raisedToken": bnb_config,
-            "launchTime": int(time.time() * 1000),
+            "launchTime": int((time.time() + 30) * 1000),  # 30 seconds in the future
             "funGroup": False,
             "label": label,
             "lpTradingFee": 0.0025,

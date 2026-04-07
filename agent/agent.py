@@ -156,6 +156,11 @@ class FourLifeAgent:
             if label not in valid_labels:
                 label = "AI"
 
+            # Pre-calculate creation fee before API call to minimize delay
+            creation_value = await self.chain.calculate_creation_value(pre_sale_bnb=0)
+            logger.info("[BIRTH] Creation value: {} wei", creation_value)
+
+            # Get createArg + signature from API and submit on-chain IMMEDIATELY
             prep = await self.api.prepare_token(
                 name=concept["name"],
                 symbol=concept["symbol"],
@@ -165,11 +170,7 @@ class FourLifeAgent:
                 pre_sale_bnb=0,
             )
 
-            # Calculate exact creation value from contract
-            creation_value = await self.chain.calculate_creation_value(pre_sale_bnb=0)
-            logger.info("[BIRTH] Creation value: {} wei", creation_value)
-
-            # Create on-chain
+            # Submit on-chain right away — createArg expires quickly
             tx_hash = await self.chain.create_token(
                 create_arg=prep["create_arg"],
                 signature=prep["signature"],
