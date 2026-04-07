@@ -377,6 +377,43 @@ export default function Dashboard() {
         {/* ── Overview Tab ── */}
         {tab === "overview" && (
           <>
+            {/* Hero — always visible */}
+            <div className="bg-gradient-to-br from-cyan-950/40 via-gray-900/80 to-blue-950/40 border border-cyan-500/10 rounded-2xl p-8 md:p-10">
+              <div className="max-w-3xl">
+                <h2 className="text-3xl md:text-4xl font-bold leading-tight">
+                  The first AI agent that doesn&apos;t just launch tokens —{" "}
+                  <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">it raises them.</span>
+                </h2>
+                <p className="text-gray-400 mt-4 text-sm leading-relaxed max-w-2xl">
+                  FOUR-LIFE autonomously analyzes the Four.meme market, generates optimized token concepts,
+                  and manages their entire lifecycle through four phases — THINK, BIRTH, RAISE, and LEARN.
+                  Every decision is powered by DGrid AI Gateway. Every identity is verified on-chain via ERC-8004.
+                </p>
+                <div className="flex flex-wrap gap-3 mt-6">
+                  <span className="px-3 py-1.5 bg-cyan-900/30 border border-cyan-500/20 rounded-lg text-xs text-cyan-400">DGrid AI Gateway</span>
+                  <span className="px-3 py-1.5 bg-purple-900/30 border border-purple-500/20 rounded-lg text-xs text-purple-400">ERC-8004 Agent #16</span>
+                  <span className="px-3 py-1.5 bg-green-900/30 border border-green-500/20 rounded-lg text-xs text-green-400">Four.meme Agentic Mode</span>
+                  <span className="px-3 py-1.5 bg-yellow-900/30 border border-yellow-500/20 rounded-lg text-xs text-yellow-400">MYX V2 Perps</span>
+                  <span className="px-3 py-1.5 bg-blue-900/30 border border-blue-500/20 rounded-lg text-xs text-blue-400">BNB Chain</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Lifecycle phases */}
+            <div className="grid md:grid-cols-4 gap-3">
+              {[
+                { phase: "THINK", color: "cyan", desc: "Analyzes Four.meme market, detects narrative gaps, generates token concepts with lore and personality" },
+                { phase: "BIRTH", color: "blue", desc: "Creates tokens via Agentic Mode, generates artwork, posts launch threads to Twitter/X" },
+                { phase: "RAISE", color: "green", desc: "Monitors health, manages nurture/defend/accelerate phases, generates adaptive content" },
+                { phase: "LEARN", color: "purple", desc: "Evaluates outcomes, records learnings, improves strategy for next launch via persistent memory" },
+              ].map((p) => (
+                <div key={p.phase} className={`bg-gray-900/60 border border-${p.color}-500/10 rounded-xl p-4`}>
+                  <div className={`text-${p.color}-400 font-bold font-mono text-sm mb-2`}>{p.phase}</div>
+                  <p className="text-xs text-gray-500 leading-relaxed">{p.desc}</p>
+                </div>
+              ))}
+            </div>
+
             {/* Stats */}
             {status && (
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -392,9 +429,9 @@ export default function Dashboard() {
             <section>
               <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Active Tokens</h2>
               {tokens.length === 0 ? (
-                <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-10 text-center">
-                  <div className="text-gray-600 text-sm">No active tokens</div>
-                  <p className="text-gray-700 text-xs mt-1">Go to the Generate tab to create a concept, launch on four.meme, and track it here</p>
+                <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-8 text-center">
+                  <div className="text-gray-500 text-sm">No active tokens yet</div>
+                  <p className="text-gray-600 text-xs mt-2">Use the <button onClick={() => setTab("generate")} className="text-cyan-500 hover:underline">Generate</button> tab to create a concept, launch it on four.meme, then track it here.</p>
                 </div>
               ) : (
                 <div className="grid gap-3">
