@@ -39,10 +39,6 @@ class FourLifeAgent:
         self.memory = MemoryStore()
         self.identity = AgentIdentity()
         self.twitter = TwitterClient()
-        self.lifecycle = LifecycleEngine(
-            self.monitor, self.strategy, self.content_engine, self.memory, self.twitter,
-            hedge_manager=self.hedge_manager,
-        )
 
         # MYX V2 perp integration
         self.myx = MYXClient(
@@ -51,6 +47,11 @@ class FourLifeAgent:
         ) if settings.myx_router_address else None
         self.myx_strategy = MYXStrategy(self.myx) if self.myx else None
         self.hedge_manager = HedgeManager(self.myx, self.myx_strategy) if self.myx else None
+
+        self.lifecycle = LifecycleEngine(
+            self.monitor, self.strategy, self.content_engine, self.memory, self.twitter,
+            hedge_manager=self.hedge_manager,
+        )
 
         # State
         self.active_concepts: dict[str, dict] = {}  # token_address -> concept
