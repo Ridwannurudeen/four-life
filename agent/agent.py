@@ -147,50 +147,82 @@ class FourLifeAgent:
             logger.info("[BIRTH] Generating artwork...")
             image_bytes = await self.content_engine.generate_image(image_prompt)
 
-            # Upload to Four.meme
-            image_url = await self.api.upload_image(image_bytes)
+            # Save image to temp file for the reference script
+            import tempfile
+            img_path = tempfile.mktemp(suffix=".png")
+            with open(img_path, "wb") as f:
+                f.write(image_bytes)
 
-            # Prepare token (no presale for now — keeps value calculation simple)
+            # Determine label
             valid_labels = ["Meme", "AI", "Defi", "Games", "Infra", "De-Sci", "Social", "Depin", "Charity", "Others"]
             label = concept.get("narrative", "AI")
             if label not in valid_labels:
                 label = "AI"
 
-            # Pre-calculate creation fee before API call to minimize delay
-            creation_value = await self.chain.calculate_creation_value(pre_sale_bnb=0)
-            logger.info("[BIRTH] Creation value: {} wei", creation_value)
+            # Use the reference create-token-instant.ts script (proven working)
+            # It handles: auth → upload → API create → on-chain tx in one shot
+            import subprocess
+            import os
 
-            # Get createArg + signature from API and submit on-chain IMMEDIATELY
-            prep = await self.api.prepare_token(
-                name=concept["name"],
-                symbol=concept["symbol"],
-                description=concept["description"],
-                img_url=image_url,
-                label=label,
-                pre_sale_bnb=0,
+            env = {
+                **os.environ,
+                "PRIVATE_KEY": settings.private_key,
+                "BSC_RPC_URL": settings.bsc_rpc_url,
+            }
+
+            cmd = [
+                "npx", "tsx", "scripts/create-token-instant.ts",
+                f"--image={img_path}",
+                f"--name={concept['name']}",
+                f"--short-name={concept['symbol']}",
+                f"--desc={concept['description'][:200]}",
+                f"--label={label}",
+            ]
+            logger.info("[BIRTH] Running create-token-instant...")
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=str(Path(__file__).parent.parent),
+                timeout=120,
             )
 
-            # Submit on-chain right away — createArg expires quickly
-            tx_hash = await self.chain.create_token(
-                create_arg=prep["create_arg"],
-                signature=prep["signature"],
-                creation_fee_wei=creation_value,
-            )
+            # Clean up temp image
+            try:
+                os.unlink(img_path)
+            except OSError:
+                pass
 
-            # Find the token address from events
-            current_block = await self.chain.get_block_number()
-            creates = await self.chain.get_recent_creates(
-                from_block=current_block - 10
-            )
+            if result.returncode != 0:
+                logger.error("[BIRTH] Script failed: {}", result.stderr[:500])
+                raise RuntimeError(f"create-token-instant failed: {result.stderr[:200]}")
 
+            # Parse output — {"txHash": "0x..."}
+            import json as json_mod
+            output = json_mod.loads(result.stdout.strip())
+            tx_hash = output["txHash"]
+            logger.info("[BIRTH] Token created! tx: {}", tx_hash)
+
+            # Find the token address from tx receipt
+            receipt = await self.chain.w3.eth.get_transaction_receipt(tx_hash)
             token_address = None
-            for create in creates:
-                if create["name"] == concept["name"]:
-                    token_address = create["token"]
+            for log in receipt["logs"]:
+                # Look for OwnershipTransferred from 0x0 — first log of new token
+                if len(log["topics"]) >= 3 and log["topics"][0].hex().startswith("8be0079c"):
+                    token_address = log["address"]
                     break
 
             if not token_address:
-                logger.error("[BIRTH] Could not find token address from events")
+                # Fallback: first log address that isn't TokenManager
+                for log in receipt["logs"]:
+                    if log["address"].lower() != "0x5c952063c7fc8610ffdb798152d69f0b9550762b":
+                        token_address = log["address"]
+                        break
+
+            if not token_address:
+                logger.error("[BIRTH] Could not find token address from receipt")
                 return None
 
             logger.info("[BIRTH] Token live at {}", token_address)
