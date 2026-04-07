@@ -80,7 +80,18 @@ class LLMClient:
         max_tokens: int = 2000,
     ) -> dict:
         """Send a chat request and parse the response as JSON."""
-        text = await self.chat(messages, max_tokens)
+        if self.use_dgrid:
+            # Use response_format for structured JSON output
+            response = await self._client.chat.completions.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                temperature=0.7,
+                messages=messages,
+                response_format={"type": "json_object"},
+            )
+            text = response.choices[0].message.content
+        else:
+            text = await self.chat(messages, max_tokens)
         if not text or not text.strip():
             raise ValueError("LLM returned empty response")
         # Strip markdown code fences (```json ... ```)
