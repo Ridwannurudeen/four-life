@@ -1202,12 +1202,19 @@ export default function Dashboard() {
     };
 
     fetchAll();
+    // Auto-start agent on first load
+    fetch(`${API}/api/agent/start`, { method: "POST" }).catch(() => {});
     const interval = setInterval(fetchAll, 10000);
     return () => clearInterval(interval);
   }, []);
 
   const startAgent = async () => {
     await fetch(`${API}/api/agent/start`, { method: "POST" });
+    // Re-fetch status immediately
+    try {
+      const s = await fetch(`${API}/api/status`).then((r) => r.json());
+      setStatus(s);
+    } catch { /* ignore */ }
   };
 
   return (
@@ -1216,7 +1223,7 @@ export default function Dashboard() {
       <header className="border-b border-gray-800/50 backdrop-blur-sm bg-black/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {status?.running ? <Pulse /> : <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
+            {status?.running ? <Pulse /> : status && !error ? <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse" /> : <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
             <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
               FOUR-LIFE
             </h1>
@@ -1252,10 +1259,12 @@ export default function Dashboard() {
               className={`px-2 py-1 rounded text-[10px] font-mono cursor-pointer ${
                 status?.running
                   ? "bg-green-900/30 text-green-400 border border-green-500/20"
-                  : "bg-red-900/30 text-red-400 border border-red-500/20 hover:bg-red-900/50"
+                  : error
+                    ? "bg-red-900/30 text-red-400 border border-red-500/20"
+                    : "bg-yellow-900/30 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-900/50"
               }`}
             >
-              {status?.running ? "LIVE" : error || "OFFLINE (click to start)"}
+              {status?.running ? "LIVE" : error ? "OFFLINE" : "READY (click to start)"}
             </span>
           </div>
         </div>
