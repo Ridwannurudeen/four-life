@@ -624,28 +624,35 @@ async def manual_think(_=Depends(require_auth)):
 
     from agent.brain.llm import get_llm
 
-    # Get market data
-    trending = await agent.api.get_trending()
     try:
-        recent = await agent.api.get_new_tokens()
-    except Exception:
-        recent = []
+        # Get market data
+        try:
+            trending = await agent.api.get_trending()
+        except Exception:
+            trending = []
 
-    # Analyze narratives
-    market_analysis = await agent.narrative.analyze_market(trending, recent)
-    narrative = market_analysis.get("recommended_narrative", {})
-    narrative_name = narrative.get("name", "trending meme") if isinstance(narrative, dict) else str(narrative)
+        try:
+            recent = await agent.api.get_new_tokens()
+        except Exception:
+            recent = []
 
-    # Generate concept
-    existing_names = [lr.name for lr in agent.memory.memory.launches]
-    concept = await agent.narrative.generate_concept(narrative_name, existing_names)
-    concept["narrative"] = narrative_name
-    concept["market_analysis"] = market_analysis
+        # Analyze narratives
+        market_analysis = await agent.narrative.analyze_market(trending, recent)
+        narrative = market_analysis.get("recommended_narrative", {})
+        narrative_name = narrative.get("name", "trending meme") if isinstance(narrative, dict) else str(narrative)
 
-    return {
-        "concept": concept,
-        "message": "Concept ready. Create this token on four.meme, then POST to /api/agent/track with the token address.",
-    }
+        # Generate concept
+        existing_names = [lr.name for lr in agent.memory.memory.launches]
+        concept = await agent.narrative.generate_concept(narrative_name, existing_names)
+        concept["narrative"] = narrative_name
+        concept["market_analysis"] = market_analysis
+
+        return {
+            "concept": concept,
+            "message": "Concept ready. Create this token on four.meme, then POST to /api/agent/track with the token address.",
+        }
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @app.post("/api/agent/track")

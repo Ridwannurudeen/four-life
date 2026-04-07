@@ -81,19 +81,28 @@ class LLMClient:
     ) -> dict:
         """Send a chat request and parse the response as JSON."""
         text = await self.chat(messages, max_tokens)
+        if not text or not text.strip():
+            raise ValueError("LLM returned empty response")
+        # Strip markdown code fences (```json ... ```)
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            # Remove first line (```json) and last line (```)
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            cleaned = "\n".join(lines).strip()
         try:
-            return json.loads(text)
+            return json.loads(cleaned)
         except json.JSONDecodeError:
-            # Try to extract JSON from the response
-            start = text.find("{")
-            end = text.rfind("}") + 1
+            # Try to extract JSON object from the response
+            start = cleaned.find("{")
+            end = cleaned.rfind("}") + 1
             if start >= 0 and end > start:
-                return json.loads(text[start:end])
+                return json.loads(cleaned[start:end])
             # Try array
-            start = text.find("[")
-            end = text.rfind("]") + 1
+            start = cleaned.find("[")
+            end = cleaned.rfind("]") + 1
             if start >= 0 and end > start:
-                return json.loads(text[start:end])
+                return json.loads(cleaned[start:end])
             raise
 
 
