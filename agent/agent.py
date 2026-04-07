@@ -227,13 +227,16 @@ class FourLifeAgent:
 
             logger.info("[BIRTH] Token live at {}", token_address)
 
+            # Get block number for tracking
+            created_block = receipt["blockNumber"]
+
             # Start tracking
             await self.monitor.track_token(
                 token_address,
                 name=concept["name"],
                 symbol=concept["symbol"],
                 creator=self.chain.account.address,
-                created_block=current_block,
+                created_block=created_block,
             )
 
             # Record in memory
@@ -244,7 +247,7 @@ class FourLifeAgent:
                 narrative=concept.get("narrative", ""),
                 concept=concept,
                 launched_at=time.time(),
-                launch_block=current_block,
+                launch_block=created_block,
                 market_conditions={},
             ))
 
