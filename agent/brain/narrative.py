@@ -39,8 +39,8 @@ Identify:
 3. **opportunity_gaps**: Narrative angles that are trending culturally but have NO or FEW tokens on Four.meme. These are launch opportunities.
 4. **recommended_narrative**: The single best narrative to launch into right now, with reasoning.
 
-Respond in JSON only. No markdown."""
-        }])
+Respond in JSON only. No markdown. Be concise."""
+        }], max_tokens=4000)
 
     async def generate_concept(self, narrative: str, avoid_names: list[str] = None) -> dict:
         """Generate a complete token concept for a given narrative.
@@ -71,7 +71,7 @@ Generate:
 Make it GENUINELY funny — not corporate, not generic. Think 4chan humor meets crypto Twitter.
 
 Respond in JSON only. No markdown."""
-        }])
+        }], max_tokens=4000)
 
     async def generate_image_prompt(self, concept: dict) -> str:
         """Generate a DALL-E prompt for the token's artwork."""
