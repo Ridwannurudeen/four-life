@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     # Wallet
-    private_key: str = Field(alias="PRIVATE_KEY")
-    wallet_address: str = Field(alias="WALLET_ADDRESS")
+    private_key: str = Field(default="", alias="PRIVATE_KEY")
+    wallet_address: str = Field(default="", alias="WALLET_ADDRESS")
 
     # Four.meme
     fourmeme_api_base: str = Field(default="https://four.meme/meme-api/v1", alias="FOURMEME_API_BASE")
@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     )
     min_launch_interval_hours: int = Field(default=24, alias="MIN_LAUNCH_INTERVAL_HOURS")
     max_concurrent_tokens: int = Field(default=3, alias="MAX_CONCURRENT_TOKENS")
+
+    # API auth
+    api_secret: str = Field(default="", alias="API_SECRET")
 
 
 settings = Settings()

@@ -4,7 +4,7 @@ import json
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -12,6 +12,15 @@ from agent.agent import FourLifeAgent
 
 
 agent: FourLifeAgent | None = None
+
+
+async def require_auth(authorization: str = Header(default="")):
+    """Guard for control endpoints. Skip if API_SECRET is not set."""
+    from agent.config import settings
+    if not settings.api_secret:
+        return  # No auth configured — allow (dev mode)
+    if authorization != f"Bearer {settings.api_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @asynccontextmanager
@@ -34,8 +43,8 @@ app = FastAPI(title="FOUR-LIFE Agent API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["https://four-life.gudman.xyz", "http://localhost:3000"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -585,7 +594,7 @@ async def graduation_radar(limit: int = 20):
 # ── Manual Controls ──────────────────────────────────────────────────
 
 @app.post("/api/agent/start")
-async def start_agent():
+async def start_agent(_=Depends(require_auth)):
     """Start the agent loop."""
     import asyncio
     if not agent:
@@ -597,7 +606,7 @@ async def start_agent():
 
 
 @app.post("/api/agent/stop")
-async def stop_agent():
+async def stop_agent(_=Depends(require_auth)):
     """Stop the agent loop."""
     if not agent:
         return {"error": "Agent not configured"}
@@ -608,7 +617,7 @@ async def stop_agent():
 # ── Manual Token Management ──────────────────────────────────────────
 
 @app.post("/api/agent/think")
-async def manual_think():
+async def manual_think(_=Depends(require_auth)):
     """Run one THINK cycle — always generates a concept for manual creation."""
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
@@ -640,7 +649,7 @@ async def manual_think():
 
 
 @app.post("/api/agent/track")
-async def manual_track(data: dict):
+async def manual_track(data: dict, _=Depends(require_auth)):
     """Track an existing token for lifecycle management.
 
     Body: {"token_address": "0x...", "name": "TokenName", "symbol": "TKN", "concept": {...}}

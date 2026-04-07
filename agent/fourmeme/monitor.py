@@ -61,7 +61,7 @@ class MonitorState:
     holder_balances: dict[str, dict[str, int]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(int))
     )
-    last_scanned_block: int = 0
+    last_scanned_block: dict[str, int] = field(default_factory=dict)
 
 
 class TokenMonitor:
@@ -96,7 +96,7 @@ class TokenMonitor:
         if not health:
             raise ValueError(f"Token {token_address} not tracked")
 
-        from_block = max(health.created_block, self.state.last_scanned_block)
+        from_block = max(health.created_block, self.state.last_scanned_block.get(token_address, 0))
         current_block = await self.chain.get_block_number()
 
         # Fetch trade events
@@ -127,16 +127,8 @@ class TokenMonitor:
         else:
             health.buy_sell_ratio = float(health.total_buys) if health.total_buys > 0 else 0
 
-        # Age & phase
+        # Age
         health.age_hours = (time.time() - health.created_at) / 3600
-        if health.age_hours < 6:
-            health.phase = "nurture"
-        elif health.age_hours < 24:
-            health.phase = "defend"
-        elif health.curve_progress_pct >= 100:
-            health.phase = "graduated"
-        else:
-            health.phase = "accelerate"
 
         # Holder velocity
         if health.age_hours > 0:
@@ -162,13 +154,23 @@ class TokenMonitor:
         graduation_bnb = self.graduation_threshold
         health.curve_progress_pct = min(100, (health.buy_volume_bnb / graduation_bnb) * 100)
 
+        # Phase (must be after curve_progress_pct is computed)
+        if health.curve_progress_pct >= 100:
+            health.phase = "graduated"
+        elif health.age_hours < 6:
+            health.phase = "nurture"
+        elif health.age_hours < 24:
+            health.phase = "defend"
+        else:
+            health.phase = "accelerate"
+
         # Health score (0-100)
         health.health_score = self._compute_health_score(health)
 
         # Graduation probability
         health.graduation_probability = self._compute_graduation_prob(health)
 
-        self.state.last_scanned_block = current_block
+        self.state.last_scanned_block[token_address] = current_block
         return health
 
     def _compute_health_score(self, h: TokenHealth) -> float:

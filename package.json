@@ -1,0 +1,12 @@
+{
+  "name": "four-life",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "create-token": "npx tsx scripts/create-token-instant.ts"
+  },
+  "dependencies": {
+    "viem": "^2.0.0",
+    "tsx": "^4.0.0"
+  }
+}

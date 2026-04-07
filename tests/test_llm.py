@@ -6,6 +6,23 @@ from unittest.mock import patch, AsyncMock, MagicMock
 import pytest
 
 
+def _mock_anthropic_response(text: str):
+    """Create a mock Anthropic messages.create response."""
+    mock_response = MagicMock()
+    mock_block = MagicMock()
+    mock_block.text = text
+    mock_response.content = [mock_block]
+    return mock_response
+
+
+def _mock_openai_response(text: str):
+    """Create a mock OpenAI chat.completions.create response."""
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = text
+    return mock_response
+
+
 class TestLLMClient:
     def test_dgrid_mode_when_key_set(self):
         from agent.brain.llm import LLMClient
@@ -24,31 +41,62 @@ class TestLLMClient:
             assert client.use_dgrid is False
 
     @pytest.mark.asyncio
-    async def test_chat_returns_string(self):
+    async def test_chat_returns_string_dgrid(self):
         from agent.brain.llm import LLMClient
-        client = LLMClient()
-
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Hello world"
+        with patch("agent.brain.llm.settings") as mock_settings:
+            mock_settings.dgrid_api_key = "sk-test"
+            mock_settings.dgrid_model = "test/model"
+            client = LLMClient()
 
         client._client = AsyncMock()
-        client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+        client._client.chat.completions.create = AsyncMock(
+            return_value=_mock_openai_response("Hello world")
+        )
 
         result = await client.chat([{"role": "user", "content": "test"}])
         assert result == "Hello world"
+
+    @pytest.mark.asyncio
+    async def test_chat_returns_string_anthropic(self):
+        from agent.brain.llm import LLMClient
+        client = LLMClient()  # Falls back to Anthropic (no DGRID_API_KEY)
+
+        client._client = AsyncMock()
+        client._client.messages.create = AsyncMock(
+            return_value=_mock_anthropic_response("Hello world")
+        )
+
+        result = await client.chat([{"role": "user", "content": "test"}])
+        assert result == "Hello world"
+
+    @pytest.mark.asyncio
+    async def test_chat_anthropic_extracts_system(self):
+        from agent.brain.llm import LLMClient
+        client = LLMClient()
+
+        client._client = AsyncMock()
+        client._client.messages.create = AsyncMock(
+            return_value=_mock_anthropic_response("response")
+        )
+
+        await client.chat([
+            {"role": "system", "content": "You are helpful"},
+            {"role": "user", "content": "test"},
+        ])
+
+        call_kwargs = client._client.messages.create.call_args[1]
+        assert call_kwargs["system"] == "You are helpful"
+        assert all(m["role"] != "system" for m in call_kwargs["messages"])
 
     @pytest.mark.asyncio
     async def test_chat_json_parses(self):
         from agent.brain.llm import LLMClient
         client = LLMClient()
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = '{"key": "value", "num": 42}'
-
         client._client = AsyncMock()
-        client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+        client._client.messages.create = AsyncMock(
+            return_value=_mock_anthropic_response('{"key": "value", "num": 42}')
+        )
 
         result = await client.chat_json([{"role": "user", "content": "test"}])
         assert result == {"key": "value", "num": 42}
@@ -58,12 +106,10 @@ class TestLLMClient:
         from agent.brain.llm import LLMClient
         client = LLMClient()
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = 'Here is the result: {"action": "launch"} end'
-
         client._client = AsyncMock()
-        client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+        client._client.messages.create = AsyncMock(
+            return_value=_mock_anthropic_response('Here is the result: {"action": "launch"} end')
+        )
 
         result = await client.chat_json([{"role": "user", "content": "test"}])
         assert result == {"action": "launch"}
@@ -73,12 +119,10 @@ class TestLLMClient:
         from agent.brain.llm import LLMClient
         client = LLMClient()
 
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = 'Tweets: ["first", "second", "third"]'
-
         client._client = AsyncMock()
-        client._client.chat.completions.create = AsyncMock(return_value=mock_response)
+        client._client.messages.create = AsyncMock(
+            return_value=_mock_anthropic_response('Tweets: ["first", "second", "third"]')
+        )
 
         result = await client.chat_json([{"role": "user", "content": "test"}])
         assert result == ["first", "second", "third"]

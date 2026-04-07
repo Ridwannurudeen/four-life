@@ -8,6 +8,7 @@ Falls back to direct Anthropic API if DGrid is not configured.
 
 import json
 from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 from loguru import logger
 
 from agent.config import settings
@@ -34,10 +35,7 @@ class LLMClient:
             self.model = settings.dgrid_model
             logger.info("LLM: DGrid AI Gateway ({})", self.model)
         else:
-            self._client = AsyncOpenAI(
-                base_url="https://api.anthropic.com/v1/",
-                api_key=settings.anthropic_api_key,
-            )
+            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
             self.model = "claude-sonnet-4-20250514"
             logger.info("LLM: Direct Anthropic ({})", self.model)
 
@@ -48,13 +46,33 @@ class LLMClient:
         temperature: float = 0.7,
     ) -> str:
         """Send a chat completion request. Returns the text response."""
-        response = await self._client.chat.completions.create(
-            model=self.model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=messages,
-        )
-        return response.choices[0].message.content
+        if self.use_dgrid:
+            response = await self._client.chat.completions.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=messages,
+            )
+            return response.choices[0].message.content
+        else:
+            # Anthropic expects system message separate from user/assistant messages
+            system = None
+            api_messages = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    system = msg["content"]
+                else:
+                    api_messages.append(msg)
+            kwargs = dict(
+                model=self.model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=api_messages,
+            )
+            if system:
+                kwargs["system"] = system
+            response = await self._client.messages.create(**kwargs)
+            return response.content[0].text
 
     async def chat_json(
         self,

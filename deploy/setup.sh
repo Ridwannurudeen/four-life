@@ -29,7 +29,6 @@ systemctl restart four-life
 cd web
 npm install --production
 npm run build
-npx next start -p 3030 &
 
 # Nginx
 cp deploy/nginx.conf /etc/nginx/sites-available/four-life
