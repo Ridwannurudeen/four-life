@@ -20,6 +20,7 @@ def mock_agent():
     agent.lifecycle.action_log = []
     agent.myx = None
     agent.myx_strategy = None
+    agent.hedge_manager = None
 
     mem = MagicMock()
     mem.total_launches = 5
@@ -141,3 +142,23 @@ class TestMYXEndpoint:
         resp = client.get("/api/myx/status")
         assert resp.status_code == 200
         assert resp.json()["enabled"] is False
+
+    def test_portfolio_disabled(self, client):
+        resp = client.get("/api/myx/portfolio")
+        assert resp.status_code == 200
+        assert resp.json()["enabled"] is False
+
+    def test_positions_disabled(self, client):
+        resp = client.get("/api/myx/positions/0xtest")
+        assert resp.status_code == 200
+        assert resp.json()["enabled"] is False
+
+    def test_evaluate_disabled(self, client):
+        resp = client.post("/api/myx/evaluate/0xtest")
+        assert resp.status_code == 200
+        assert resp.json()["error"] == "MYX not configured"
+
+    def test_signal_disabled(self, client):
+        resp = client.get("/api/myx/signal/0xtest")
+        assert resp.status_code == 200
+        assert resp.json()["error"] == "MYX not configured"
