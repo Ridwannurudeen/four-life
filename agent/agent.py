@@ -155,7 +155,8 @@ class FourLifeAgent:
                 name=concept["name"],
                 symbol=concept["symbol"],
                 description=concept["description"],
-                image_url=image_url,
+                img_url=image_url,
+                label=concept.get("narrative", "Meme") if concept.get("narrative", "") in ["Meme", "AI", "Defi", "Games", "Infra", "De-Sci", "Social", "Depin", "Charity", "Others"] else "AI",
             )
 
             # Create on-chain
