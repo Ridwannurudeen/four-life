@@ -256,6 +256,52 @@ async def myx_signal(token_address: str):
         return {"error": str(e)}
 
 
+@app.get("/api/myx/portfolio")
+async def myx_portfolio():
+    """Get hedge portfolio summary across all tokens."""
+    if not agent.hedge_manager:
+        return {"enabled": False, "reason": "MYX not configured"}
+    return agent.hedge_manager.get_portfolio_summary()
+
+
+@app.get("/api/myx/positions/{token_address}")
+async def myx_positions(token_address: str):
+    """Get all hedge positions for a specific token."""
+    if not agent.hedge_manager:
+        return {"enabled": False, "reason": "MYX not configured"}
+    return {
+        "token_address": token_address,
+        "positions": agent.hedge_manager.get_token_positions(token_address),
+    }
+
+
+@app.post("/api/myx/evaluate/{token_address}")
+async def myx_evaluate(token_address: str):
+    """Manually trigger a hedge evaluation for a token."""
+    if not agent.hedge_manager:
+        return {"error": "MYX not configured"}
+
+    health = agent.monitor.state.tokens.get(token_address)
+    if not health:
+        return {"error": "Token not tracked"}
+
+    token_health = {
+        "name": health.name,
+        "symbol": health.symbol,
+        "health_score": health.health_score,
+        "phase": health.phase,
+        "buy_sell_ratio": health.buy_sell_ratio,
+        "holder_velocity": health.holder_velocity,
+        "curve_progress": health.curve_progress_pct,
+        "top_holder_pct": health.top_holder_pct,
+    }
+
+    result = await agent.hedge_manager.evaluate_and_act(
+        token_address, token_health, health.phase,
+    )
+    return {"result": result}
+
+
 # ── Public Integration APIs ──────────────────────────────────────────
 # These endpoints are designed for Four.meme to consume directly.
 # No auth required. Any token address works.

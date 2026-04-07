@@ -560,7 +560,9 @@ BIRTH  ->  Create token on Four.meme (via Agentic Mode API)
 RAISE  ->  Monitor health: holders, whales, buy/sell, curve progress
            Phase management: nurture (0-6h) -> defend (6-24h) -> accelerate (24-72h)
            Generate content, celebrate milestones, post transparency updates
-           Graduation probability prediction
+           MYX V2 hedge: AI evaluates perp signals per phase
+             NURTURE: monitor only | DEFEND: short BNB/USDT hedge
+             ACCELERATE: scale hedge | GRADUATED: close all
 
 LEARN  ->  Evaluate outcomes after 72h
            Record what worked/failed per narrative
@@ -573,6 +575,257 @@ Stack: DGrid AI (LLM) | BNB Chain (web3) | ERC-8004 (identity) | Four.meme (laun
   );
 }
 
+/* ── MYX V2 Perps Panel ───────────────────────────────── */
+
+interface PerpsPortfolio {
+  total_active_positions: number;
+  total_closed_positions: number;
+  total_signals_generated: number;
+  tokens_hedged: number;
+  token_summaries: {
+    token_address: string;
+    active_positions: number;
+    total_positions: number;
+    total_hedged_wei: number;
+    signals_generated: number;
+    last_signal: { action: string; confidence: number; reasoning: string; size_pct: number } | null;
+  }[];
+}
+
+interface PerpsPosition {
+  pair_index: number;
+  is_long: boolean;
+  collateral_wei: number;
+  size_amount: number;
+  open_tx: string;
+  opened_at: number;
+  reason: string;
+  close_tx: string | null;
+  closed_at: number | null;
+  status: string;
+}
+
+function PerpsPanel({ tokens }: { tokens: Token[] }) {
+  const [portfolio, setPortfolio] = useState<PerpsPortfolio | null>(null);
+  const [positions, setPositions] = useState<Record<string, PerpsPosition[]>>({});
+  const [mxStatus, setMxStatus] = useState<{ enabled: boolean; markets_count?: number; reason?: string } | null>(null);
+  const [evaluating, setEvaluating] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [s, p] = await Promise.all([
+        fetch(`${API}/api/myx/status`).then((r) => r.json()),
+        fetch(`${API}/api/myx/portfolio`).then((r) => r.json()),
+      ]);
+      setMxStatus(s);
+      if (p.token_summaries) setPortfolio(p);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const iv = setInterval(fetchData, 15000);
+    return () => clearInterval(iv);
+  }, [fetchData]);
+
+  const fetchPositions = useCallback(async (addr: string) => {
+    try {
+      const res = await fetch(`${API}/api/myx/positions/${addr}`);
+      const data = await res.json();
+      if (data.positions) setPositions((prev) => ({ ...prev, [addr]: data.positions }));
+    } catch { /* ignore */ }
+  }, []);
+
+  const triggerEvaluate = useCallback(async (addr: string) => {
+    setEvaluating(addr);
+    try {
+      const res = await fetch(`${API}/api/myx/evaluate/${addr}`, { method: "POST" });
+      const data = await res.json();
+      if (data.result) {
+        await fetchData();
+        await fetchPositions(addr);
+      }
+    } catch { /* ignore */ }
+    setEvaluating(null);
+  }, [fetchData, fetchPositions]);
+
+  return (
+    <div className="space-y-6">
+      {/* MYX Status */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          label="MYX Status"
+          value={mxStatus?.enabled ? "Connected" : "Offline"}
+          sub={mxStatus?.enabled ? `${mxStatus.markets_count || 0} markets` : mxStatus?.reason}
+          accent={mxStatus?.enabled ? "green" : "red"}
+        />
+        <StatCard
+          label="Active Hedges"
+          value={portfolio?.total_active_positions ?? 0}
+          accent="yellow"
+        />
+        <StatCard
+          label="Closed Positions"
+          value={portfolio?.total_closed_positions ?? 0}
+          accent="blue"
+        />
+        <StatCard
+          label="Signals Generated"
+          value={portfolio?.total_signals_generated ?? 0}
+          sub={`${portfolio?.tokens_hedged ?? 0} tokens tracked`}
+          accent="purple"
+        />
+      </div>
+
+      {/* How it works */}
+      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+        <h3 className="font-bold text-sm mb-3">MYX V2 Hedge Strategy</h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+          <div className="bg-green-900/20 border border-green-500/20 rounded-lg p-3">
+            <div className="font-bold text-green-400 mb-1">NURTURE</div>
+            <div className="text-gray-400">Monitor only. Signal tracking, no positions opened.</div>
+          </div>
+          <div className="bg-yellow-900/20 border border-yellow-500/20 rounded-lg p-3">
+            <div className="font-bold text-yellow-400 mb-1">DEFEND</div>
+            <div className="text-gray-400">AI evaluates hedge. Short BNB/USDT if health drops below threshold.</div>
+          </div>
+          <div className="bg-blue-900/20 border border-blue-500/20 rounded-lg p-3">
+            <div className="font-bold text-blue-400 mb-1">ACCELERATE</div>
+            <div className="text-gray-400">Scale hedge based on momentum. Long if bullish, close if stable.</div>
+          </div>
+          <div className="bg-purple-900/20 border border-purple-500/20 rounded-lg p-3">
+            <div className="font-bold text-purple-400 mb-1">GRADUATED</div>
+            <div className="text-gray-400">Auto-close all hedges. Token moved to PancakeSwap.</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-token hedge status */}
+      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+        <h3 className="font-bold text-sm mb-3">Token Hedges</h3>
+        {tokens.length === 0 ? (
+          <p className="text-gray-600 text-xs">No active tokens. Launch a token to see hedge activity.</p>
+        ) : (
+          <div className="space-y-3">
+            {tokens.map((token) => {
+              const summary = portfolio?.token_summaries?.find((s) => s.token_address === token.address);
+              const tokenPositions = positions[token.address] || [];
+              return (
+                <div key={token.address} className="bg-black/40 border border-gray-800 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-sm">{token.symbol}</span>
+                      <PhaseTag phase={token.phase} />
+                      {summary?.active_positions ? (
+                        <span className="px-2 py-0.5 text-[10px] bg-yellow-900/30 border border-yellow-500/20 rounded text-yellow-400">
+                          {summary.active_positions} active hedge{summary.active_positions > 1 ? "s" : ""}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => fetchPositions(token.address)}
+                        className="px-3 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 rounded text-gray-300 transition-colors"
+                      >
+                        View Positions
+                      </button>
+                      <button
+                        onClick={() => triggerEvaluate(token.address)}
+                        disabled={evaluating === token.address}
+                        className="px-3 py-1 text-[10px] bg-cyan-900/40 hover:bg-cyan-900/60 border border-cyan-500/20 rounded text-cyan-400 transition-colors disabled:opacity-50"
+                      >
+                        {evaluating === token.address ? "Evaluating..." : "Evaluate Hedge"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Last signal */}
+                  {summary?.last_signal && (
+                    <div className="bg-gray-900/60 rounded p-3 mb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] text-gray-500 uppercase">Last Signal</span>
+                        <span className={`px-2 py-0.5 text-[10px] rounded font-mono ${
+                          summary.last_signal.action === "long" ? "bg-green-900/30 text-green-400" :
+                          summary.last_signal.action === "short" ? "bg-red-900/30 text-red-400" :
+                          summary.last_signal.action === "close" ? "bg-yellow-900/30 text-yellow-400" :
+                          "bg-gray-800 text-gray-400"
+                        }`}>
+                          {summary.last_signal.action.toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {(summary.last_signal.confidence * 100).toFixed(0)}% confidence
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400">{summary.last_signal.reasoning}</p>
+                    </div>
+                  )}
+
+                  {/* Positions table */}
+                  {tokenPositions.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="text-gray-500 text-left border-b border-gray-800">
+                            <th className="pb-1 pr-3">Direction</th>
+                            <th className="pb-1 pr-3">Collateral</th>
+                            <th className="pb-1 pr-3">Size</th>
+                            <th className="pb-1 pr-3">Opened</th>
+                            <th className="pb-1 pr-3">Status</th>
+                            <th className="pb-1">TX</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tokenPositions.map((p, i) => (
+                            <tr key={i} className="border-b border-gray-900">
+                              <td className={`py-1.5 pr-3 font-mono ${p.is_long ? "text-green-400" : "text-red-400"}`}>
+                                {p.is_long ? "LONG" : "SHORT"}
+                              </td>
+                              <td className="py-1.5 pr-3 text-gray-300">
+                                {(p.collateral_wei / 1e18).toFixed(4)} BNB
+                              </td>
+                              <td className="py-1.5 pr-3 text-gray-300">
+                                {(p.size_amount / 1e18).toFixed(4)}
+                              </td>
+                              <td className="py-1.5 pr-3 text-gray-500">
+                                {new Date(p.opened_at * 1000).toLocaleTimeString()}
+                              </td>
+                              <td className="py-1.5 pr-3">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                  p.status === "active" ? "bg-green-900/30 text-green-400" : "bg-gray-800 text-gray-500"
+                                }`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className="py-1.5">
+                                <a
+                                  href={`https://bscscan.com/tx/${p.open_tx}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-cyan-500 hover:underline font-mono"
+                                >
+                                  {p.open_tx.slice(0, 10)}...
+                                </a>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {!summary && !tokenPositions.length && (
+                    <p className="text-gray-600 text-xs">No hedge activity yet. Hedging activates in DEFEND phase.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Dashboard ────────────────────────────────────── */
 
 export default function Dashboard() {
@@ -580,7 +833,7 @@ export default function Dashboard() {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview" | "generate" | "radar" | "memory">("overview");
+  const [tab, setTab] = useState<"overview" | "generate" | "radar" | "perps" | "memory">("overview");
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -624,7 +877,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             {/* Tabs */}
             <nav className="flex gap-1 bg-gray-900/50 rounded-lg p-0.5">
-              {(["overview", "generate", "radar", "memory"] as const).map((t) => (
+              {(["overview", "generate", "radar", "perps", "memory"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -632,7 +885,7 @@ export default function Dashboard() {
                     tab === t ? "bg-gray-800 text-white" : "text-gray-500 hover:text-gray-300"
                   }`}
                 >
-                  {t === "overview" ? "Dashboard" : t === "generate" ? "Generate" : t === "radar" ? "Radar" : "Memory"}
+                  {t === "overview" ? "Dashboard" : t === "generate" ? "Generate" : t === "radar" ? "Radar" : t === "perps" ? "MYX Perps" : "Memory"}
                 </button>
               ))}
             </nav>
@@ -801,6 +1054,9 @@ export default function Dashboard() {
 
         {/* ── Radar Tab ── */}
         {tab === "radar" && <RadarPanel />}
+
+        {/* ── MYX Perps Tab ── */}
+        {tab === "perps" && <PerpsPanel tokens={tokens} />}
 
         {/* ── Memory Tab ── */}
         {tab === "memory" && <MemoryPanel status={status} />}

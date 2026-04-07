@@ -12,9 +12,10 @@ class TestLLMClient:
         with patch("agent.brain.llm.settings") as mock_settings:
             mock_settings.dgrid_api_key = "sk-test-dgrid"
             mock_settings.anthropic_api_key = "sk-ant-test"
+            mock_settings.dgrid_model = "google/gemini-2.5-flash"
             client = LLMClient()
             assert client.use_dgrid is True
-            assert "anthropic/" in client.model
+            assert client.model == "google/gemini-2.5-flash"
 
     def test_fallback_mode_when_no_dgrid(self):
         with patch.dict(os.environ, {"DGRID_API_KEY": ""}):

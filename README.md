@@ -116,11 +116,23 @@ python server.py
 | `POST /api/agent/track` | Track an existing token for lifecycle management |
 | `POST /api/agent/start` | Start agent loop |
 | `POST /api/agent/stop` | Stop agent loop |
+| `GET /api/myx/status` | MYX connection status + available markets |
+| `GET /api/myx/portfolio` | Hedge portfolio summary across all tokens |
+| `GET /api/myx/positions/{token}` | All hedge positions for a token |
+| `GET /api/myx/signal/{token}` | AI-generated trading signal for a token |
+| `POST /api/myx/evaluate/{token}` | Manually trigger hedge evaluation |
 
 ## Bounty Integrations
 
 ### MYX V2 ($5K Bounty)
-After launching a token on Four.meme, FOUR-LIFE creates a corresponding perpetual trading pair on MYX V2, seeds liquidity, and provides AI-powered trading intelligence across spot + derivatives.
+FOUR-LIFE integrates MYX V2 perpetual trading for automated hedging of meme token exposure:
+
+- **AI-powered hedge signals** — LLM analyzes token health metrics to generate long/short/close/hold signals with confidence scores
+- **Phase-based automation** — hedge behavior adapts to lifecycle phase: monitor in nurture, hedge in defend, scale in accelerate, close on graduation
+- **BNB/USDT correlation hedging** — since Four.meme tokens are BNB-denominated, shorting BNB/USDT on MYX hedges downside exposure
+- **Position management** — automated open/close with 5x leverage, conservative 10% max capital per trade
+- **Dashboard + API** — full perps tab with portfolio summary, per-token positions, live signals, and manual evaluation triggers
+- **Endpoints**: `GET /api/myx/status`, `GET /api/myx/portfolio`, `GET /api/myx/positions/{token}`, `GET /api/myx/signal/{token}`, `POST /api/myx/evaluate/{token}`
 
 ### DGrid AI ($5K Bounty)
 All LLM calls (narrative analysis, content generation, strategy decisions) are routed through DGrid's unified AI Gateway API.

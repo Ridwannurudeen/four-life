@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     dgrid_api_key: str = Field(default="", alias="DGRID_API_KEY")
+    dgrid_model: str = Field(default="google/gemini-2.5-flash", alias="DGRID_MODEL")
 
     # Twitter
     twitter_bearer_token: str = Field(default="", alias="TWITTER_BEARER_TOKEN")

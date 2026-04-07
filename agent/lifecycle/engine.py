@@ -11,6 +11,7 @@ from agent.brain.strategy import StrategyEngine
 from agent.brain.content import ContentEngine
 from agent.memory.store import MemoryStore
 from agent.social.twitter import TwitterClient
+from agent.myx.hedge import HedgeManager
 
 
 @dataclass
@@ -48,12 +49,14 @@ class LifecycleEngine:
         content: ContentEngine,
         memory: MemoryStore,
         twitter: TwitterClient,
+        hedge_manager: HedgeManager | None = None,
     ) -> None:
         self.monitor = monitor
         self.strategy = strategy
         self.content = content
         self.memory = memory
         self.twitter = twitter
+        self.hedge_manager = hedge_manager
         self.action_log: list[LifecycleAction] = []
         self._last_action_time: dict[str, float] = {}
         self._celebrated_milestones: dict[str, set] = {}
@@ -62,6 +65,27 @@ class LifecycleEngine:
         """Run one lifecycle tick for a token. Returns action taken, or None."""
         # Update health
         health = await self.monitor.update_token(token_address)
+
+        # Run MYX hedge evaluation (independent of content actions)
+        if self.hedge_manager:
+            try:
+                token_health = {
+                    "name": health.name,
+                    "symbol": health.symbol,
+                    "health_score": health.health_score,
+                    "phase": health.phase,
+                    "buy_sell_ratio": health.buy_sell_ratio,
+                    "holder_velocity": health.holder_velocity,
+                    "curve_progress": health.curve_progress_pct,
+                    "top_holder_pct": health.top_holder_pct,
+                }
+                hedge_result = await self.hedge_manager.evaluate_and_act(
+                    token_address, token_health, health.phase,
+                )
+                if hedge_result and hedge_result.get("action") not in ("hold", "monitor"):
+                    logger.info("[HEDGE] {} for {}: {}", hedge_result["action"], health.symbol, hedge_result)
+            except Exception as e:
+                logger.error("[HEDGE] Error for {}: {}", health.symbol, e)
 
         # Check if we should act (rate limiting per phase)
         interval = self.PHASE_INTERVALS.get(health.phase, 3600)

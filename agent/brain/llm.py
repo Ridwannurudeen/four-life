@@ -13,8 +13,7 @@ from loguru import logger
 from agent.config import settings
 
 # DGrid uses OpenAI SDK format with provider/model naming
-DGRID_BASE_URL = "https://api.dgrid.ai/api/v1"
-DGRID_MODEL = "openai/gpt-4o"
+DGRID_BASE_URL = "https://api.dgrid.ai/v1"
 
 
 class LLMClient:
@@ -32,7 +31,7 @@ class LLMClient:
                     "X-Title": "FOUR-LIFE Agent",
                 },
             )
-            self.model = DGRID_MODEL
+            self.model = settings.dgrid_model
             logger.info("LLM: DGrid AI Gateway ({})", self.model)
         else:
             self._client = AsyncOpenAI(
