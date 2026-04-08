@@ -72,7 +72,13 @@ class FourLifeAgent:
         if agent_id:
             logger.info("ERC-8004 Agent ID: {}", agent_id)
         else:
-            logger.info("No ERC-8004 identity found — will register on first launch")
+            try:
+                agent_id = await self.identity.register(
+                    "https://four-life.gudman.xyz/.well-known/agent-registration.json"
+                )
+                logger.info("ERC-8004 registered! Agent ID: {}", agent_id)
+            except Exception as e:
+                logger.warning("ERC-8004 registration failed (no BNB?): {}", e)
 
         # Load existing memory
         context = self.memory.get_context_for_ai()
