@@ -217,25 +217,25 @@ function TokenScanner() {
     setSignalLoading(false);
   }, [result]);
 
-  const healthColor = (s: number) => s >= 70 ? "text-green-400" : s >= 40 ? "text-yellow-400" : "text-red-400";
-  const healthBg = (s: number) => s >= 70 ? "from-green-500" : s >= 40 ? "from-yellow-500" : "from-red-500";
-  const gradColor = (g: number) => g >= 50 ? "text-green-400" : g >= 25 ? "text-yellow-400" : "text-gray-400";
+  const healthColor = (s: number) => s >= 70 ? "text-[#6cff32]" : s >= 40 ? "text-[#ffd641]" : "text-[#ff494a]";
+  const healthBg = (s: number) => s >= 70 ? "from-[#6cff32]" : s >= 40 ? "from-[#ffd641]" : "from-[#ff494a]";
+  const gradColor = (g: number) => g >= 50 ? "text-[#6cff32]" : g >= 25 ? "text-[#ffd641]" : "text-white/30";
   const signalColor = (a: string) =>
-    a === "long" ? "text-green-400 bg-green-900/30 border-green-500/20" :
-    a === "short" ? "text-red-400 bg-red-900/30 border-red-500/20" :
-    a === "close" ? "text-yellow-400 bg-yellow-900/30 border-yellow-500/20" :
-    "text-gray-400 bg-gray-800 border-gray-700";
+    a === "long" ? "text-[#6cff32] bg-[#6cff32]/10 border-[#6cff32]/20" :
+    a === "short" ? "text-[#ff494a] bg-[#ff494a]/10 border-[#ff494a]/20" :
+    a === "close" ? "text-[#ffd641] bg-[#ffd641]/10 border-[#ffd641]/20" :
+    "text-white/40 bg-white/[0.04] border-white/10";
 
   return (
     <div className="space-y-5">
       {/* Search Bar */}
-      <div className="bg-gradient-to-br from-cyan-950/50 via-gray-900/90 to-blue-950/50 border border-cyan-500/20 rounded-2xl p-6 md:p-8">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-          <h2 className="text-lg font-bold">Token Health Scanner</h2>
+      <div className="card p-6 md:p-8 border-[#6cff32]/10 glow-green">
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="w-2 h-2 rounded-full bg-[#6cff32] animate-pulse" />
+          <h2 className="text-[15px] font-bold">Token Health Scanner</h2>
         </div>
-        <p className="text-sm text-gray-400 mb-5">
-          Paste any Four.meme token address to get an instant AI health assessment, graduation prediction, raise plan, and hedge signal.
+        <p className="text-[13px] text-white/35 mb-5">
+          Paste any Four.meme token address for an instant AI health assessment, graduation prediction, and hedge signal.
         </p>
         <div className="flex gap-3">
           <input
@@ -244,36 +244,36 @@ function TokenScanner() {
             onChange={(e) => setAddress(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && scan()}
             placeholder="0x... token address on BSC"
-            className="flex-1 bg-black/60 border border-gray-700 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder:text-gray-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-colors"
+            className="flex-1 bg-black/40 border border-white/[0.06] rounded-xl px-4 py-3 text-[13px] font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#6cff32]/30 focus:ring-1 focus:ring-[#6cff32]/10 transition-all"
           />
           <button
             onClick={scan}
             disabled={scanning}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 rounded-xl text-sm font-bold transition-all shrink-0"
+            className="px-6 py-3 bg-[#6cff32] hover:bg-[#7fff4a] text-black font-bold text-[13px] rounded-xl transition-all shrink-0 disabled:bg-white/10 disabled:text-white/30"
           >
             {scanning ? (
               <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
                 Scanning
               </span>
             ) : "Scan"}
           </button>
         </div>
-        {error && <p className="text-red-400 text-xs mt-3">{error}</p>}
+        {error && <p className="text-[#ff494a] text-[12px] mt-3">{error}</p>}
       </div>
 
       {/* Scan Results */}
       {result && (
-        <div className="space-y-4 animate-in fade-in duration-500">
+        <div className="space-y-4 animate-fade-up">
           {/* Main metrics */}
-          <div className="bg-gray-900/80 border border-gray-800/50 rounded-2xl overflow-hidden">
+          <div className="card rounded-[20px] overflow-hidden">
             {/* Header with token info */}
-            <div className="bg-gradient-to-r from-gray-800/50 to-transparent px-6 py-5 border-b border-gray-800/50">
+            <div className="bg-gradient-to-r from-white/[0.03] to-transparent px-6 py-5 border-b border-white/[0.04]">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-3">
                     <h3 className="text-xl font-bold">{result.name || "Unknown Token"}</h3>
-                    {result.symbol && <span className="text-gray-400 font-mono">${result.symbol}</span>}
+                    {result.symbol && <span className="text-white/30 font-mono">${result.symbol}</span>}
                     {result.phase && <PhaseTag phase={result.phase} />}
                   </div>
                   <div className="text-[10px] text-gray-600 font-mono mt-1">{result.token_address}</div>
@@ -296,23 +296,23 @@ function TokenScanner() {
             </div>
 
             {/* Metrics grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-800/50">
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-white/[0.04]">
               <div className="p-4 text-center">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Graduation</div>
+                <div className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Graduation</div>
                 <div className={`text-2xl font-bold mt-1 ${gradColor(result.graduation_probability)}`}>
                   {result.graduation_probability}%
                 </div>
               </div>
               <div className="p-4 text-center">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Holders</div>
+                <div className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Holders</div>
                 <div className="text-2xl font-bold mt-1 text-white">{result.holders}</div>
               </div>
               <div className="p-4 text-center">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Bonding Curve</div>
+                <div className="text-[10px] text-white/25 uppercase tracking-[0.15em]">Bonding Curve</div>
                 <div className="text-2xl font-bold mt-1 text-white">{result.curve_progress}%</div>
               </div>
               <div className="p-4 text-center">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">
+                <div className="text-[10px] text-white/25 uppercase tracking-[0.15em]">
                   {result.buy_volume_bnb !== undefined ? "Buy Volume" : "Volume"}
                 </div>
                 <div className="text-2xl font-bold mt-1 text-white">
@@ -323,7 +323,7 @@ function TokenScanner() {
 
             {/* Detailed metrics (if tracked) */}
             {result.phase && (
-              <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-y md:divide-y-0 divide-gray-800/50 border-t border-gray-800/50">
+              <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-y md:divide-y-0 divide-white/[0.04] border-t border-white/[0.04]">
                 <div className="p-3 text-center">
                   <div className="text-[10px] text-gray-600">Buy/Sell Ratio</div>
                   <div className={`font-mono text-sm font-bold ${(result.buy_sell_ratio ?? 0) >= 1.5 ? "text-green-400" : (result.buy_sell_ratio ?? 0) < 1 ? "text-red-400" : "text-white"}`}>
@@ -354,7 +354,7 @@ function TokenScanner() {
 
           {/* Risk factors */}
           {result.risk_factors.length > 0 && (
-            <div className="bg-red-950/20 border border-red-500/15 rounded-xl p-4">
+            <div className="bg-[#ff494a]/[0.06] border border-[#ff494a]/10 rounded-xl p-4">
               <div className="text-[10px] text-red-400 uppercase tracking-wider font-bold mb-2">Risk Factors</div>
               <div className="space-y-1.5">
                 {result.risk_factors.map((r, i) => (
@@ -368,8 +368,8 @@ function TokenScanner() {
           )}
 
           {/* Suggested action */}
-          <div className="bg-cyan-950/20 border border-cyan-500/15 rounded-xl p-4">
-            <div className="text-[10px] text-cyan-400 uppercase tracking-wider font-bold mb-1">Suggested Action</div>
+          <div className="bg-[#00d4ff]/[0.06] border border-[#00d4ff]/10 rounded-xl p-4">
+            <div className="text-[10px] text-[#00d4ff] uppercase tracking-wider font-bold mb-1">Suggested Action</div>
             <p className="text-sm text-cyan-200/80">{result.suggested_action}</p>
           </div>
 
@@ -403,7 +403,7 @@ function TokenScanner() {
 
           {/* MYX Hedge Signal */}
           {signal && (
-            <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+            <div className="card p-5">
               <div className="flex items-center gap-3 mb-3">
                 <h4 className="font-bold text-sm">MYX V2 Hedge Signal</h4>
                 <span className={`px-3 py-1 text-xs font-mono font-bold uppercase rounded-lg border ${signalColor(signal.action)}`}>
@@ -414,7 +414,7 @@ function TokenScanner() {
                   <span className="text-xs text-gray-600 font-mono">{(signal.size_pct * 100).toFixed(1)}% size</span>
                 )}
               </div>
-              <p className="text-sm text-gray-400 leading-relaxed">{signal.reasoning}</p>
+              <p className="text-[13px] text-white/40 leading-relaxed">{signal.reasoning}</p>
               <div className="mt-3 flex gap-2">
                 <span className="px-2 py-0.5 text-[10px] bg-gray-800 rounded text-gray-500">BNB/USDT pair</span>
                 <span className="px-2 py-0.5 text-[10px] bg-gray-800 rounded text-gray-500">5x leverage</span>
@@ -426,17 +426,17 @@ function TokenScanner() {
           {/* Raise Plan */}
           {plan && (
             <div className="bg-gray-900/80 border border-cyan-500/10 rounded-xl p-5">
-              <h4 className="font-bold text-cyan-400 mb-4">72-Hour Raise Plan</h4>
+              <h4 className="font-bold text-[#00d4ff] mb-4">72-Hour Raise Plan</h4>
               <div className="space-y-4">
                 {plan.phases?.map((phase, i) => (
-                  <div key={i} className="bg-gray-800/30 rounded-lg p-4">
+                  <div key={i} className="bg-white/[0.02] rounded-xl p-4">
                     <h5 className="font-bold text-sm text-white mb-3">{phase.name}</h5>
                     <div className="grid md:grid-cols-3 gap-4">
                       <div>
-                        <div className="text-[10px] text-cyan-500 uppercase tracking-wider mb-2 font-bold">Actions</div>
+                        <div className="text-[10px] text-[#00d4ff] uppercase tracking-wider mb-2 font-bold">Actions</div>
                         {phase.actions?.map((a, j) => (
-                          <div key={j} className="flex items-start gap-2 text-xs text-gray-300 mb-1.5">
-                            <span className="text-cyan-500 mt-0.5 shrink-0">&rarr;</span>
+                          <div key={j} className="flex items-start gap-2 text-xs text-white/50 mb-1.5">
+                            <span className="text-[#00d4ff] mt-0.5 shrink-0">&rarr;</span>
                             <span>{a}</span>
                           </div>
                         ))}
@@ -444,7 +444,7 @@ function TokenScanner() {
                       <div>
                         <div className="text-[10px] text-blue-400 uppercase tracking-wider mb-2 font-bold">Content</div>
                         {phase.content_suggestions?.map((c, j) => (
-                          <div key={j} className="text-xs text-gray-400 mb-1.5">{c}</div>
+                          <div key={j} className="text-xs text-white/35 mb-1.5">{c}</div>
                         ))}
                       </div>
                       <div>
@@ -460,9 +460,9 @@ function TokenScanner() {
                   </div>
                 ))}
                 {plan.graduation_strategy && (
-                  <div className="bg-green-950/20 border border-green-500/10 rounded-lg p-4">
-                    <div className="text-[10px] text-green-500 uppercase tracking-wider mb-1 font-bold">Graduation Strategy</div>
-                    <p className="text-sm text-green-300">{plan.graduation_strategy}</p>
+                  <div className="bg-[#6cff32]/[0.06] border border-[#6cff32]/10 rounded-xl p-4">
+                    <div className="text-[10px] text-[#6cff32] uppercase tracking-wider mb-1 font-bold">Graduation Strategy</div>
+                    <p className="text-sm text-[#6cff32]/80">{plan.graduation_strategy}</p>
                   </div>
                 )}
               </div>
@@ -518,16 +518,16 @@ function ConceptPanel() {
   }, [trackAddress, concept]);
 
   return (
-    <div className="bg-gray-900/80 border border-gray-800 rounded-xl overflow-hidden">
+    <div className="card overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
         <div>
           <h2 className="font-bold">AI Concept Generator</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Agent analyzes Four.meme market and generates optimal token concepts</p>
+          <p className="text-xs text-white/30 mt-0.5">Agent analyzes Four.meme market and generates optimal token concepts</p>
         </div>
         <button
           onClick={generate}
           disabled={loading}
-          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-[#6cff32] hover:bg-[#7fff4a] text-black disabled:bg-white/[0.06] disabled:text-white/20 rounded-lg text-sm font-medium transition-colors"
         >
           {loading ? "Thinking..." : "Generate Concept"}
         </button>
@@ -536,7 +536,7 @@ function ConceptPanel() {
       {loading && (
         <div className="p-8 text-center">
           <div className="inline-block w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400 mt-3">Analyzing narratives via DGrid AI Gateway...</p>
+          <p className="text-sm text-white/30 mt-3">Analyzing narratives via DGrid AI Gateway...</p>
         </div>
       )}
 
@@ -546,32 +546,32 @@ function ConceptPanel() {
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <h3 className="text-xl font-bold text-cyan-400">{concept.name}</h3>
-                <span className="text-gray-400 font-mono">${concept.symbol}</span>
+                <h3 className="text-xl font-bold text-[#00d4ff]">{concept.name}</h3>
+                <span className="text-white/30 font-mono">${concept.symbol}</span>
               </div>
-              <p className="text-sm text-gray-300 mt-1 max-w-xl">{concept.description}</p>
+              <p className="text-[13px] text-white/60 mt-1 max-w-xl">{concept.description}</p>
             </div>
-            <span className="px-2 py-1 text-xs bg-cyan-900/40 text-cyan-400 border border-cyan-500/20 rounded font-mono">
+            <span className="px-2 py-1 text-xs bg-cyan-900/40 text-[#00d4ff] border border-cyan-500/20 rounded font-mono">
               {concept.narrative}
             </span>
           </div>
 
           {/* Lore */}
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Origin Lore</div>
-            <p className="text-sm text-gray-300 leading-relaxed">{concept.lore}</p>
+          <div className="bg-white/[0.03] rounded-xl p-4">
+            <div className="text-xs text-white/25 uppercase tracking-[0.15em] mb-2">Origin Lore</div>
+            <p className="text-[13px] text-white/60 leading-relaxed">{concept.lore}</p>
           </div>
 
           {/* Launch hook */}
           <div className="bg-cyan-950/30 border border-cyan-500/10 rounded-lg p-4">
-            <div className="text-xs text-cyan-500 uppercase tracking-wider mb-2">Launch Hook</div>
+            <div className="text-xs text-[#00d4ff] uppercase tracking-wider mb-2">Launch Hook</div>
             <p className="text-sm text-white font-medium">{concept.launch_hook}</p>
           </div>
 
           {/* Meme angles */}
           {concept.meme_angles && (
             <div>
-              <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Meme Angles</div>
+              <div className="text-xs text-white/25 uppercase tracking-[0.15em] mb-2">Meme Angles</div>
               <div className="flex flex-wrap gap-2">
                 {concept.meme_angles.map((angle, i) => (
                   <span key={i} className="px-3 py-1.5 bg-gray-800 text-gray-300 text-xs rounded-lg">{angle}</span>
@@ -584,13 +584,13 @@ function ConceptPanel() {
           {concept.market_analysis && (
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Trending Narratives</div>
+                <div className="text-xs text-white/25 uppercase tracking-[0.15em] mb-2">Trending Narratives</div>
                 <div className="space-y-2">
                   {concept.market_analysis.trending_narratives?.map((n, i) => (
                     <div key={i} className="flex items-center justify-between text-sm">
                       <span className="text-gray-300">{n.name}</span>
                       <div className="flex items-center gap-2">
-                        <div className="w-16 bg-gray-800 rounded-full h-1.5">
+                        <div className="w-16 bg-white/[0.06] rounded-full h-1.5">
                           <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${n.strength * 10}%` }} />
                         </div>
                         <span className={`text-xs font-mono ${n.saturation_level === "high" ? "text-red-400" : n.saturation_level === "medium" ? "text-yellow-400" : "text-green-400"}`}>
@@ -602,12 +602,12 @@ function ConceptPanel() {
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Opportunity Gaps</div>
+                <div className="text-xs text-white/25 uppercase tracking-[0.15em] mb-2">Opportunity Gaps</div>
                 <div className="space-y-2">
                   {concept.market_analysis.opportunity_gaps?.map((g, i) => (
                     <div key={i} className="text-sm">
-                      <span className="text-green-400 font-medium">{g.name}</span>
-                      <p className="text-xs text-gray-500 mt-0.5">{g.reason}</p>
+                      <span className="text-[#6cff32] font-medium">{g.name}</span>
+                      <p className="text-xs text-white/30 mt-0.5">{g.reason}</p>
                     </div>
                   ))}
                 </div>
@@ -616,8 +616,8 @@ function ConceptPanel() {
           )}
 
           {/* Track token */}
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Track This Token</div>
+          <div className="bg-white/[0.03] rounded-xl p-4">
+            <div className="text-xs text-white/25 uppercase tracking-[0.15em] mb-2">Track This Token</div>
             <p className="text-xs text-gray-500 mb-3">Create this token on four.meme, then paste the contract address below.</p>
             <div className="flex gap-2">
               <input
@@ -625,17 +625,17 @@ function ConceptPanel() {
                 value={trackAddress}
                 onChange={(e) => setTrackAddress(e.target.value)}
                 placeholder="0x... token address from Four.meme"
-                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-gray-600 focus:border-cyan-500 focus:outline-none"
+                className="flex-1 bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2 text-[13px] font-mono text-white placeholder:text-white/20 focus:border-[#6cff32]/30 focus:outline-none transition-all"
               />
               <button
                 onClick={track}
                 disabled={!trackAddress}
-                className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-[#6cff32] hover:bg-[#7fff4a] text-black disabled:bg-white/[0.06] disabled:text-white/20 rounded-lg text-sm font-medium transition-colors"
               >
                 Track
               </button>
             </div>
-            {trackStatus && <p className="text-xs mt-2 text-cyan-400">{trackStatus}</p>}
+            {trackStatus && <p className="text-xs mt-2 text-[#00d4ff]">{trackStatus}</p>}
           </div>
         </div>
       )}
@@ -701,11 +701,11 @@ function RadarPanel() {
       {loading ? (
         <div className="text-center py-12">
           <div className="inline-block w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400 mt-3">Scanning Four.meme...</p>
+          <p className="text-sm text-white/30 mt-3">Scanning Four.meme...</p>
         </div>
       ) : (
-        <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl overflow-hidden">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-4 py-2 text-[10px] text-gray-500 uppercase tracking-wider border-b border-gray-800/50">
+        <div className="card overflow-hidden">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-4 py-2 text-[10px] text-white/25 uppercase tracking-[0.15em] border-b border-white/[0.04]">
             <div>Token</div>
             <div className="text-right">Holders</div>
             <div className="text-right">Curve</div>
@@ -715,7 +715,7 @@ function RadarPanel() {
             <div></div>
           </div>
           {tokens.map((t, i) => (
-            <div key={t.token_address} className={`grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-4 py-3 items-center ${i % 2 === 0 ? "" : "bg-gray-800/10"} hover:bg-gray-800/30 transition-colors`}>
+            <div key={t.token_address} className={`grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 px-4 py-3 items-center ${i % 2 === 0 ? "" : "bg-gray-800/10"} hover:bg-white/[0.03] transition-colors`}>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-600 font-mono text-xs w-5">{i + 1}</span>
@@ -726,8 +726,8 @@ function RadarPanel() {
               <div className="text-right font-mono text-sm">{t.holders}</div>
               <div className="text-right">
                 <div className="inline-flex items-center gap-1">
-                  <div className="w-12 bg-gray-800 rounded-full h-1.5">
-                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, t.curve_progress)}%` }} />
+                  <div className="w-12 bg-white/[0.06] rounded-full h-1.5">
+                    <div className="bg-[#6cff32] h-1.5 rounded-full" style={{ width: `${Math.min(100, t.curve_progress)}%` }} />
                   </div>
                   <span className="text-xs font-mono">{t.curve_progress}%</span>
                 </div>
@@ -746,7 +746,7 @@ function RadarPanel() {
               <div>
                 <button
                   onClick={() => generatePlan(t.token_address)}
-                  className="px-2 py-1 text-[10px] bg-cyan-900/30 text-cyan-400 border border-cyan-500/20 rounded hover:bg-cyan-900/50 transition-colors"
+                  className="px-2 py-1 text-[10px] bg-cyan-900/30 text-[#00d4ff] border border-cyan-500/20 rounded hover:bg-cyan-900/50 transition-colors"
                 >
                   Plan
                 </button>
@@ -759,7 +759,7 @@ function RadarPanel() {
       {/* Raise Plan Display */}
       {planToken && (
         <div className="bg-gray-900/80 border border-cyan-500/10 rounded-xl p-5">
-          <h3 className="font-bold text-cyan-400 mb-3">72-Hour Raise Plan</h3>
+          <h3 className="font-bold text-[#00d4ff] mb-3">72-Hour Raise Plan</h3>
           {planLoading ? (
             <div className="text-center py-6">
               <div className="inline-block w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -768,28 +768,28 @@ function RadarPanel() {
           ) : plan ? (
             <div className="space-y-4">
               {(plan as { phases?: Array<{ name: string; actions: string[]; content_suggestions: string[]; risk_checks: string[] }> }).phases?.map((phase, i) => (
-                <div key={i} className="bg-gray-800/30 rounded-lg p-4">
+                <div key={i} className="bg-white/[0.02] rounded-xl p-4">
                   <h4 className="font-bold text-sm text-white mb-2">{phase.name}</h4>
                   <div className="grid md:grid-cols-3 gap-3 text-xs">
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider mb-1">Actions</div>
-                      {phase.actions?.map((a, j) => <div key={j} className="text-gray-300 mb-1">{a}</div>)}
+                      <div className="text-white/25 uppercase tracking-[0.15em] mb-1">Actions</div>
+                      {phase.actions?.map((a, j) => <div key={j} className="text-white/50 mb-1">{a}</div>)}
                     </div>
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider mb-1">Content</div>
-                      {phase.content_suggestions?.map((c, j) => <div key={j} className="text-gray-400 mb-1">{c}</div>)}
+                      <div className="text-white/25 uppercase tracking-[0.15em] mb-1">Content</div>
+                      {phase.content_suggestions?.map((c, j) => <div key={j} className="text-white/35 mb-1">{c}</div>)}
                     </div>
                     <div>
-                      <div className="text-gray-500 uppercase tracking-wider mb-1">Risk Checks</div>
+                      <div className="text-white/25 uppercase tracking-[0.15em] mb-1">Risk Checks</div>
                       {phase.risk_checks?.map((r, j) => <div key={j} className="text-yellow-500/70 mb-1">{r}</div>)}
                     </div>
                   </div>
                 </div>
               ))}
               {(plan as { graduation_strategy?: string }).graduation_strategy && (
-                <div className="bg-green-950/20 border border-green-500/10 rounded-lg p-3">
-                  <div className="text-[10px] text-green-500 uppercase tracking-wider mb-1">Graduation Strategy</div>
-                  <p className="text-sm text-green-300">{(plan as { graduation_strategy: string }).graduation_strategy}</p>
+                <div className="bg-[#6cff32]/[0.06] border border-[#6cff32]/10 rounded-xl p-3">
+                  <div className="text-[10px] text-[#6cff32] uppercase tracking-wider mb-1">Graduation Strategy</div>
+                  <p className="text-sm text-[#6cff32]/80">{(plan as { graduation_strategy: string }).graduation_strategy}</p>
                 </div>
               )}
             </div>
@@ -830,25 +830,25 @@ function MemoryPanel({ status }: { status: AgentStatus | null }) {
   return (
     <div className="space-y-6">
       {/* Launch History */}
-      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-800/50">
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4 border-b border-white/[0.04]">
           <h2 className="font-bold">Launch History</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Every token the agent has created and managed</p>
+          <p className="text-xs text-white/30 mt-0.5">Every token the agent has created and managed</p>
         </div>
         {launches.length === 0 ? (
-          <div className="p-8 text-center text-gray-600 text-sm">No launches recorded yet.</div>
+          <div className="p-8 text-center text-white/20 text-sm">No launches recorded yet.</div>
         ) : (
-          <div className="divide-y divide-gray-800/50">
+          <div className="divide-y divide-white/[0.04]">
             {launches.map((launch, i) => (
-              <div key={i} className="p-4 hover:bg-gray-800/20 transition-colors">
+              <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <span className="text-lg font-bold">{launch.name}</span>
-                    <span className="text-gray-400 font-mono text-sm">${launch.symbol}</span>
+                    <span className="text-white/30 font-mono text-sm">${launch.symbol}</span>
                     {launch.graduated ? (
-                      <span className="px-2 py-0.5 text-[10px] bg-green-900/40 text-green-400 border border-green-500/20 rounded font-mono">GRADUATED</span>
+                      <span className="px-2 py-0.5 text-[10px] bg-[#6cff32]/10 text-[#6cff32] border border-[#6cff32]/20 rounded-full font-mono">GRADUATED</span>
                     ) : (
-                      <span className="px-2 py-0.5 text-[10px] bg-gray-800 text-gray-400 border border-gray-700 rounded font-mono">ACTIVE</span>
+                      <span className="px-2 py-0.5 text-[10px] bg-white/[0.04] text-white/40 border border-white/[0.06] rounded-full font-mono">ACTIVE</span>
                     )}
                   </div>
                   <span className="text-[10px] text-gray-600">
@@ -858,7 +858,7 @@ function MemoryPanel({ status }: { status: AgentStatus | null }) {
                 <div className="grid grid-cols-4 gap-4 text-sm mt-2">
                   <div>
                     <div className="text-[10px] text-gray-600">Narrative</div>
-                    <div className="text-cyan-400 text-xs">{launch.narrative || "—"}</div>
+                    <div className="text-[#00d4ff] text-xs">{launch.narrative || "—"}</div>
                   </div>
                   <div>
                     <div className="text-[10px] text-gray-600">Peak Holders</div>
@@ -890,10 +890,10 @@ function MemoryPanel({ status }: { status: AgentStatus | null }) {
       </div>
 
       {/* Learnings */}
-      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+      <div className="card p-5">
         <h2 className="font-bold mb-4">Agent Learnings</h2>
         {!status || status.global_learnings.length === 0 ? (
-          <p className="text-gray-600 text-sm">No learnings yet. The agent evaluates each launch after 72h and extracts patterns.</p>
+          <p className="text-white/20 text-sm">No learnings yet. The agent evaluates each launch after 72h and extracts patterns.</p>
         ) : (
           <div className="space-y-3">
             {status.global_learnings.map((learning, i) => (
@@ -907,7 +907,7 @@ function MemoryPanel({ status }: { status: AgentStatus | null }) {
       </div>
 
       {/* Architecture */}
-      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+      <div className="card p-5">
         <h2 className="font-bold mb-2">Architecture</h2>
         <pre className="text-[10px] text-gray-500 font-mono leading-relaxed overflow-x-auto">{`
 FOUR-LIFE Agent Loop
@@ -1041,7 +1041,7 @@ function PerpsPanel({ tokens }: { tokens: Token[] }) {
       </div>
 
       {/* How it works */}
-      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+      <div className="card p-5">
         <h3 className="font-bold text-sm mb-3">MYX V2 Hedge Strategy</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
           <div className="bg-green-900/20 border border-green-500/20 rounded-lg p-3">
@@ -1064,7 +1064,7 @@ function PerpsPanel({ tokens }: { tokens: Token[] }) {
       </div>
 
       {/* Per-token hedge status */}
-      <div className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
+      <div className="card p-5">
         <h3 className="font-bold text-sm mb-3">Token Hedges</h3>
         {tokens.length === 0 ? (
           <p className="text-gray-600 text-xs">No active tokens. Launch a token to see hedge activity.</p>
@@ -1095,7 +1095,7 @@ function PerpsPanel({ tokens }: { tokens: Token[] }) {
                       <button
                         onClick={() => triggerEvaluate(token.address)}
                         disabled={evaluating === token.address}
-                        className="px-3 py-1 text-[10px] bg-cyan-900/40 hover:bg-cyan-900/60 border border-cyan-500/20 rounded text-cyan-400 transition-colors disabled:opacity-50"
+                        className="px-3 py-1 text-[10px] bg-cyan-900/40 hover:bg-cyan-900/60 border border-cyan-500/20 rounded text-[#00d4ff] transition-colors disabled:opacity-50"
                       >
                         {evaluating === token.address ? "Evaluating..." : "Evaluate Hedge"}
                       </button>
@@ -1164,7 +1164,7 @@ function PerpsPanel({ tokens }: { tokens: Token[] }) {
                                   href={`https://bscscan.com/tx/${p.open_tx}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-cyan-500 hover:underline font-mono"
+                                  className="text-[#00d4ff] hover:underline font-mono"
                                 >
                                   {p.open_tx.slice(0, 10)}...
                                 </a>
