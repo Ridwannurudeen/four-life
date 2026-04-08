@@ -63,35 +63,35 @@ interface Concept {
 
 function PhaseTag({ phase }: { phase: string }) {
   const colors: Record<string, string> = {
-    nurture: "bg-green-500/20 text-green-400 border-green-500/30",
-    defend: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    accelerate: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    graduated: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    nurture: "bg-[#6cff32]/10 text-[#6cff32] border-[#6cff32]/20",
+    defend: "bg-[#ffd641]/10 text-[#ffd641] border-[#ffd641]/20",
+    accelerate: "bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/20",
+    graduated: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   };
   return (
-    <span className={`px-2 py-0.5 text-xs font-mono border rounded ${colors[phase] || "bg-gray-700 text-gray-300"}`}>
+    <span className={`px-2.5 py-1 text-[11px] font-semibold tracking-wide border rounded-full ${colors[phase] || "bg-white/5 text-white/50 border-white/10"}`}>
       {phase.toUpperCase()}
     </span>
   );
 }
 
 function HealthBar({ score }: { score: number }) {
-  const color = score >= 70 ? "bg-green-500" : score >= 40 ? "bg-yellow-500" : "bg-red-500";
+  const color = score >= 70 ? "bg-[#6cff32]" : score >= 40 ? "bg-[#ffd641]" : "bg-[#ff494a]";
   return (
-    <div className="w-full bg-gray-800 rounded-full h-2">
-      <div className={`${color} h-2 rounded-full transition-all duration-700`} style={{ width: `${score}%` }} />
+    <div className="progress-track h-2">
+      <div className={`${color} h-2 progress-fill`} style={{ width: `${score}%` }} />
     </div>
   );
 }
 
 function CurveBar({ progress }: { progress: number }) {
   return (
-    <div className="relative w-full bg-gray-800 rounded-full h-4">
+    <div className="relative progress-track h-5">
       <div
-        className="bg-gradient-to-r from-blue-600 to-cyan-400 h-4 rounded-full transition-all duration-700"
+        className="bg-gradient-to-r from-[#6cff32] to-[#00d4ff] h-5 progress-fill"
         style={{ width: `${Math.min(100, progress)}%` }}
       />
-      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-white/80">
+      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-sm">
         {progress.toFixed(1)}% / 18 BNB
       </span>
     </div>
@@ -99,17 +99,31 @@ function CurveBar({ progress }: { progress: number }) {
 }
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
+  const accentColors: Record<string, string> = {
+    green: "border-[#6cff32]/20 text-[#6cff32]",
+    cyan: "border-[#00d4ff]/20 text-[#00d4ff]",
+    yellow: "border-[#ffd641]/20 text-[#ffd641]",
+    red: "border-[#ff494a]/20 text-[#ff494a]",
+    blue: "border-blue-500/20 text-blue-400",
+    purple: "border-purple-500/20 text-purple-400",
+  };
+  const ac = accent ? accentColors[accent] || "" : "";
   return (
-    <div className={`bg-gray-900/80 border rounded-xl p-4 ${accent ? `border-${accent}-500/30` : "border-gray-800"}`}>
-      <div className="text-[10px] text-gray-500 uppercase tracking-widest">{label}</div>
-      <div className={`text-2xl font-bold mt-1 ${accent ? `text-${accent}-400` : "text-white"}`}>{value}</div>
-      {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
+    <div className={`card p-4 ${accent ? ac.split(" ")[0] : ""}`}>
+      <div className="text-[10px] text-white/30 uppercase tracking-[0.15em] font-semibold">{label}</div>
+      <div className={`text-2xl font-bold mt-1.5 ${accent ? ac.split(" ").slice(1).join(" ") : "text-white"}`}>{value}</div>
+      {sub && <div className="text-[11px] text-white/40 mt-1">{sub}</div>}
     </div>
   );
 }
 
 function Pulse() {
-  return <span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" /></span>;
+  return (
+    <span className="relative flex h-2.5 w-2.5">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#6cff32] opacity-60" />
+      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#6cff32] pulse-ring" />
+    </span>
+  );
 }
 
 /* ── Token Scanner (Public Tool) ───────────────────────── */
@@ -1217,99 +1231,116 @@ export default function Dashboard() {
     } catch { /* ignore */ }
   };
 
+  const tabLabels: Record<string, string> = {
+    overview: "Dashboard", generate: "Generate", radar: "Radar", perps: "MYX Perps", memory: "Memory",
+  };
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800/50 backdrop-blur-sm bg-black/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-[--bg-primary] text-white bg-grid">
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-50 border-b border-white/[0.04] backdrop-blur-xl bg-[--bg-primary]/80">
+        <div className="max-w-[1200px] mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {status?.running ? <Pulse /> : status && !error ? <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse" /> : <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
-            <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              FOUR-LIFE
-            </h1>
-            <span className="text-[10px] text-gray-600 font-mono">v1.0.0</span>
+            {status?.running ? <Pulse /> : status && !error ? <div className="w-2.5 h-2.5 rounded-full bg-[#ffd641] animate-pulse" /> : <div className="w-2.5 h-2.5 rounded-full bg-[#ff494a]" />}
+            <h1 className="text-[15px] font-bold tracking-tight gradient-text">FOUR-LIFE</h1>
+            <span className="text-[9px] text-white/20 font-mono mt-0.5">v1.0</span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Tabs */}
-            <nav className="flex gap-1 bg-gray-900/50 rounded-lg p-0.5">
-              {(["overview", "generate", "radar", "perps", "memory"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    tab === t ? "bg-gray-800 text-white" : "text-gray-500 hover:text-gray-300"
-                  }`}
-                >
-                  {t === "overview" ? "Dashboard" : t === "generate" ? "Generate" : t === "radar" ? "Radar" : t === "perps" ? "MYX Perps" : "Memory"}
-                </button>
-              ))}
-            </nav>
+          {/* Nav tabs */}
+          <nav className="hidden md:flex items-center gap-0.5 bg-white/[0.03] rounded-xl p-1">
+            {(["overview", "generate", "radar", "perps", "memory"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-4 py-1.5 text-[12px] font-semibold rounded-lg transition-all ${
+                  tab === t
+                    ? "bg-[#6cff32]/10 text-[#6cff32]"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.03]"
+                }`}
+              >
+                {tabLabels[t]}
+              </button>
+            ))}
+          </nav>
 
+          <div className="flex items-center gap-3">
             {status?.agent_id && (
-              <span className="text-[10px] text-gray-500 font-mono bg-gray-900 px-2 py-1 rounded">ERC-8004 #{status.agent_id}</span>
+              <span className="hidden lg:inline text-[10px] text-white/25 font-mono bg-white/[0.03] px-2.5 py-1 rounded-lg">ERC-8004 #{status.agent_id}</span>
             )}
             {status?.wallet && (
-              <span className="text-[10px] text-gray-600 font-mono">
+              <span className="hidden sm:inline text-[10px] text-white/20 font-mono">
                 {status.wallet.slice(0, 6)}...{status.wallet.slice(-4)}
               </span>
             )}
-            <span
+            <button
               onClick={!status?.running ? startAgent : undefined}
-              className={`px-2 py-1 rounded text-[10px] font-mono cursor-pointer ${
+              className={`btn-pill text-[11px] border ${
                 status?.running
-                  ? "bg-green-900/30 text-green-400 border border-green-500/20"
+                  ? "bg-[#6cff32]/10 text-[#6cff32] border-[#6cff32]/20 glow-green cursor-default"
                   : error
-                    ? "bg-red-900/30 text-red-400 border border-red-500/20"
-                    : "bg-yellow-900/30 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-900/50"
+                    ? "bg-[#ff494a]/10 text-[#ff494a] border-[#ff494a]/20"
+                    : "bg-[#ffd641]/10 text-[#ffd641] border-[#ffd641]/20 hover:bg-[#ffd641]/20 cursor-pointer"
               }`}
             >
-              {status?.running ? "LIVE" : error ? "OFFLINE" : "READY (click to start)"}
-            </span>
+              {status?.running ? "LIVE" : error ? "OFFLINE" : "START"}
+            </button>
           </div>
+        </div>
+
+        {/* Mobile nav */}
+        <div className="md:hidden flex gap-0.5 px-5 pb-2 overflow-x-auto">
+          {(["overview", "generate", "radar", "perps", "memory"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-3 py-1 text-[11px] font-semibold rounded-lg whitespace-nowrap transition-all ${
+                tab === t ? "bg-[#6cff32]/10 text-[#6cff32]" : "text-white/30"
+              }`}
+            >
+              {tabLabels[t]}
+            </button>
+          ))}
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-[1200px] mx-auto px-5 py-8 space-y-8">
         {/* ── Overview Tab ── */}
         {tab === "overview" && (
           <>
-            {/* Hero — always visible */}
-            <div className="bg-gradient-to-br from-cyan-950/40 via-gray-900/80 to-blue-950/40 border border-cyan-500/10 rounded-2xl p-8 md:p-10">
-              <div className="max-w-3xl">
-                <h2 className="text-3xl md:text-4xl font-bold leading-tight">
-                  The first AI agent that doesn&apos;t just launch tokens —{" "}
-                  <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">it raises them.</span>
+            {/* Hero */}
+            <div className="relative overflow-hidden rounded-[20px] border border-white/[0.04] bg-gradient-to-br from-[#6cff32]/[0.04] via-[--bg-card] to-[#00d4ff]/[0.04] p-8 md:p-12">
+              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#6cff32]/[0.03] rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3" />
+              <div className="relative max-w-2xl">
+                <h2 className="text-3xl md:text-[40px] font-bold leading-[1.15] tracking-tight">
+                  The AI agent that doesn&apos;t just launch tokens —{" "}
+                  <span className="gradient-text">it raises them.</span>
                 </h2>
-                <p className="text-gray-400 mt-4 text-sm leading-relaxed max-w-2xl">
-                  Paste any Four.meme token address below to get an instant AI health check, graduation prediction,
-                  72-hour raise plan, and MYX V2 hedge signal. Or let the autonomous agent do it all — analyzing markets,
-                  launching tokens, and managing their entire lifecycle via DGrid AI and ERC-8004 identity.
+                <p className="text-white/40 mt-5 text-[14px] leading-relaxed max-w-xl">
+                  Paste any Four.meme token address to get an instant AI health check, graduation prediction,
+                  raise plan, and MYX V2 hedge signal.
                 </p>
-                <div className="flex flex-wrap gap-3 mt-6">
-                  <span className="px-3 py-1.5 bg-cyan-900/30 border border-cyan-500/20 rounded-lg text-xs text-cyan-400">DGrid AI Gateway</span>
-                  <span className="px-3 py-1.5 bg-purple-900/30 border border-purple-500/20 rounded-lg text-xs text-purple-400">ERC-8004 Agent #16</span>
-                  <span className="px-3 py-1.5 bg-green-900/30 border border-green-500/20 rounded-lg text-xs text-green-400">Four.meme Agentic Mode</span>
-                  <span className="px-3 py-1.5 bg-yellow-900/30 border border-yellow-500/20 rounded-lg text-xs text-yellow-400">MYX V2 Perps</span>
-                  <span className="px-3 py-1.5 bg-blue-900/30 border border-blue-500/20 rounded-lg text-xs text-blue-400">BNB Chain</span>
+                <div className="flex flex-wrap gap-2 mt-7">
+                  {["DGrid AI", "ERC-8004", "Four.meme", "MYX V2", "BNB Chain"].map((t) => (
+                    <span key={t} className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-full text-[11px] text-white/50 font-medium">{t}</span>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Token Scanner — public tool */}
+            {/* Token Scanner */}
             <TokenScanner />
 
             {/* Lifecycle phases */}
-            <div className="grid md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { phase: "THINK", color: "cyan", desc: "Analyzes Four.meme market, detects narrative gaps, generates token concepts with lore and personality" },
-                { phase: "BIRTH", color: "blue", desc: "Creates tokens via Agentic Mode, generates artwork, posts launch threads to Twitter/X" },
-                { phase: "RAISE", color: "green", desc: "Monitors health, manages nurture/defend/accelerate phases, generates adaptive content" },
-                { phase: "LEARN", color: "purple", desc: "Evaluates outcomes, records learnings, improves strategy for next launch via persistent memory" },
+                { phase: "THINK", color: "#00d4ff", desc: "Analyzes market narratives and generates token concepts" },
+                { phase: "BIRTH", color: "#6cff32", desc: "Creates tokens via Agentic Mode with AI-generated artwork" },
+                { phase: "RAISE", color: "#ffd641", desc: "Monitors health, manages phases, generates adaptive content" },
+                { phase: "LEARN", color: "#a855f7", desc: "Evaluates outcomes and improves strategy via persistent memory" },
               ].map((p) => (
-                <div key={p.phase} className={`bg-gray-900/60 border border-${p.color}-500/10 rounded-xl p-4`}>
-                  <div className={`text-${p.color}-400 font-bold font-mono text-sm mb-2`}>{p.phase}</div>
-                  <p className="text-xs text-gray-500 leading-relaxed">{p.desc}</p>
+                <div key={p.phase} className="card p-4 group">
+                  <div className="text-[13px] font-bold font-mono mb-2 transition-colors" style={{ color: p.color }}>{p.phase}</div>
+                  <p className="text-[12px] text-white/30 leading-relaxed group-hover:text-white/50 transition-colors">{p.desc}</p>
                 </div>
               ))}
             </div>
@@ -1320,60 +1351,80 @@ export default function Dashboard() {
                 <StatCard label="Launches" value={status.total_launches} />
                 <StatCard label="Graduations" value={status.total_graduations} accent={status.total_graduations > 0 ? "green" : undefined} />
                 <StatCard label="Grad Rate" value={`${status.graduation_rate}%`} />
-                <StatCard label="Avg Peak Holders" value={Math.round(status.avg_peak_holders)} />
-                <StatCard label="Active Tokens" value={status.active_tokens} accent={status.active_tokens > 0 ? "cyan" : undefined} />
+                <StatCard label="Peak Holders" value={Math.round(status.avg_peak_holders)} />
+                <StatCard label="Active" value={status.active_tokens} accent={status.active_tokens > 0 ? "green" : undefined} />
               </div>
             )}
 
             {/* Active Tokens */}
             <section>
-              <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Active Tokens</h2>
+              <h3 className="text-[12px] font-bold text-white/25 uppercase tracking-[0.15em] mb-4">Active Tokens</h3>
               {tokens.length === 0 ? (
-                <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-8 text-center">
-                  <div className="text-gray-500 text-sm">No active tokens yet</div>
-                  <p className="text-gray-600 text-xs mt-2">Use the <button onClick={() => setTab("generate")} className="text-cyan-500 hover:underline">Generate</button> tab to create a concept, launch it on four.meme, then track it here.</p>
+                <div className="card p-10 text-center">
+                  <div className="text-white/30 text-sm font-medium">No active tokens</div>
+                  <p className="text-white/15 text-[12px] mt-2">Use <button onClick={() => setTab("generate")} className="text-[#6cff32] hover:underline">Generate</button> to create a concept, launch on Four.meme, then track here.</p>
                 </div>
               ) : (
                 <div className="grid gap-3">
                   {tokens.map((token) => (
-                    <div key={token.address} className="bg-gray-900/80 border border-gray-800/50 rounded-xl p-5">
-                      <div className="flex items-center justify-between mb-3">
+                    <div key={token.address} className="card p-5">
+                      <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <h3 className="font-bold text-lg">{token.name}</h3>
-                          <span className="text-gray-400 font-mono text-sm">${token.symbol}</span>
-                          <PhaseTag phase={token.phase} />
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6cff32]/20 to-[#00d4ff]/20 flex items-center justify-center text-[13px] font-bold">
+                            {token.symbol.slice(0, 2)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-[15px]">{token.name}</h3>
+                              <span className="text-white/30 font-mono text-[12px]">${token.symbol}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <PhaseTag phase={token.phase} />
+                              <span className="text-[10px] text-white/20 font-mono">{token.age_hours.toFixed(1)}h old</span>
+                            </div>
+                          </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold">{token.health_score}</div>
-                          <div className="text-[10px] text-gray-500">HEALTH</div>
+                          <div className={`text-3xl font-bold ${token.health_score >= 70 ? "text-[#6cff32]" : token.health_score >= 40 ? "text-[#ffd641]" : "text-[#ff494a]"}`}>
+                            {token.health_score}
+                          </div>
+                          <div className="text-[9px] text-white/20 uppercase tracking-widest">Health</div>
                         </div>
                       </div>
 
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Health</span>
-                          <span>{token.health_score}/100</span>
+                      <div className="space-y-3 mb-4">
+                        <div>
+                          <div className="flex justify-between text-[11px] text-white/30 mb-1.5">
+                            <span>Health Score</span>
+                            <span>{token.health_score}/100</span>
+                          </div>
+                          <HealthBar score={token.health_score} />
                         </div>
-                        <HealthBar score={token.health_score} />
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Bonding Curve</span>
-                          <span>{token.graduation_probability}% grad probability</span>
+                        <div>
+                          <div className="flex justify-between text-[11px] text-white/30 mb-1.5">
+                            <span>Bonding Curve</span>
+                            <span>{token.graduation_probability}% grad probability</span>
+                          </div>
+                          <CurveBar progress={token.curve_progress} />
                         </div>
-                        <CurveBar progress={token.curve_progress} />
                       </div>
 
-                      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 text-sm">
-                        <div><div className="text-[10px] text-gray-600">Holders</div><div className="font-mono font-bold">{token.unique_buyers}</div></div>
-                        <div><div className="text-[10px] text-gray-600">Velocity</div><div className="font-mono">{token.holder_velocity}/h</div></div>
-                        <div><div className="text-[10px] text-gray-600">Buy/Sell</div><div className={`font-mono ${token.buy_sell_ratio >= 1.5 ? "text-green-400" : token.buy_sell_ratio < 1 ? "text-red-400" : ""}`}>{token.buy_sell_ratio}</div></div>
-                        <div><div className="text-[10px] text-gray-600">Top Holder</div><div className={`font-mono ${token.top_holder_pct > 30 ? "text-red-400" : ""}`}>{token.top_holder_pct}%</div></div>
-                        <div><div className="text-[10px] text-gray-600">Curve</div><div className="font-mono">{token.curve_progress}%</div></div>
-                        <div><div className="text-[10px] text-gray-600">Age</div><div className="font-mono">{token.age_hours.toFixed(1)}h</div></div>
+                      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                        {[
+                          { l: "Holders", v: token.unique_buyers },
+                          { l: "Velocity", v: `${token.holder_velocity}/h` },
+                          { l: "Buy/Sell", v: token.buy_sell_ratio, c: token.buy_sell_ratio >= 1.5 ? "text-[#6cff32]" : token.buy_sell_ratio < 1 ? "text-[#ff494a]" : "" },
+                          { l: "Top Holder", v: `${token.top_holder_pct}%`, c: token.top_holder_pct > 30 ? "text-[#ff494a]" : "" },
+                          { l: "Curve", v: `${token.curve_progress}%` },
+                          { l: "Narrative", v: token.narrative || "—" },
+                        ].map((m) => (
+                          <div key={m.l}>
+                            <div className="text-[9px] text-white/20 uppercase tracking-wider">{m.l}</div>
+                            <div className={`font-mono text-[13px] font-semibold mt-0.5 ${m.c || "text-white"}`}>{m.v}</div>
+                          </div>
+                        ))}
                       </div>
-
-                      <div className="mt-3 text-[10px] text-gray-700 font-mono">
-                        {token.address} | {token.narrative}
-                      </div>
+                      <div className="mt-3 text-[10px] text-white/10 font-mono">{token.address}</div>
                     </div>
                   ))}
                 </div>
@@ -1382,26 +1433,26 @@ export default function Dashboard() {
 
             {/* Decision Log */}
             <section>
-              <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Decision Log</h2>
-              <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl divide-y divide-gray-800/50">
+              <h3 className="text-[12px] font-bold text-white/25 uppercase tracking-[0.15em] mb-4">Decision Log</h3>
+              <div className="card divide-y divide-white/[0.04]">
                 {actions.length === 0 ? (
-                  <div className="p-8 text-center text-gray-600 text-sm">No actions yet. The agent will log decisions here as it manages tokens.</div>
+                  <div className="p-10 text-center text-white/20 text-sm">No actions yet. The agent will log decisions here as it manages tokens.</div>
                 ) : (
                   actions.map((action, i) => (
-                    <div key={i} className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`px-1.5 py-0.5 text-[10px] rounded font-mono ${
-                          action.urgency === "high" ? "bg-red-900/50 text-red-400"
-                            : action.urgency === "medium" ? "bg-yellow-900/50 text-yellow-400"
-                            : "bg-gray-800 text-gray-400"
+                    <div key={i} className="p-4 hover:bg-white/[0.02] transition-colors">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={`px-2 py-0.5 text-[10px] rounded-full font-semibold ${
+                          action.urgency === "high" ? "bg-[#ff494a]/10 text-[#ff494a]"
+                            : action.urgency === "medium" ? "bg-[#ffd641]/10 text-[#ffd641]"
+                            : "bg-white/[0.04] text-white/40"
                         }`}>{action.action_type}</span>
-                        <span className="text-[10px] text-gray-600">{new Date(action.timestamp * 1000).toLocaleTimeString()}</span>
+                        <span className="text-[10px] text-white/20">{new Date(action.timestamp * 1000).toLocaleTimeString()}</span>
                         {action.tweet_id && (
-                          <a href={`https://x.com/i/status/${action.tweet_id}`} target="_blank" rel="noopener" className="text-[10px] text-cyan-500 hover:underline">tweet</a>
+                          <a href={`https://x.com/i/status/${action.tweet_id}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#00d4ff] hover:underline">tweet</a>
                         )}
                       </div>
-                      <div className="text-sm text-gray-300">{action.content}</div>
-                      <div className="text-[10px] text-gray-600 mt-1">{action.reasoning}</div>
+                      <div className="text-[13px] text-white/70">{action.content}</div>
+                      <div className="text-[11px] text-white/20 mt-1">{action.reasoning}</div>
                     </div>
                   ))
                 )}
@@ -1424,13 +1475,20 @@ export default function Dashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800/30 px-6 py-4 mt-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-[10px] text-gray-700">
-          <span>FOUR-LIFE | Autonomous Meme Token Lifecycle Agent</span>
-          <div className="flex gap-4">
+      <footer className="border-t border-white/[0.03] mt-12">
+        <div className="max-w-[1200px] mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="gradient-text font-bold text-[12px]">FOUR-LIFE</span>
+            <span className="text-[11px] text-white/15">Autonomous Meme Token Lifecycle Agent</span>
+          </div>
+          <div className="flex items-center gap-4 text-[10px] text-white/15">
             <span>Four.meme AI Sprint 2026</span>
-            <span>Powered by DGrid AI</span>
-            <span>ERC-8004 on BNB Chain</span>
+            <span className="w-px h-3 bg-white/10" />
+            <span>DGrid AI</span>
+            <span className="w-px h-3 bg-white/10" />
+            <span>ERC-8004</span>
+            <span className="w-px h-3 bg-white/10" />
+            <span>BNB Chain</span>
           </div>
         </div>
       </footer>
