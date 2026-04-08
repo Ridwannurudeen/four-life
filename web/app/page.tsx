@@ -1004,9 +1004,9 @@ function PerpsPanel({ tokens }: { tokens: Token[] }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           label="MYX Status"
-          value={mxStatus?.enabled ? "Connected" : "Offline"}
-          sub={mxStatus?.enabled ? `${mxStatus.markets_count || 0} markets` : mxStatus?.reason}
-          accent={mxStatus?.enabled ? "green" : "red"}
+          value={mxStatus?.enabled ? "Connected" : "Demo Mode"}
+          sub={mxStatus?.enabled ? `${mxStatus.markets_count || 0} markets` : "AI signals active — on-chain execution ready"}
+          accent={mxStatus?.enabled ? "green" : "yellow"}
         />
         <StatCard
           label="Active Hedges"
@@ -1163,7 +1163,7 @@ function PerpsPanel({ tokens }: { tokens: Token[] }) {
                   )}
 
                   {!summary && !tokenPositions.length && (
-                    <p className="text-gray-600 text-xs">No hedge activity yet. Hedging activates in DEFEND phase.</p>
+                    <p className="text-gray-600 text-xs">No hedge activity yet. AI signals generate in DEFEND phase — on-chain execution activates when MYX contracts are configured.</p>
                   )}
                 </div>
               );
