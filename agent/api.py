@@ -46,7 +46,10 @@ app = FastAPI(title="FOUR-LIFE Agent API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://four-life.gudman.xyz", "http://localhost:3000"],
+    # "*" is safe here because we never send cookies (allow_credentials defaults to False).
+    # Write endpoints (POST /api/agent/*) stay protected by the API_SECRET bearer check in
+    # require_auth() — widening origins does not bypass that.
+    allow_origins=["*"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
