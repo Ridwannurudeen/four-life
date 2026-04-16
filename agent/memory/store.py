@@ -24,6 +24,8 @@ class LaunchRecord:
     concept: dict = field(default_factory=dict)
     launched_at: float = 0.0
     launch_block: int = 0
+    creator: str = ""            # wallet that launched the token
+    quote_asset: str = "BNB"     # BNB | USD1 | USDT | USDC | ...
 
     # Outcome metrics (updated over time)
     peak_holders: int = 0

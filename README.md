@@ -92,16 +92,21 @@ python server.py
 
 ## API Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-### Public Integration APIs (no auth required)
+### Platform Primitives (no auth — designed for Four.meme to embed directly)
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/health-score/{token}` | Health score, graduation probability, risk factors for any Four.meme token |
-| `GET /api/graduation-radar` | Ranks active Four.meme tokens by graduation probability |
-| `POST /api/raise-plan/{token}` | AI-generated 72-hour lifecycle plan for a token |
-| `GET /.well-known/agent-registration.json` | ERC-8004 agent card |
+| `GET /api/health-score/{token}` | Pair-aware health score with confidence, deterministic risk flags, and a Certified badge |
+| `GET /api/graduation-radar?quote_asset=&min_confidence=&sort_by=` | Radar of active tokens, filterable by quote asset, confidence, and sort key |
+| `GET /api/token/{token}/badge` | **FOUR-LIFE Certified** — deterministic trust tier (observed/healthy/at_risk/graduation_watch/graduated) with the exact rules that fired |
+| `GET /api/token/{token}/risk-snapshot` | Evidence-backed risk snapshot: each risk level traces to the metric that produced it |
+| `GET /api/token/{token}/operator-checklist` | Deterministic 72h operator checklist tailored to the token's current phase |
+| `GET /api/creator/{wallet}/survival-score` | Aggregate launch-survival performance for a creator wallet (launches, graduations, trust tier) |
+| `GET /api/platform/cohorts` | Platform analytics: cohorts by age/narrative/quote asset, whale-risk distribution, avg time-to-graduation |
+| `POST /api/raise-plan/{token}` | AI-generated 72-hour raise plan (uses the actual pair-aware graduation target) |
+| `GET /.well-known/agent-registration.json` | ERC-8004 / BRC-8004 agent card |
+
+Every public endpoint returns `confidence_score`, `fallback_used`, `data_sources`, `model_version`, and `last_updated_at` so judges and Four.meme can audit the response without trusting the label.
 
 ### Agent Dashboard APIs
 
@@ -112,30 +117,65 @@ python server.py
 | `GET /api/tokens/{address}` | Detailed token health + actions |
 | `GET /api/memory` | Agent memory, learnings, launch history |
 | `GET /api/actions` | Recent lifecycle actions log |
-| `POST /api/agent/think` | Run one THINK cycle, generate concept |
-| `POST /api/agent/track` | Track an existing token for lifecycle management |
-| `POST /api/agent/start` | Start agent loop |
-| `POST /api/agent/stop` | Stop agent loop |
-| `GET /api/myx/status` | MYX connection status + available markets |
-| `GET /api/myx/portfolio` | Hedge portfolio summary across all tokens |
+| `POST /api/agent/think` | Run one THINK cycle; returns degraded mode explicitly when LLM is unavailable |
+| `POST /api/agent/track` | Track an existing token (accepts `quote_asset` for pair-aware graduation target) |
+| `POST /api/agent/start` / `/stop` | Agent loop control |
+| `GET /api/myx/status` | MYX connection status + execution mode |
+| `GET /api/myx/portfolio` | Hedge portfolio summary (includes `execution_mode`) |
 | `GET /api/myx/positions/{token}` | All hedge positions for a token |
 | `GET /api/myx/signal/{token}` | AI-generated trading signal for a token |
 | `POST /api/myx/evaluate/{token}` | Manually trigger hedge evaluation |
 
+## Pair-Aware Graduation Targets
+
+FOUR-LIFE sources graduation thresholds live from Four.meme's `/public/config` API and caches them for 10 minutes. Each quote asset has its own target:
+
+| Quote Asset | Target | Source |
+|-------------|--------|--------|
+| BNB  | 18 BNB      | Four.meme config (live) |
+| USD1 | 12,000 USD1 | Four.meme config (live) |
+| USDT | 12,000 USDT | Four.meme config (live) |
+| USDC | 12,000 USDC | Four.meme config (live) |
+| CAKE | 10,000 CAKE | Four.meme config (live) |
+| ...  | ...         | Four.meme config (live) |
+
+Unknown quote assets return `confidence: "low"` with no fabricated number. The `/api/health-score`, `/api/graduation-radar`, and `/api/raise-plan` endpoints all agree on the same target for a token.
+
+## FOUR-LIFE Certified
+
+A deterministic public trust layer for Four.meme launches.
+
+| Tier | Meaning |
+|------|---------|
+| `graduated` | Reached the bonding-curve graduation threshold |
+| `graduation_watch` | Strong buy pressure, healthy distribution, curve past 70% |
+| `healthy` | Clean distribution, rising holders, buys outpacing sells after 1h |
+| `at_risk` | Meaningful risk signal: whale concentration, sell pressure, or stalled curve |
+| `observed` | Tracked, but not enough signal yet to trust-grade |
+
+Badge assignment is fully reproducible from raw metrics — every response includes a `why[]` array listing the exact rule, metric value, threshold, and pass/fail state. No LLM. Judges and Four.meme can recompute the tier independently.
+
 ## Bounty Integrations
 
-### MYX V2 ($5K Bounty)
-FOUR-LIFE integrates MYX V2 perpetual trading for automated hedging of meme token exposure:
+### DGrid AI Gateway (DGrid bounty)
+All LLM calls (narrative analysis, content generation, strategy decisions, raise-plan generation) route through DGrid's unified OpenAI-compatible API. If DGrid returns a balance/rate-limit/5xx error, FOUR-LIFE transparently falls back to Anthropic so the live demo never black-holes. Every LLM-backed response includes an `llm_provider` field identifying which provider served the call.
 
-- **AI-powered hedge signals** — LLM analyzes token health metrics to generate long/short/close/hold signals with confidence scores
-- **Phase-based automation** — hedge behavior adapts to lifecycle phase: monitor in nurture, hedge in defend, scale in accelerate, close on graduation
-- **BNB/USDT correlation hedging** — since Four.meme tokens are BNB-denominated, shorting BNB/USDT on MYX hedges downside exposure
-- **Position management** — automated open/close with 5x leverage, conservative 10% max capital per trade
-- **Dashboard + API** — full perps tab with portfolio summary, per-token positions, live signals, and manual evaluation triggers
-- **Endpoints**: `GET /api/myx/status`, `GET /api/myx/portfolio`, `GET /api/myx/positions/{token}`, `GET /api/myx/signal/{token}`, `POST /api/myx/evaluate/{token}`
+### MYX V2 (MYX bounty)
+FOUR-LIFE integrates MYX V2 as the perp layer for hedging meme-token exposure.
 
-### DGrid AI ($5K Bounty)
-All LLM calls (narrative analysis, content generation, strategy decisions) are routed through DGrid's unified AI Gateway API.
+**Signal layer (live by default):** AI analyses token health each phase and emits long/short/close/hold signals with confidence scores. Exposed at `GET /api/myx/signal/{token}`. Default response mode is `execution_mode: "signal_only"`.
+
+**Execution layer (opt-in):** Set `MYX_EXECUTION_ENABLED=true` + provide `MYX_ROUTER_ADDRESS` and `MYX_POOL_ADDRESS` to let the hedge manager submit on-chain orders. Phase-based behavior: monitor in nurture, hedge in defend, scale in accelerate, close on graduation. BNB/USDT correlation hedging on existing MYX pairs until permissionless pair creation goes live.
+
+The demo surface ships in signal-only mode so judges never see hardcoded-price orders being submitted.
+
+### Identity (ERC-8004 / BRC-8004)
+FOUR-LIFE registers with the external BRC-8004 IdentityRegistry + ReputationRegistry on BSC:
+
+- IdentityRegistry: `0xfA09B3397fAC75424422C4D28b1729E3D4f659D7`
+- ReputationRegistry: `0x17860530385Bdde7992c4Da71B9ec7791E474C08`
+
+The agent card is published at `/.well-known/agent-registration.json`. FOUR-LIFE does not deploy its own registry contracts.
 
 ## License
 

@@ -9,6 +9,7 @@ from loguru import logger
 from web3 import AsyncWeb3
 
 from agent.fourmeme.chain import FourMemeChain
+from agent.fourmeme.graduation import GraduationRegistry, get_registry
 
 
 @dataclass
@@ -27,11 +28,11 @@ class TokenHealth:
     unique_sellers: int = 0
     holder_velocity: float = 0.0  # new holders per hour
 
-    # Volume metrics
+    # Volume metrics (denominated in the token's quote asset, e.g. BNB for BNB-pair tokens)
     total_buys: int = 0
     total_sells: int = 0
-    buy_volume_bnb: float = 0.0
-    sell_volume_bnb: float = 0.0
+    buy_volume_bnb: float = 0.0   # historical name; actually tracks volume in quote_asset
+    sell_volume_bnb: float = 0.0  # historical name; actually tracks volume in quote_asset
     buy_sell_ratio: float = 0.0
 
     # Whale metrics
@@ -49,6 +50,13 @@ class TokenHealth:
     # Phase tracking
     age_hours: float = 0.0
     phase: str = "nurture"  # nurture | defend | accelerate | graduated
+
+    # Pair-aware graduation metadata (sourced from Four.meme live config)
+    quote_asset: str = "BNB"             # BNB | USD1 | USDT | USDC | CAKE | ...
+    graduation_target: float = 0.0       # e.g. 18.0 for BNB, 12000.0 for USD1
+    graduation_target_unit: str = ""     # mirror of quote_asset, for display
+    graduation_confidence: str = "low"   # "high" | "medium" | "low"
+    graduation_source: str = ""          # "fourmeme_config" | "cache" | "fallback"
 
 
 @dataclass
@@ -71,14 +79,29 @@ class TokenMonitor:
     WHALE_THRESHOLD_PCT = 5.0
     SCAN_INTERVAL_BLOCKS = 100  # ~50 seconds at 0.5s/block
 
-    def __init__(self, chain: FourMemeChain, graduation_threshold: float = 18.0) -> None:
+    def __init__(
+        self,
+        chain: FourMemeChain,
+        graduation_registry: GraduationRegistry | None = None,
+    ) -> None:
         self.chain = chain
         self.state = MonitorState()
-        self.graduation_threshold = graduation_threshold  # BNB needed for graduation
+        # Pair-aware graduation registry — sourced from Four.meme's live config
+        self.graduation_registry = graduation_registry or get_registry()
 
-    async def track_token(self, token_address: str, name: str = "", symbol: str = "",
-                          creator: str = "", created_block: int = 0) -> None:
-        """Start tracking a token."""
+    async def track_token(
+        self,
+        token_address: str,
+        name: str = "",
+        symbol: str = "",
+        creator: str = "",
+        created_block: int = 0,
+        quote_asset: str = "BNB",
+    ) -> None:
+        """Start tracking a token. Resolves its graduation target from Four.meme's config."""
+        # Resolve pair-aware graduation target (falls back to low-confidence for unknown assets)
+        target = await self.graduation_registry.get(quote_asset)
+
         health = TokenHealth(
             address=token_address,
             name=name,
@@ -86,9 +109,18 @@ class TokenMonitor:
             creator=creator,
             created_at=time.time(),
             created_block=created_block,
+            quote_asset=target.quote_asset,
+            graduation_target=target.target_amount,
+            graduation_target_unit=target.quote_asset,
+            graduation_confidence=target.confidence,
+            graduation_source=target.source,
         )
         self.state.tokens[token_address] = health
-        logger.info("Now tracking {} ({}) at {}", name, symbol, token_address)
+        logger.info(
+            "Now tracking {} ({}) at {} — graduation target {} {} (confidence: {})",
+            name, symbol, token_address,
+            target.target_amount, target.quote_asset, target.confidence,
+        )
 
     async def update_token(self, token_address: str) -> TokenHealth:
         """Update health metrics for a tracked token."""
@@ -149,10 +181,15 @@ class TokenMonitor:
         except Exception:
             pass
 
-        # Bonding curve progress estimate from buy volume
-        # Graduation threshold from Four.meme config (default 18 BNB for BNB pair)
-        graduation_bnb = self.graduation_threshold
-        health.curve_progress_pct = min(100, (health.buy_volume_bnb / graduation_bnb) * 100)
+        # Bonding curve progress: buy volume as fraction of pair-aware graduation target.
+        # If the target is unknown (low confidence), progress is reported as 0 rather than
+        # fabricated against a default — callers see confidence="low" and can react.
+        if health.graduation_target > 0:
+            health.curve_progress_pct = min(
+                100, (health.buy_volume_bnb / health.graduation_target) * 100,
+            )
+        else:
+            health.curve_progress_pct = 0.0
 
         # Phase (must be after curve_progress_pct is computed)
         if health.curve_progress_pct >= 100:

@@ -3,7 +3,9 @@
 DGrid provides a unified OpenAI-compatible API to 200+ models including Claude.
 This qualifies FOUR-LIFE for the DGrid bounty.
 
-Falls back to direct Anthropic API if DGrid is not configured.
+Automatically falls back to direct Anthropic API on DGrid errors (balance, rate limit,
+transient 5xx) so live demos never black out. Falls back at init time if DGrid is
+not configured.
 """
 
 import json
@@ -16,15 +18,20 @@ from agent.config import settings
 # DGrid uses OpenAI SDK format with provider/model naming
 DGRID_BASE_URL = "https://api.dgrid.ai/v1"
 
+# Model identifier reported in public API responses for trust/auditing.
+# Exposed via get_llm().model_id for public endpoints.
+
 
 class LLMClient:
-    """Unified LLM client — DGrid AI Gateway (primary) or direct Anthropic (fallback)."""
+    """Unified LLM client — DGrid AI Gateway (primary) with Anthropic fallback."""
 
     def __init__(self) -> None:
-        self.use_dgrid = bool(settings.dgrid_api_key)
+        self.dgrid_configured = bool(settings.dgrid_api_key)
+        self.anthropic_configured = bool(settings.anthropic_api_key)
 
-        if self.use_dgrid:
-            self._client = AsyncOpenAI(
+        # DGrid primary (for bounty eligibility + unified routing)
+        if self.dgrid_configured:
+            self._dgrid = AsyncOpenAI(
                 base_url=DGRID_BASE_URL,
                 api_key=settings.dgrid_api_key,
                 default_headers={
@@ -33,11 +40,82 @@ class LLMClient:
                 },
             )
             self.model = settings.dgrid_model
-            logger.info("LLM: DGrid AI Gateway ({})", self.model)
         else:
-            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            self.model = "claude-sonnet-4-20250514"
-            logger.info("LLM: Direct Anthropic ({})", self.model)
+            self._dgrid = None
+            self.model = ""
+
+        # Anthropic as resilient fallback
+        if self.anthropic_configured:
+            self._anthropic = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            self._anthropic_model = "claude-sonnet-4-5"
+        else:
+            self._anthropic = None
+            self._anthropic_model = ""
+
+        # Track last-used provider for observability
+        self.last_provider: str = "none"
+        self.dgrid_healthy: bool = self.dgrid_configured
+
+        if self.dgrid_configured and self.anthropic_configured:
+            logger.info("LLM: DGrid AI Gateway ({}) with Anthropic fallback", self.model)
+        elif self.dgrid_configured:
+            logger.info("LLM: DGrid AI Gateway ({}) — no fallback configured", self.model)
+        elif self.anthropic_configured:
+            logger.info("LLM: Direct Anthropic ({}) — DGrid not configured", self._anthropic_model)
+        else:
+            logger.warning("LLM: NO PROVIDER CONFIGURED — all LLM calls will fail")
+
+    @property
+    def model_id(self) -> str:
+        """Stable identifier for the current provider+model (for public audit metadata)."""
+        if self.last_provider == "dgrid":
+            return f"dgrid:{self.model}"
+        if self.last_provider == "anthropic":
+            return f"anthropic:{self._anthropic_model}"
+        if self.dgrid_configured:
+            return f"dgrid:{self.model}"
+        if self.anthropic_configured:
+            return f"anthropic:{self._anthropic_model}"
+        return "none"
+
+    @staticmethod
+    def _is_dgrid_unavailable(exc: Exception) -> bool:
+        """Classify DGrid errors that warrant fallback: balance, rate limit, 5xx, network."""
+        msg = str(exc).lower()
+        if "balance_insufficient" in msg or "insufficient" in msg:
+            return True
+        status = getattr(exc, "status_code", None)
+        if status in (402, 403, 429, 500, 502, 503, 504):
+            return True
+        if "timeout" in msg or "connection" in msg:
+            return True
+        return False
+
+    async def _dgrid_chat_raw(self, messages: list[dict], max_tokens: int, temperature: float, json_mode: bool) -> str:
+        kwargs = dict(model=self.model, max_tokens=max_tokens, temperature=temperature, messages=messages)
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        response = await self._dgrid.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+
+    async def _anthropic_chat_raw(self, messages: list[dict], max_tokens: int, temperature: float) -> str:
+        system = None
+        api_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system = msg["content"]
+            else:
+                api_messages.append(msg)
+        kwargs = dict(
+            model=self._anthropic_model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=api_messages,
+        )
+        if system:
+            kwargs["system"] = system
+        response = await self._anthropic.messages.create(**kwargs)
+        return response.content[0].text
 
     async def chat(
         self,
@@ -45,34 +123,11 @@ class LLMClient:
         max_tokens: int = 2000,
         temperature: float = 0.7,
     ) -> str:
-        """Send a chat completion request. Returns the text response."""
-        if self.use_dgrid:
-            response = await self._client.chat.completions.create(
-                model=self.model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                messages=messages,
-            )
-            return response.choices[0].message.content
-        else:
-            # Anthropic expects system message separate from user/assistant messages
-            system = None
-            api_messages = []
-            for msg in messages:
-                if msg["role"] == "system":
-                    system = msg["content"]
-                else:
-                    api_messages.append(msg)
-            kwargs = dict(
-                model=self.model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                messages=api_messages,
-            )
-            if system:
-                kwargs["system"] = system
-            response = await self._client.messages.create(**kwargs)
-            return response.content[0].text
+        """Send a chat completion request. Returns the text response.
+
+        Tries DGrid first, falls back to Anthropic on balance/rate/transient errors.
+        """
+        return await self._chat_with_fallback(messages, max_tokens, temperature, json_mode=False)
 
     async def chat_json(
         self,
@@ -80,21 +135,9 @@ class LLMClient:
         max_tokens: int = 2000,
     ) -> dict:
         """Send a chat request and parse the response as JSON."""
-        if self.use_dgrid:
-            # Use response_format for structured JSON output
-            response = await self._client.chat.completions.create(
-                model=self.model,
-                max_tokens=max_tokens,
-                temperature=0.7,
-                messages=messages,
-                response_format={"type": "json_object"},
-            )
-            text = response.choices[0].message.content
-        else:
-            text = await self.chat(messages, max_tokens)
+        text = await self._chat_with_fallback(messages, max_tokens, temperature=0.7, json_mode=True)
         if not text or not text.strip():
             raise ValueError("LLM returned empty response")
-        # Strip markdown code fences (```json ... ```)
         cleaned = text.strip()
         if cleaned.startswith("```"):
             lines = cleaned.split("\n")
@@ -115,6 +158,46 @@ class LLMClient:
             if start >= 0 and end > start:
                 return json.loads(cleaned[start:end])
             raise
+
+    async def _chat_with_fallback(
+        self,
+        messages: list[dict],
+        max_tokens: int,
+        temperature: float,
+        json_mode: bool,
+    ) -> str:
+        """Call DGrid first; fall back to Anthropic on balance/rate/transient errors."""
+        # If DGrid is healthy and configured, try it first
+        if self.dgrid_configured and self.dgrid_healthy:
+            try:
+                text = await self._dgrid_chat_raw(messages, max_tokens, temperature, json_mode)
+                self.last_provider = "dgrid"
+                return text
+            except Exception as e:
+                if self._is_dgrid_unavailable(e) and self.anthropic_configured:
+                    logger.warning(
+                        "DGrid unavailable ({}) — falling back to Anthropic. Will retry DGrid on next call.",
+                        str(e)[:120],
+                    )
+                    # Mark unhealthy only for this call; retry DGrid next call
+                else:
+                    # Unknown error and no fallback, or fallback also unavailable — re-raise
+                    if not self.anthropic_configured:
+                        raise
+                    logger.warning("DGrid error ({}) — falling back to Anthropic.", str(e)[:120])
+
+        # Anthropic path (either primary-no-DGrid or fallback)
+        if not self.anthropic_configured:
+            raise RuntimeError("Both DGrid and Anthropic failed; no LLM provider available")
+
+        # For JSON mode on Anthropic, add a system hint since no native response_format
+        if json_mode:
+            has_system = any(m["role"] == "system" for m in messages)
+            if not has_system:
+                messages = [{"role": "system", "content": "Respond ONLY with a single valid JSON object. No prose, no markdown fences."}] + messages
+        text = await self._anthropic_chat_raw(messages, max_tokens, temperature)
+        self.last_provider = "anthropic"
+        return text
 
 
 # Singleton instance

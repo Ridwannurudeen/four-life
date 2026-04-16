@@ -11,6 +11,7 @@ from agent.config import settings
 from agent.fourmeme.api import FourMemeAPI
 from agent.fourmeme.chain import FourMemeChain
 from agent.fourmeme.monitor import TokenMonitor
+from agent.fourmeme.graduation import get_registry as get_graduation_registry
 from agent.brain.narrative import NarrativeEngine
 from agent.brain.strategy import StrategyEngine
 from agent.brain.content import ContentEngine
@@ -32,7 +33,8 @@ class FourLifeAgent:
         # Core services
         self.api = FourMemeAPI()
         self.chain = FourMemeChain()
-        self.monitor = TokenMonitor(self.chain)
+        self.graduation_registry = get_graduation_registry()
+        self.monitor = TokenMonitor(self.chain, graduation_registry=self.graduation_registry)
         self.narrative = NarrativeEngine()
         self.strategy = StrategyEngine()
         self.content_engine = ContentEngine()
@@ -40,13 +42,17 @@ class FourLifeAgent:
         self.identity = AgentIdentity()
         self.twitter = TwitterClient()
 
-        # MYX V2 perp integration
+        # MYX V2 perp integration. Signals are always generated when router+pool are
+        # configured; execution only happens when MYX_EXECUTION_ENABLED=true.
         self.myx = MYXClient(
             router_address=settings.myx_router_address,
             pool_address=settings.myx_pool_address,
         ) if settings.myx_router_address else None
         self.myx_strategy = MYXStrategy(self.myx) if self.myx else None
-        self.hedge_manager = HedgeManager(self.myx, self.myx_strategy) if self.myx else None
+        self.hedge_manager = HedgeManager(
+            self.myx, self.myx_strategy,
+            execution_enabled=settings.myx_execution_enabled,
+        ) if self.myx else None
 
         self.lifecycle = LifecycleEngine(
             self.monitor, self.strategy, self.content_engine, self.memory, self.twitter,
@@ -66,6 +72,12 @@ class FourLifeAgent:
         # Authenticate with Four.meme
         await self.api.login()
         logger.info("Four.meme authenticated")
+
+        # Warm up graduation registry from Four.meme's live config
+        try:
+            await self.graduation_registry.refresh()
+        except Exception as e:
+            logger.warning("Graduation registry warm-up failed (will retry on demand): {}", e)
 
         # Check/register ERC-8004 identity
         agent_id = await self.identity.get_agent_id()
@@ -258,6 +270,8 @@ class FourLifeAgent:
                 concept=concept,
                 launched_at=time.time(),
                 launch_block=created_block,
+                creator=self.chain.account.address,
+                quote_asset="BNB",
                 market_conditions={},
             ))
 

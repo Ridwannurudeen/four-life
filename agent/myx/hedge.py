@@ -70,11 +70,24 @@ SIGNAL_COOLDOWN = 300  # 5 min between signal generations
 class HedgeManager:
     """Manages perp hedges across all active tokens."""
 
-    def __init__(self, myx: MYXClient, strategy: MYXStrategy) -> None:
+    def __init__(
+        self,
+        myx: MYXClient,
+        strategy: MYXStrategy,
+        execution_enabled: bool = False,
+    ) -> None:
         self.myx = myx
         self.strategy = strategy
+        # When False, the manager generates signals but does not submit on-chain orders.
+        # Keeps the demo surface honest until real oracle pricing + production collateral
+        # are wired up.
+        self.execution_enabled = execution_enabled
         self.states: dict[str, HedgeState] = {}  # token_address -> state
         self._pair_index_cache: dict[str, int] = {}
+
+    @property
+    def execution_mode(self) -> str:
+        return "executable" if self.execution_enabled else "signal_only"
 
     def _get_state(self, token_address: str) -> HedgeState:
         if token_address not in self.states:
@@ -167,7 +180,16 @@ class HedgeManager:
                 return await self._close_all_hedges(token_address, "Token graduated to PancakeSwap")
             return None
 
-        # DEFEND / ACCELERATE — act on signals
+        # DEFEND / ACCELERATE — act on signals, but only when execution is enabled
+        if not self.execution_enabled:
+            return {
+                "action": "signal_only",
+                "execution_mode": self.execution_mode,
+                "would_execute": action,
+                "signal": signal,
+                "reason": "MYX execution disabled (MYX_EXECUTION_ENABLED=false). Signal generated but not submitted.",
+            }
+
         if action == "short" and confidence >= 0.6 and not state.has_active_hedge:
             return await self._open_hedge(
                 token_address,
@@ -315,6 +337,7 @@ class HedgeManager:
             })
 
         return {
+            "execution_mode": self.execution_mode,
             "total_active_positions": total_active,
             "total_closed_positions": total_closed,
             "total_signals_generated": total_signals,

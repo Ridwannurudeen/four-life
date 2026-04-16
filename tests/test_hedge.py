@@ -40,7 +40,15 @@ def mock_strategy():
 
 @pytest.fixture
 def manager(mock_myx, mock_strategy):
-    return HedgeManager(mock_myx, mock_strategy)
+    # Existing behavioural tests assume execution happens — enable it explicitly so the
+    # default signal_only guard doesn't suppress on-chain actions in unit tests.
+    return HedgeManager(mock_myx, mock_strategy, execution_enabled=True)
+
+
+@pytest.fixture
+def signal_only_manager(mock_myx, mock_strategy):
+    """Default-safe manager with execution disabled (matches production default)."""
+    return HedgeManager(mock_myx, mock_strategy, execution_enabled=False)
 
 
 @pytest.fixture
@@ -303,6 +311,33 @@ class TestCloseAllHedges:
         mock_myx.close_position.side_effect = ["0xclosed1", Exception("fail")]
         result = await manager._close_all_hedges("0xpart", "test")
         assert result["closed_count"] == 1
+
+
+class TestSignalOnlyMode:
+    """The default execution_mode should be 'signal_only' so demos never submit on-chain
+    orders with hardcoded collateral / placeholder oracle prices."""
+
+    def test_default_mode_is_signal_only(self, signal_only_manager):
+        assert signal_only_manager.execution_mode == "signal_only"
+
+    def test_enabled_mode_is_executable(self, manager):
+        assert manager.execution_mode == "executable"
+
+    @pytest.mark.asyncio
+    async def test_signal_only_does_not_open_on_short(self, signal_only_manager, token_health, mock_strategy, mock_myx):
+        mock_strategy.generate_signal.return_value = {
+            "action": "short", "confidence": 0.9, "reasoning": "x", "size_pct": 0.05,
+        }
+        result = await signal_only_manager.evaluate_and_act("0xsig", token_health, "defend")
+        assert result["action"] == "signal_only"
+        assert result["execution_mode"] == "signal_only"
+        assert result["would_execute"] == "short"
+        mock_myx.open_position.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_signal_only_emits_execution_mode_in_portfolio(self, signal_only_manager):
+        summary = signal_only_manager.get_portfolio_summary()
+        assert summary["execution_mode"] == "signal_only"
 
 
 class TestPortfolioSummary:

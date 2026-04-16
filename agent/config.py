@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # MYX V2
     myx_router_address: str = Field(default="", alias="MYX_ROUTER_ADDRESS")
     myx_pool_address: str = Field(default="", alias="MYX_POOL_ADDRESS")
+    # Execution requires real oracle pricing + production-sized collateral. Default OFF so
+    # the hackathon demo surface stays in "signal_only" mode until deliberately enabled.
+    myx_execution_enabled: bool = Field(default=False, alias="MYX_EXECUTION_ENABLED")
 
     # Agent config
     agent_name: str = Field(default="FOUR-LIFE", alias="AGENT_NAME")
