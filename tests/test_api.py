@@ -194,6 +194,118 @@ class TestCreatorSurvivalScore:
         assert data["trust_tier"] == "unknown"
 
 
+def _make_launch(creator: str, *, graduated: bool, peak_curve: float = 50, peak_holders: int = 100, launched_at: float = 0, symbol: str = "X"):
+    from agent.memory.store import LaunchRecord
+    return LaunchRecord(
+        token_address="0x" + symbol.lower().zfill(40).replace(" ", "0"),
+        name=symbol,
+        symbol=symbol,
+        narrative="test",
+        creator=creator,
+        quote_asset="BNB",
+        graduated=graduated,
+        peak_curve_progress=peak_curve,
+        peak_holders=peak_holders,
+        launched_at=launched_at,
+    )
+
+
+class TestCreatorsLeaderboard:
+    def test_empty_returns_zero_creators(self, client):
+        resp = client.get("/api/creators/leaderboard")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 0
+        assert data["total_creators"] == 0
+        assert data["creators"] == []
+
+    def test_aggregates_multi_creator_launches(self, client, mock_agent):
+        proven_creator = "0x" + "a1" * 20
+        emerging_creator = "0x" + "b2" * 20
+        # proven: 4 launches, 3 graduations, high holders → trust_tier=proven
+        proven_launches = [
+            _make_launch(proven_creator, graduated=True, peak_curve=100, peak_holders=500, launched_at=3000, symbol="PROVEN1"),
+            _make_launch(proven_creator, graduated=True, peak_curve=95, peak_holders=400, launched_at=2000, symbol="PROVEN2"),
+            _make_launch(proven_creator, graduated=True, peak_curve=100, peak_holders=600, launched_at=1500, symbol="PROVEN3"),
+            _make_launch(proven_creator, graduated=False, peak_curve=45, peak_holders=120, launched_at=1000, symbol="PROVEN4"),
+        ]
+        # emerging: 4 launches, 1 graduation, decent curve
+        emerging_launches = [
+            _make_launch(emerging_creator, graduated=False, peak_curve=55, peak_holders=120, launched_at=2500, symbol="EM1"),
+            _make_launch(emerging_creator, graduated=True, peak_curve=100, peak_holders=200, launched_at=2200, symbol="EM2"),
+            _make_launch(emerging_creator, graduated=False, peak_curve=40, peak_holders=80, launched_at=2100, symbol="EM3"),
+            _make_launch(emerging_creator, graduated=False, peak_curve=30, peak_holders=50, launched_at=2000, symbol="EM4"),
+        ]
+        mock_agent.memory.memory.launches = proven_launches + emerging_launches
+
+        resp = client.get("/api/creators/leaderboard")
+        data = resp.json()
+        assert data["total_creators"] == 2
+        wallets = [c["wallet"] for c in data["creators"]]
+        assert proven_creator in wallets and emerging_creator in wallets
+
+        proven_row = next(c for c in data["creators"] if c["wallet"] == proven_creator)
+        assert proven_row["trust_tier"] == "proven"
+        assert proven_row["graduations"] == 3
+        assert proven_row["graduation_rate"] == 0.75
+        # Default sort = trust_tier → proven comes before emerging
+        assert wallets[0] == proven_creator
+
+    def test_filters_by_trust_tier(self, client, mock_agent):
+        a = "0x" + "aa" * 20
+        b = "0x" + "bb" * 20
+        mock_agent.memory.memory.launches = [
+            _make_launch(a, graduated=True, peak_curve=100, peak_holders=400, symbol="A1"),
+            _make_launch(a, graduated=True, peak_curve=100, peak_holders=500, symbol="A2"),
+            _make_launch(a, graduated=True, peak_curve=100, peak_holders=600, symbol="A3"),
+            # Only 1 launch → new_creator
+            _make_launch(b, graduated=False, peak_curve=10, peak_holders=20, symbol="B1"),
+        ]
+        resp = client.get("/api/creators/leaderboard?trust_tier=proven")
+        data = resp.json()
+        assert data["total_creators"] == 1
+        assert data["creators"][0]["wallet"] == a
+
+    def test_min_launches_filter(self, client, mock_agent):
+        a = "0x" + "aa" * 20
+        b = "0x" + "bb" * 20
+        mock_agent.memory.memory.launches = [
+            _make_launch(a, graduated=False, symbol="A1"),
+            _make_launch(a, graduated=False, symbol="A2"),
+            _make_launch(a, graduated=False, symbol="A3"),
+            _make_launch(b, graduated=False, symbol="B1"),
+        ]
+        resp = client.get("/api/creators/leaderboard?min_launches=3")
+        assert resp.json()["total_creators"] == 1
+        assert resp.json()["creators"][0]["wallet"] == a
+
+    def test_limit_caps_result(self, client, mock_agent):
+        launches = []
+        for i in range(5):
+            w = "0x" + str(i) * 40
+            launches.append(_make_launch(w, graduated=False, symbol=f"T{i}"))
+        mock_agent.memory.memory.launches = launches
+        resp = client.get("/api/creators/leaderboard?limit=3")
+        data = resp.json()
+        assert data["count"] == 3
+        assert data["total_creators"] == 5  # total_creators reflects filters, not limit
+
+    def test_rejects_unknown_sort_by(self, client):
+        resp = client.get("/api/creators/leaderboard?sort_by=bogus")
+        assert resp.status_code == 400
+
+    def test_sort_by_recent_orders_by_last_launch(self, client, mock_agent):
+        a = "0x" + "aa" * 20
+        b = "0x" + "bb" * 20
+        mock_agent.memory.memory.launches = [
+            _make_launch(a, graduated=False, launched_at=1_000, symbol="A1"),
+            _make_launch(b, graduated=False, launched_at=5_000, symbol="B1"),
+        ]
+        resp = client.get("/api/creators/leaderboard?sort_by=recent")
+        wallets = [c["wallet"] for c in resp.json()["creators"]]
+        assert wallets == [b, a]
+
+
 class TestOperatorChecklist:
     def test_returns_checklist_for_tracked_token(self, client, mock_agent):
         from agent.fourmeme.monitor import TokenHealth

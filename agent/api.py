@@ -8,10 +8,62 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from agent.agent import FourLifeAgent
 from agent.badge import badge_from_health, badge_from_ranking
+from agent.history import default_store as _history_store
 from agent.security.contract_analyzer import ContractAnalyzer, ContractRisk
+from agent.webhooks import (
+    EVENT_BADGE_TIER_CHANGED,
+    SUPPORTED_EVENTS,
+    default_store as _webhook_store,
+    fire_tier_changed,
+    schedule_deliveries,
+)
+
+
+def _record_history(
+    *,
+    token_address: str,
+    badge,
+    data_source: str,
+    risk_level: str | None = None,
+) -> None:
+    """Best-effort write of a badge snapshot + webhook fan-out on tier transition.
+
+    History is a side channel — write failures never affect the response. Webhook
+    dispatch is also fire-and-forget on the running event loop.
+    """
+    try:
+        result = _history_store().record(
+            token_address=token_address,
+            tier=badge.tier,
+            metrics=badge.metrics_snapshot,
+            why=badge.why,
+            risk_level=risk_level,
+            data_source=data_source,
+        )
+    except Exception as e:
+        logger.warning("history write failed for {}: {}", token_address, e)
+        return
+
+    # Fire a webhook event on real tier transitions (first-ever snapshot does not fire).
+    if result.written and result.prev_tier is not None and result.prev_tier != result.tier:
+        try:
+            ids = fire_tier_changed(
+                token_address=token_address,
+                from_tier=result.prev_tier,
+                to_tier=result.tier,
+                why=badge.why,
+                metrics=badge.metrics_snapshot,
+                data_source=data_source,
+                at=result.recorded_at,
+            )
+            if ids:
+                schedule_deliveries(ids)
+        except Exception as e:
+            logger.warning("webhook dispatch failed for {}: {}", token_address, e)
 
 
 agent: FourLifeAgent | None = None
@@ -93,6 +145,7 @@ tags_metadata = [
     {"name": "dgrid", "description": "DGrid AI Gateway usage — task-model routing, fallback chain, per-provider counters."},
     {"name": "radar-bot", "description": "Health feed for the X alert bot that broadcasts Certified tier transitions."},
     {"name": "myx", "description": "MYX V2 perp integration. Signal-only by default; execution opt-in via MYX_EXECUTION_ENABLED."},
+    {"name": "webhooks", "description": "Outbound webhook subscriptions. Signed HMAC deliveries on tier-change events. Protected by API_SECRET bearer token."},
     {"name": "agent", "description": "Agent lifecycle controls (start/stop/track). Protected by API_SECRET bearer token."},
     {"name": "dashboard", "description": "Internal status + history endpoints used by the FOUR-LIFE dashboard."},
 ]
@@ -754,6 +807,8 @@ async def public_health_score(token_address: str):
                 graduation_confidence=target.confidence,
             )
 
+            _record_history(token_address=token_address, badge=badge, data_source="ranking_snapshot")
+
             return {
                 "token_address": token_address,
                 "name": name,
@@ -794,6 +849,8 @@ async def public_health_score(token_address: str):
         contract_risk = await _get_contract_risk(token_address)
         crs = contract_risk.risk_score if contract_risk else 0
         badge = badge_from_health(health, contract_risk_score=crs)
+
+        _record_history(token_address=token_address, badge=badge, data_source="live_monitor")
 
         return {
             "token_address": token_address,
@@ -1112,6 +1169,8 @@ async def token_badge(token_address: str):
             )
             source = "ranking_snapshot"
 
+        _record_history(token_address=token_address, badge=badge, data_source=source)
+
         return {
             "token_address": token_address,
             "badge": badge.to_dict(),
@@ -1177,6 +1236,13 @@ async def token_risk_snapshot(token_address: str):
     else:
         risk_level = "low"
 
+    _record_history(
+        token_address=token_address,
+        badge=badge_from_health(health, contract_risk_score=contract_risk_score),
+        data_source="risk_snapshot",
+        risk_level=risk_level,
+    )
+
     return {
         "token_address": token_address,
         "name": health.name,
@@ -1205,6 +1271,173 @@ async def token_risk_snapshot(token_address: str):
     }
 
 
+@app.get("/api/token/{token_address}/history", tags=["platform"], summary="Historical tier snapshots (time-series) for a token")
+async def token_history(token_address: str, limit: int = 200, since: int | None = None, transitions_only: bool = False):
+    """Historical Certified-tier snapshots for a token, newest-first.
+
+    Each call to `/badge`, `/health-score`, or `/risk-snapshot` records a snapshot
+    when the tier changes or 5 minutes elapse since the last write. Set
+    `transitions_only=true` to return only rows where the tier actually changed.
+    """
+    store = _history_store()
+    try:
+        rows = (
+            store.transitions(token_address, since=since, limit=limit)
+            if transitions_only
+            else store.history(token_address, limit=limit, since=since)
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+    return {
+        "token_address": token_address.lower(),
+        "since": since,
+        "limit": limit,
+        "transitions_only": bool(transitions_only),
+        "count": len(rows),
+        "snapshots": [r.to_dict() for r in rows],
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+        "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+    }
+
+
+@app.get("/api/token/{token_address}/diff", tags=["platform"], summary="What changed for a token since a given timestamp")
+async def token_diff(token_address: str, since: int):
+    """Summarize the changes for a token since `since` (unix seconds).
+
+    Returns first + last snapshot inside the window plus every tier transition with the
+    `why[]` rule trace for each boundary. This is the read-model for alerts,
+    change-summary emails, and the radar-bot status feed.
+    """
+    store = _history_store()
+    try:
+        d = store.diff(token_address, since=int(since))
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+    return {
+        **d,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+        "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+    }
+
+
+@app.get("/api/history/tokens", tags=["platform"], summary="Tokens with recorded history, newest-activity first")
+async def history_tokens(limit: int = 200):
+    """List of token addresses that have at least one recorded snapshot.
+
+    Useful for judges / integrators who want to audit the history store without
+    needing to know which tokens are being tracked live.
+    """
+    store = _history_store()
+    try:
+        tokens = store.tokens_with_history(limit=limit)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    return {
+        "count": len(tokens),
+        "tokens": tokens,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+# ── Webhooks (outbound tier-change notifications) ────────────────────
+
+class _WebhookSubscribeBody(BaseModel):
+    url: str
+    events: list[str] = Field(default_factory=lambda: [EVENT_BADGE_TIER_CHANGED])
+    token_filter: str | None = None
+    created_by: str | None = None
+
+
+@app.post(
+    "/api/webhooks",
+    tags=["webhooks"],
+    summary="Create a webhook subscription — returns a shared secret ONCE",
+    dependencies=[Depends(require_auth)],
+)
+async def create_webhook_subscription(body: _WebhookSubscribeBody):
+    """Register a new webhook endpoint. Response includes `secret` **exactly once**;
+    store it securely to verify the `X-FourLife-Signature` header on deliveries.
+
+    Supported events: `badge.tier_changed`. Pass `token_filter` to receive events for
+    one specific token address; omit it to subscribe to every tracked token.
+    """
+    store = _webhook_store()
+    try:
+        sub, secret = store.subscribe(
+            url=body.url,
+            events=body.events or [EVENT_BADGE_TIER_CHANGED],
+            token_filter=body.token_filter,
+            created_by=body.created_by,
+        )
+    except ValueError as ve:
+        return JSONResponse({"error": str(ve)}, status_code=400)
+    return {
+        **sub.to_dict(),
+        "secret": secret,
+        "supported_events": sorted(SUPPORTED_EVENTS),
+        "signature_header": "X-FourLife-Signature",
+        "signature_format": "t=<unix_ts>,v1=<hex_hmac_sha256>",
+        "signed_payload": "<timestamp>.<raw_body>",
+        "retry_schedule_seconds": [30, 120, 900],
+        "note": "Store the secret now — it is not retrievable later.",
+    }
+
+
+@app.get(
+    "/api/webhooks",
+    tags=["webhooks"],
+    summary="List webhook subscriptions (secrets not returned)",
+    dependencies=[Depends(require_auth)],
+)
+async def list_webhook_subscriptions(include_disabled: bool = False):
+    store = _webhook_store()
+    subs = store.list_subscriptions(include_disabled=include_disabled)
+    return {
+        "count": len(subs),
+        "subscriptions": [s.to_dict() for s in subs],
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.delete(
+    "/api/webhooks/{subscription_id}",
+    tags=["webhooks"],
+    summary="Delete a webhook subscription",
+    dependencies=[Depends(require_auth)],
+)
+async def delete_webhook_subscription(subscription_id: str):
+    store = _webhook_store()
+    ok = store.delete_subscription(subscription_id)
+    if not ok:
+        return JSONResponse({"error": "subscription not found"}, status_code=404)
+    return {"deleted": True, "subscription_id": subscription_id}
+
+
+@app.get(
+    "/api/webhooks/{subscription_id}/deliveries",
+    tags=["webhooks"],
+    summary="List recent deliveries for a subscription",
+    dependencies=[Depends(require_auth)],
+)
+async def list_webhook_deliveries(subscription_id: str, limit: int = 50):
+    store = _webhook_store()
+    sub = store.get_subscription(subscription_id)
+    if not sub:
+        return JSONResponse({"error": "subscription not found"}, status_code=404)
+    deliveries = store.list_deliveries(subscription_id, limit=limit)
+    return {
+        "subscription": sub.to_dict(),
+        "count": len(deliveries),
+        "deliveries": [d.to_dict() for d in deliveries],
+        "last_updated_at": int(time.time()),
+    }
+
+
 @app.get("/api/token/{token_address}/contract-risk", tags=["contract"], summary="Bytecode + source analysis — mint, blacklist, proxy, pause, ownership, honeypot")
 async def token_contract_risk(token_address: str):
     """Deterministic contract-level rug-risk analysis for a BSC token.
@@ -1229,6 +1462,78 @@ async def token_contract_risk(token_address: str):
     }
 
 
+def _median(xs: list[float]) -> float:
+    if not xs:
+        return 0.0
+    s = sorted(xs)
+    n = len(s)
+    mid = n // 2
+    return float(s[mid]) if n % 2 == 1 else float((s[mid - 1] + s[mid]) / 2)
+
+
+def _creator_trust_tier(*, launches_tracked: int, grad_rate: float, median_curve: float, median_holders: float) -> str:
+    """Deterministic creator trust tier — same thresholds everywhere."""
+    if launches_tracked < 3:
+        return "new_creator"
+    if grad_rate >= 0.5 and median_holders >= 250:
+        return "proven"
+    if grad_rate >= 0.25 or median_curve >= 40:
+        return "emerging"
+    return "unproven"
+
+
+def _compute_creator_stats(launches: list, *, evidence_limit: int = 10) -> dict:
+    """Aggregate launch records for a single creator. Returns the same shape as
+    `/api/creator/{wallet}/survival-score`, minus per-request metadata."""
+    graduations = sum(1 for lr in launches if lr.graduated)
+    grad_rate = graduations / len(launches) if launches else 0.0
+    median_curve = _median([lr.peak_curve_progress for lr in launches])
+    median_holders = _median([float(lr.peak_holders) for lr in launches])
+
+    trust_tier = _creator_trust_tier(
+        launches_tracked=len(launches),
+        grad_rate=grad_rate,
+        median_curve=median_curve,
+        median_holders=median_holders,
+    )
+
+    last_launch_at = max((lr.launched_at for lr in launches), default=0.0)
+
+    return {
+        "launches_tracked": len(launches),
+        "graduations": graduations,
+        "graduation_rate": round(grad_rate, 3),
+        "median_peak_curve_progress": round(median_curve, 2),
+        "median_peak_holders": int(median_holders),
+        "trust_tier": trust_tier,
+        "last_launch_at": last_launch_at,
+        "evidence": [
+            {
+                "token_address": lr.token_address,
+                "symbol": lr.symbol,
+                "narrative": lr.narrative,
+                "quote_asset": getattr(lr, "quote_asset", "BNB"),
+                "launched_at": lr.launched_at,
+                "graduated": lr.graduated,
+                "peak_curve_progress": round(lr.peak_curve_progress, 2),
+                "peak_holders": lr.peak_holders,
+                "peak_health_score": lr.peak_health_score,
+            }
+            for lr in sorted(launches, key=lambda l: l.launched_at)[-evidence_limit:]
+        ],
+    }
+
+
+def _launches_by_creator(agent_obj) -> dict[str, list]:
+    """Group launches by normalized creator wallet. Empty creator → agent wallet."""
+    agent_wallet = (agent_obj.chain.account.address or "").lower()
+    out: dict[str, list] = {}
+    for lr in agent_obj.memory.memory.launches:
+        creator = (lr.creator or agent_wallet).lower()
+        out.setdefault(creator, []).append(lr)
+    return out
+
+
 @app.get("/api/creator/{wallet}/survival-score", tags=["creator"], summary="Creator track record + deterministic trust tier")
 async def creator_survival_score(wallet: str):
     """Aggregate survival performance for a creator wallet across all FOUR-LIFE-tracked launches.
@@ -1240,13 +1545,7 @@ async def creator_survival_score(wallet: str):
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
 
     wallet_lower = wallet.lower()
-    # Gather all launches for this creator. Empty `creator` field defaults to agent wallet.
-    agent_wallet = (agent.chain.account.address or "").lower()
-    launches = []
-    for lr in agent.memory.memory.launches:
-        creator = (lr.creator or agent_wallet).lower()
-        if creator == wallet_lower:
-            launches.append(lr)
+    launches = _launches_by_creator(agent).get(wallet_lower, [])
 
     if not launches:
         return {
@@ -1264,52 +1563,81 @@ async def creator_survival_score(wallet: str):
             "last_updated_at": int(time.time()),
         }
 
-    def _median(xs: list[float]) -> float:
-        if not xs:
-            return 0.0
-        s = sorted(xs)
-        n = len(s)
-        mid = n // 2
-        return float(s[mid]) if n % 2 == 1 else float((s[mid - 1] + s[mid]) / 2)
-
-    graduations = sum(1 for lr in launches if lr.graduated)
-    grad_rate = graduations / len(launches) if launches else 0.0
-    median_curve = _median([lr.peak_curve_progress for lr in launches])
-    median_holders = _median([float(lr.peak_holders) for lr in launches])
-
-    # Deterministic trust tier
-    if len(launches) < 3:
-        trust_tier = "new_creator"
-    elif grad_rate >= 0.5 and median_holders >= 250:
-        trust_tier = "proven"
-    elif grad_rate >= 0.25 or median_curve >= 40:
-        trust_tier = "emerging"
-    else:
-        trust_tier = "unproven"
+    stats = _compute_creator_stats(launches)
+    stats.pop("last_launch_at", None)  # per-wallet endpoint kept its original shape
 
     return {
         "wallet": wallet,
         "tracked": True,
-        "launches_tracked": len(launches),
-        "graduations": graduations,
-        "graduation_rate": round(grad_rate, 3),
-        "median_peak_curve_progress": round(median_curve, 2),
-        "median_peak_holders": int(median_holders),
-        "trust_tier": trust_tier,
-        "evidence": [
-            {
-                "token_address": lr.token_address,
-                "symbol": lr.symbol,
-                "narrative": lr.narrative,
-                "quote_asset": getattr(lr, "quote_asset", "BNB"),
-                "launched_at": lr.launched_at,
-                "graduated": lr.graduated,
-                "peak_curve_progress": round(lr.peak_curve_progress, 2),
-                "peak_holders": lr.peak_holders,
-                "peak_health_score": lr.peak_health_score,
-            }
-            for lr in launches[-10:]  # most recent 10 for transparency
-        ],
+        **stats,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+        "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+    }
+
+
+_TRUST_TIER_RANK = {"proven": 4, "emerging": 3, "new_creator": 2, "unproven": 1, "unknown": 0}
+_CREATOR_SORT_KEYS = {"graduation_rate", "launches", "median_curve", "median_holders", "trust_tier", "recent"}
+
+
+@app.get("/api/creators/leaderboard", tags=["creator"], summary="Aggregate creator leaderboard across every FOUR-LIFE-tracked launch")
+async def creators_leaderboard(
+    sort_by: str = "trust_tier",
+    trust_tier: str | None = None,
+    min_launches: int = 1,
+    limit: int = 100,
+):
+    """Leaderboard of every creator FOUR-LIFE has ever observed.
+
+    Each row uses the same deterministic trust tier as `/api/creator/{wallet}/survival-score`.
+    Sort keys: `trust_tier` (default, then graduation_rate tiebreak), `graduation_rate`,
+    `launches`, `median_curve`, `median_holders`, `recent` (most recent launch first).
+    """
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    if sort_by not in _CREATOR_SORT_KEYS:
+        return JSONResponse(
+            {"error": f"sort_by must be one of: {sorted(_CREATOR_SORT_KEYS)}"},
+            status_code=400,
+        )
+
+    grouped = _launches_by_creator(agent)
+    min_launches = max(1, int(min_launches))
+    limit = max(1, min(int(limit), 500))
+
+    rows: list[dict] = []
+    for wallet, launches in grouped.items():
+        if len(launches) < min_launches:
+            continue
+        stats = _compute_creator_stats(launches, evidence_limit=5)
+        if trust_tier and stats["trust_tier"] != trust_tier:
+            continue
+        rows.append({"wallet": wallet, **stats})
+
+    if sort_by == "trust_tier":
+        rows.sort(key=lambda r: (_TRUST_TIER_RANK.get(r["trust_tier"], 0), r["graduation_rate"], r["launches_tracked"]), reverse=True)
+    elif sort_by == "graduation_rate":
+        rows.sort(key=lambda r: (r["graduation_rate"], r["launches_tracked"]), reverse=True)
+    elif sort_by == "launches":
+        rows.sort(key=lambda r: r["launches_tracked"], reverse=True)
+    elif sort_by == "median_curve":
+        rows.sort(key=lambda r: r["median_peak_curve_progress"], reverse=True)
+    elif sort_by == "median_holders":
+        rows.sort(key=lambda r: r["median_peak_holders"], reverse=True)
+    elif sort_by == "recent":
+        rows.sort(key=lambda r: r["last_launch_at"], reverse=True)
+
+    return {
+        "count": len(rows[:limit]),
+        "total_creators": len(rows),
+        "filters": {
+            "sort_by": sort_by,
+            "trust_tier": trust_tier,
+            "min_launches": min_launches,
+            "limit": limit,
+        },
+        "creators": rows[:limit],
         "model_version": MODEL_VERSION,
         "last_updated_at": int(time.time()),
         "powered_by": "FOUR-LIFE | four-life.gudman.xyz",

@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const API = (process.env.NEXT_PUBLIC_API_URL || "https://four-life.gudman.xyz").replace(/\/$/, "");
 
@@ -102,6 +111,23 @@ interface BadgeResponse {
   data_source: string;
   model_version: string;
   last_updated_at: number;
+}
+
+interface HistorySnapshot {
+  id: number;
+  token_address: string;
+  tier: Badge["tier"];
+  risk_level: string | null;
+  metrics: Record<string, unknown>;
+  why: BadgeWhy[];
+  data_source: string | null;
+  recorded_at: number;
+}
+
+interface HistoryResponse {
+  token_address: string;
+  count: number;
+  snapshots: HistorySnapshot[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -269,6 +295,149 @@ function WhyTable({ why }: { why: BadgeWhy[] }) {
   );
 }
 
+// Trust axis: higher = more trustworthy. at_risk sits below observed on purpose.
+const TIER_ORDINAL: Record<Badge["tier"], number> = {
+  at_risk: 0,
+  observed: 1,
+  healthy: 2,
+  graduation_watch: 3,
+  graduated: 4,
+};
+
+const TIER_LINE_COLOR = "#6cff32";
+
+function formatClockShort(ts: number): string {
+  const d = new Date(ts * 1000);
+  const hh = d.getHours().toString().padStart(2, "0");
+  const mm = d.getMinutes().toString().padStart(2, "0");
+  const mo = (d.getMonth() + 1).toString().padStart(2, "0");
+  const da = d.getDate().toString().padStart(2, "0");
+  return `${mo}/${da} ${hh}:${mm}`;
+}
+
+function TimelineSection({ snapshots }: { snapshots: HistorySnapshot[] }) {
+  const chartData = useMemo(() => {
+    const ordered = [...snapshots].sort((a, b) => a.recorded_at - b.recorded_at);
+    return ordered.map((s) => ({
+      t: s.recorded_at,
+      label: formatClockShort(s.recorded_at),
+      ordinal: TIER_ORDINAL[s.tier] ?? 1,
+      tier: s.tier,
+    }));
+  }, [snapshots]);
+
+  const transitions = useMemo(() => {
+    const ordered = [...snapshots].sort((a, b) => a.recorded_at - b.recorded_at);
+    const out: { from: Badge["tier"]; to: Badge["tier"]; at: number; why: BadgeWhy[] }[] = [];
+    let prev: Badge["tier"] | null = null;
+    for (const s of ordered) {
+      if (prev !== null && s.tier !== prev) {
+        out.push({ from: prev, to: s.tier, at: s.recorded_at, why: s.why });
+      }
+      prev = s.tier;
+    }
+    return out.reverse(); // newest first
+  }, [snapshots]);
+
+  if (snapshots.length === 0) {
+    return (
+      <section>
+        <h3 className="text-xs uppercase tracking-wider text-white/40 mb-3">Trust Timeline</h3>
+        <div className="card p-3 text-xs text-white/50">
+          No snapshots yet — a timeline will build up as FOUR-LIFE re-evaluates this token.
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs uppercase tracking-wider text-white/40">Trust Timeline</h3>
+        <div className="text-[10px] text-white/30 font-mono">{snapshots.length} snapshots</div>
+      </div>
+
+      <div className="card p-3 mb-3" style={{ height: 160 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.06)" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+              minTickGap={24}
+            />
+            <YAxis
+              type="number"
+              domain={[-0.2, 4.2]}
+              ticks={[0, 1, 2, 3, 4]}
+              tick={{ fontSize: 9, fill: "rgba(255,255,255,0.4)" }}
+              tickFormatter={(v) => {
+                const entry = (Object.entries(TIER_ORDINAL) as [Badge["tier"], number][]).find(
+                  ([, n]) => n === v,
+                );
+                return entry ? TIER_STYLE[entry[0]].label : "";
+              }}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+              width={110}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#0f1012",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 8,
+                fontSize: 11,
+              }}
+              labelStyle={{ color: "rgba(255,255,255,0.6)" }}
+              formatter={(_v, _n, p: { payload?: { tier: Badge["tier"] } }) =>
+                p?.payload?.tier ? [TIER_STYLE[p.payload.tier].label, "Tier"] : ["", ""]
+              }
+            />
+            <Line
+              type="stepAfter"
+              dataKey="ordinal"
+              stroke={TIER_LINE_COLOR}
+              strokeWidth={2}
+              dot={{ r: 3, fill: TIER_LINE_COLOR, strokeWidth: 0 }}
+              activeDot={{ r: 5 }}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {transitions.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-white/30">Transitions</div>
+          {transitions.slice(0, 8).map((t, i) => (
+            <div key={i} className="card px-3 py-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${TIER_STYLE[t.from].border} ${TIER_STYLE[t.from].text}`}>
+                    {TIER_STYLE[t.from].label}
+                  </span>
+                  <span className="text-white/30">→</span>
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase ${TIER_STYLE[t.to].border} ${TIER_STYLE[t.to].text}`}>
+                    {TIER_STYLE[t.to].label}
+                  </span>
+                </div>
+                <div className="text-[10px] text-white/40 font-mono shrink-0">{ago(t.at)}</div>
+              </div>
+              {t.why.length > 0 && (
+                <div className="text-[10px] text-white/50 mt-1 truncate">
+                  {t.why.filter(w => w.passed).slice(0, 2).map(w => w.rule).join(" · ") || "—"}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function DetailDrawer({
   entry,
   onClose,
@@ -279,14 +448,24 @@ function DetailDrawer({
   const [badge, setBadge] = useState<BadgeResponse | null>(null);
   const [risk, setRisk] = useState<RiskSnapshot | null>(null);
   const [checklist, setChecklist] = useState<ChecklistItem[] | null>(null);
+  const [history, setHistory] = useState<HistorySnapshot[]>([]);
   const [tracking, setTracking] = useState(false);
 
   useEffect(() => {
     const a = entry.token_address;
-    setBadge(null); setRisk(null); setChecklist(null); setTracking(false);
+    setBadge(null); setRisk(null); setChecklist(null); setHistory([]); setTracking(false);
+    // The /badge and /risk-snapshot calls record snapshots server-side, so we kick off
+    // /history slightly after to include the freshly-written row on first open.
     fetch(`${API}/api/token/${a}/badge`).then(r => r.json()).then(setBadge).catch(() => {});
     fetch(`${API}/api/token/${a}/risk-snapshot`).then(r => r.ok ? r.json() : null).then(d => { if (d && d.evidence) setRisk(d); }).catch(() => {});
     fetch(`${API}/api/token/${a}/operator-checklist`).then(r => r.ok ? r.json() : null).then(d => { if (d && d.checklist) setChecklist(d.checklist); }).catch(() => {});
+    const tid = window.setTimeout(() => {
+      fetch(`${API}/api/token/${a}/history?limit=100`)
+        .then(r => r.ok ? r.json() as Promise<HistoryResponse> : null)
+        .then(d => { if (d?.snapshots) setHistory(d.snapshots); })
+        .catch(() => {});
+    }, 250);
+    return () => window.clearTimeout(tid);
   }, [entry.token_address]);
 
   const track = useCallback(async () => {
@@ -379,6 +558,9 @@ function DetailDrawer({
               )}
             </section>
           )}
+
+          {/* Trust timeline */}
+          <TimelineSection snapshots={history} />
 
           {/* Operator checklist */}
           {checklist && checklist.length > 0 && (
@@ -519,6 +701,7 @@ export default function RadarPage() {
                 Updated {ago(data.last_updated_at)} · model {data.model_version}
               </span>
             )}
+            <Link href="/creators" className="btn-pill bg-white/5 hover:bg-white/10 border border-white/10 text-xs">Creators</Link>
             <a
               href="https://github.com/Ridwannurudeen/four-life"
               target="_blank"
