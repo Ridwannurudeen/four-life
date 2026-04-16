@@ -28,6 +28,7 @@ class LLMClient:
     def __init__(self) -> None:
         self.dgrid_configured = bool(settings.dgrid_api_key)
         self.anthropic_configured = bool(settings.anthropic_api_key)
+        self.openai_configured = bool(settings.openai_api_key)
 
         # DGrid primary (for bounty eligibility + unified routing)
         if self.dgrid_configured:
@@ -52,18 +53,31 @@ class LLMClient:
             self._anthropic = None
             self._anthropic_model = ""
 
+        # OpenAI as additional fallback (same SDK as DGrid, different base URL)
+        if self.openai_configured:
+            self._openai = AsyncOpenAI(api_key=settings.openai_api_key)
+            self._openai_model = "gpt-4o-mini"
+        else:
+            self._openai = None
+            self._openai_model = ""
+
         # Track last-used provider for observability
         self.last_provider: str = "none"
         self.dgrid_healthy: bool = self.dgrid_configured
 
-        if self.dgrid_configured and self.anthropic_configured:
-            logger.info("LLM: DGrid AI Gateway ({}) with Anthropic fallback", self.model)
-        elif self.dgrid_configured:
-            logger.info("LLM: DGrid AI Gateway ({}) — no fallback configured", self.model)
-        elif self.anthropic_configured:
-            logger.info("LLM: Direct Anthropic ({}) — DGrid not configured", self._anthropic_model)
+        providers = []
+        if self.dgrid_configured: providers.append(f"DGrid({self.model})")
+        if self.anthropic_configured: providers.append(f"Anthropic({self._anthropic_model})")
+        if self.openai_configured: providers.append(f"OpenAI({self._openai_model})")
+        if providers:
+            logger.info("LLM: {} — order = primary -> fallback(s)", " | ".join(providers))
         else:
             logger.warning("LLM: NO PROVIDER CONFIGURED — all LLM calls will fail")
+
+    @property
+    def has_fallback(self) -> bool:
+        """True if at least one non-DGrid provider is configured."""
+        return self.anthropic_configured or self.openai_configured
 
     @property
     def model_id(self) -> str:
@@ -72,10 +86,14 @@ class LLMClient:
             return f"dgrid:{self.model}"
         if self.last_provider == "anthropic":
             return f"anthropic:{self._anthropic_model}"
+        if self.last_provider == "openai":
+            return f"openai:{self._openai_model}"
         if self.dgrid_configured:
             return f"dgrid:{self.model}"
         if self.anthropic_configured:
             return f"anthropic:{self._anthropic_model}"
+        if self.openai_configured:
+            return f"openai:{self._openai_model}"
         return "none"
 
     @staticmethod
@@ -159,6 +177,15 @@ class LLMClient:
                 return json.loads(cleaned[start:end])
             raise
 
+    async def _openai_chat_raw(self, messages: list[dict], max_tokens: int, temperature: float, json_mode: bool) -> str:
+        kwargs = dict(
+            model=self._openai_model, max_tokens=max_tokens, temperature=temperature, messages=messages,
+        )
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        response = await self._openai.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+
     async def _chat_with_fallback(
         self,
         messages: list[dict],
@@ -166,38 +193,55 @@ class LLMClient:
         temperature: float,
         json_mode: bool,
     ) -> str:
-        """Call DGrid first; fall back to Anthropic on balance/rate/transient errors."""
-        # If DGrid is healthy and configured, try it first
+        """Call DGrid first; fall back to Anthropic, then OpenAI on balance/rate/transient errors."""
+        last_error: Exception | None = None
+
+        # Primary: DGrid
         if self.dgrid_configured and self.dgrid_healthy:
             try:
                 text = await self._dgrid_chat_raw(messages, max_tokens, temperature, json_mode)
                 self.last_provider = "dgrid"
                 return text
             except Exception as e:
-                if self._is_dgrid_unavailable(e) and self.anthropic_configured:
+                last_error = e
+                if self._is_dgrid_unavailable(e) and self.has_fallback:
                     logger.warning(
-                        "DGrid unavailable ({}) — falling back to Anthropic. Will retry DGrid on next call.",
+                        "DGrid unavailable ({}) — falling back. Will retry DGrid on next call.",
                         str(e)[:120],
                     )
-                    # Mark unhealthy only for this call; retry DGrid next call
+                elif not self.has_fallback:
+                    raise
                 else:
-                    # Unknown error and no fallback, or fallback also unavailable — re-raise
-                    if not self.anthropic_configured:
-                        raise
-                    logger.warning("DGrid error ({}) — falling back to Anthropic.", str(e)[:120])
+                    logger.warning("DGrid error ({}) — falling back.", str(e)[:120])
 
-        # Anthropic path (either primary-no-DGrid or fallback)
-        if not self.anthropic_configured:
-            raise RuntimeError("Both DGrid and Anthropic failed; no LLM provider available")
+        # Fallback #1: Anthropic
+        if self.anthropic_configured:
+            try:
+                # Anthropic has no native response_format — inject a system hint for JSON mode
+                msgs = messages
+                if json_mode:
+                    has_system = any(m["role"] == "system" for m in msgs)
+                    if not has_system:
+                        msgs = [{"role": "system", "content": "Respond ONLY with a single valid JSON object. No prose, no markdown fences."}] + msgs
+                text = await self._anthropic_chat_raw(msgs, max_tokens, temperature)
+                self.last_provider = "anthropic"
+                return text
+            except Exception as e:
+                last_error = e
+                logger.warning("Anthropic failed ({}) — trying OpenAI.", str(e)[:120])
 
-        # For JSON mode on Anthropic, add a system hint since no native response_format
-        if json_mode:
-            has_system = any(m["role"] == "system" for m in messages)
-            if not has_system:
-                messages = [{"role": "system", "content": "Respond ONLY with a single valid JSON object. No prose, no markdown fences."}] + messages
-        text = await self._anthropic_chat_raw(messages, max_tokens, temperature)
-        self.last_provider = "anthropic"
-        return text
+        # Fallback #2: OpenAI
+        if self.openai_configured:
+            try:
+                text = await self._openai_chat_raw(messages, max_tokens, temperature, json_mode)
+                self.last_provider = "openai"
+                return text
+            except Exception as e:
+                last_error = e
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("No LLM provider available")
 
 
 # Singleton instance
