@@ -1,0 +1,52 @@
+{
+  "name": "@four-life/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the FOUR-LIFE Certified trust layer — Four.meme token grading, risk snapshots, creator scores, operator checklists.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "node --experimental-vm-modules --test tests/*.test.js"
+  },
+  "keywords": [
+    "four-life",
+    "four.meme",
+    "bnb-chain",
+    "meme-token",
+    "rug-detection",
+    "certified-badge",
+    "erc-8004"
+  ],
+  "author": "FOUR-LIFE",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ridwannurudeen/four-life.git",
+    "directory": "sdk"
+  },
+  "homepage": "https://four-life.gudman.xyz",
+  "bugs": {
+    "url": "https://github.com/Ridwannurudeen/four-life/issues"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
