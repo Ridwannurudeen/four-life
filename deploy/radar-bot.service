@@ -1,0 +1,18 @@
+[Unit]
+Description=FOUR-LIFE Radar Bot — X alerts for Certified tier transitions
+After=network-online.target four-life.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/four-life
+EnvironmentFile=/opt/four-life/.env
+ExecStart=/usr/bin/python3 -m agent.social.radar_bot
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

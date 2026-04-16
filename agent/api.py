@@ -124,6 +124,32 @@ async def identity_feed():
     }
 
 
+# ── Radar Bot status (public health endpoint) ────────────────────────
+
+@app.get("/api/radar-bot/status")
+async def radar_bot_status():
+    """Public health feed for the X alert bot. Reads its status file — the bot itself
+    writes this every tick. If the file is missing, the bot isn't running."""
+    import os
+    from pathlib import Path as _Path
+    status_path = _Path(__file__).parent.parent / "data" / "radar_bot_status.json"
+    if not status_path.exists():
+        return {
+            "running": False,
+            "last_tick_at": 0,
+            "last_posted_at": 0,
+            "posts_last_hour": 0,
+            "tier_transitions_last_24h": 0,
+            "dedup_cache_size": 0,
+            "reason": "radar-bot service not started or has not ticked yet",
+        }
+    try:
+        import json as _json
+        return _json.loads(status_path.read_text())
+    except Exception as e:
+        return JSONResponse({"error": str(e), "running": False}, status_code=500)
+
+
 # ── Agent Status ─────────────────────────────────────────────────────
 
 @app.get("/api/status")
