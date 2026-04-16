@@ -314,7 +314,7 @@ class MYXStrategy:
         """
         from agent.brain.llm import get_llm
 
-        return await get_llm().chat_json([{
+        return await get_llm().chat_json_task([{
             "role": "user",
             "content": f"""You are FOUR-LIFE's perp trading module on MYX V2.
 
@@ -333,4 +333,4 @@ Respond in JSON: {{"action": "long"|"short"|"close"|"hold", "confidence": float,
 
 size_pct is what % of available capital to use (0.01 = 1%, max 0.1 = 10%).
 Be conservative. This is risk management, not gambling."""
-        }])
+        }], task="risk")

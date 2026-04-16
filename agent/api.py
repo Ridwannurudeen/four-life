@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from agent.agent import FourLifeAgent
 from agent.badge import badge_from_health, badge_from_ranking
+from agent.security.contract_analyzer import ContractAnalyzer, ContractRisk
 
 
 agent: FourLifeAgent | None = None
@@ -57,8 +58,67 @@ app.add_middleware(
 async def agent_card():
     if not agent:
         return JSONResponse({"name": "FOUR-LIFE", "status": "not configured"})
-    card = agent.identity.generate_agent_card()
+    card = agent.identity.generate_agent_card("https://four-life.gudman.xyz")
     return JSONResponse(card)
+
+
+# ── Identity + Reputation (public) ───────────────────────────────────
+
+@app.get("/api/identity")
+async def identity_feed():
+    """Public identity + reputation feed — the judge-facing version of the agent card.
+
+    Returns the full agent card, the registration tx/block, and every reputation
+    attestation FOUR-LIFE has submitted (most recent first).
+    """
+    if not agent:
+        return JSONResponse({
+            "name": "FOUR-LIFE",
+            "status": "not configured",
+        }, status_code=503)
+
+    state = agent.identity.state
+    card = agent.identity.generate_agent_card("https://four-life.gudman.xyz")
+
+    # Newest first, successful attestations only for the public feed.
+    attestations = sorted(
+        (a for a in state.attestations.values() if a.tx_hash),
+        key=lambda a: a.submitted_at,
+        reverse=True,
+    )
+
+    return {
+        "agent_card": card,
+        "registration": {
+            "agent_id": state.agent_id or None,
+            "wallet": state.wallet,
+            "registry_contract": card["registry_contract"],
+            "tx_hash": state.registration_tx,
+            "block": state.registration_block,
+            "agent_card_uri": state.agent_card_uri,
+        },
+        "reputation_attestations": [
+            {
+                "token_address": a.token_address,
+                "token_symbol": a.token_symbol,
+                "token_name": a.token_name,
+                "quote_asset": a.tag2,
+                "graduation_time": a.graduation_time,
+                "tx_hash": a.tx_hash,
+                "block": a.block_number,
+                "submitted_at": a.submitted_at,
+                "value": a.value,
+                "value_decimals": a.value_decimals,
+                "tag1": a.tag1,
+                "tag2": a.tag2,
+                "feedback_uri": a.feedback_uri,
+                "feedback_hash": a.feedback_hash,
+            }
+            for a in attestations
+        ],
+        "reputation_summary": card["reputation"],
+        "last_updated_at": int(time.time()),
+    }
 
 
 # ── Agent Status ─────────────────────────────────────────────────────
@@ -222,6 +282,24 @@ async def actions(limit: int = 50):
     }
 
 
+# ── DGrid Bounty Dashboard ───────────────────────────────────────────
+
+@app.get("/api/dgrid/stats")
+async def dgrid_stats():
+    """Public stats on task-typed LLM routing through the DGrid gateway.
+
+    This is the DGrid bounty surface: judges can see per-task model routing,
+    per-provider usage counters, and fallback events live.
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    stats = llm.get_usage_stats()
+    return {
+        "llm_provider": llm.model_id,
+        **stats,
+    }
+
+
 # ── MYX V2 Perps ─────────────────────────────────────────────────────
 
 @app.get("/api/myx/status")
@@ -327,6 +405,31 @@ async def myx_evaluate(token_address: str):
 # No auth required. Any token address works.
 
 MODEL_VERSION = "four-life-v1.1"
+
+# ── Contract-risk cache (10 min TTL, in-memory) ──────────────────────
+CONTRACT_RISK_TTL_SECONDS = 600
+_contract_risk_cache: dict[str, tuple[float, ContractRisk]] = {}
+
+
+async def _get_contract_risk(token_address: str) -> ContractRisk | None:
+    """Fetch (or return cached) contract risk for a token. TTL = 10 minutes."""
+    if not agent:
+        return None
+    key = token_address.lower()
+    cached = _contract_risk_cache.get(key)
+    now = time.time()
+    if cached and now - cached[0] < CONTRACT_RISK_TTL_SECONDS:
+        return cached[1]
+
+    from agent.config import settings
+    analyzer = ContractAnalyzer(agent.chain.w3, bscscan_api_key=settings.bscscan_api_key)
+    try:
+        risk = await analyzer.analyze(token_address)
+    except Exception as e:
+        logger.warning("contract analyze failed for {}: {}", token_address, e)
+        return None
+    _contract_risk_cache[key] = (now, risk)
+    return risk
 
 
 def _deterministic_risk_flags(
@@ -532,7 +635,9 @@ async def public_health_score(token_address: str):
             graduation_confidence=health.graduation_confidence,
         )
 
-        badge = badge_from_health(health)
+        contract_risk = await _get_contract_risk(token_address)
+        crs = contract_risk.risk_score if contract_risk else 0
+        badge = badge_from_health(health, contract_risk_score=crs)
 
         return {
             "token_address": token_address,
@@ -813,7 +918,9 @@ async def token_badge(token_address: str):
     try:
         health = agent.monitor.state.tokens.get(token_address)
         if health:
-            badge = badge_from_health(health)
+            contract_risk = await _get_contract_risk(token_address)
+            crs = contract_risk.risk_score if contract_risk else 0
+            badge = badge_from_health(health, contract_risk_score=crs)
             source = "live_monitor"
         else:
             # Fall back to Four.meme ranking snapshot
@@ -887,6 +994,21 @@ async def token_risk_snapshot(token_address: str):
         graduation_confidence=health.graduation_confidence,
     )
 
+    # Merge contract-level rug-risk flags from the deterministic analyzer (cached per token).
+    contract_risk = await _get_contract_risk(token_address)
+    contract_risk_score = 0
+    if contract_risk is not None:
+        contract_risk_score = contract_risk.risk_score
+        for cf in contract_risk.flags:
+            flags.append({
+                "id": cf["id"],
+                "severity": cf["severity"],
+                "metric": "contract_bytecode",
+                "value": cf.get("evidence", ""),
+                "threshold": "present",
+                "message": cf["message"],
+            })
+
     severities = [f["severity"] for f in flags]
     if "critical" in severities:
         risk_level = "critical"
@@ -914,13 +1036,39 @@ async def token_risk_snapshot(token_address: str):
             "age_hours": round(health.age_hours, 2),
             "curve_progress": round(health.curve_progress_pct, 2),
             "phase": health.phase,
+            "contract_risk_score": contract_risk_score,
         },
         "evidence": flags,
         "confidence_score": health.graduation_confidence,
         "fallback_used": health.graduation_source in ("fallback", "cache"),
-        "data_sources": ["fourmeme_onchain_events", "fourmeme_config"],
+        "data_sources": ["fourmeme_onchain_events", "fourmeme_config", "bscscan"],
+        "contract_risk": contract_risk.to_dict() if contract_risk else None,
         "model_version": MODEL_VERSION,
         "last_updated_at": int(time.time()),
+        "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+    }
+
+
+@app.get("/api/token/{token_address}/contract-risk")
+async def token_contract_risk(token_address: str):
+    """Deterministic contract-level rug-risk analysis for a BSC token.
+
+    Scans bytecode + BscScan-verified ABI for mint, blacklist, pause, EIP-1967
+    proxy, and ownership status. Cached for 10 minutes per token.
+    """
+    if not agent:
+        return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    risk = await _get_contract_risk(token_address)
+    if risk is None:
+        return JSONResponse({
+            "error": "Contract analysis failed — RPC or BscScan unreachable.",
+            "token_address": token_address,
+        }, status_code=502)
+
+    return {
+        **risk.to_dict(),
+        "model_version": MODEL_VERSION,
         "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
     }
 

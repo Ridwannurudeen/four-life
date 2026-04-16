@@ -1,0 +1,4 @@
+/* FOUR-LIFE Certified — all visible styles live inside the Shadow DOM
+   (see content/inject.js SHADOW_CSS and content/overlay.js OVERLAY_CSS) so
+   Four.meme's CSS can never leak in or out. This file exists so the manifest
+   content_scripts entry has a matching stylesheet slot if needed later. */

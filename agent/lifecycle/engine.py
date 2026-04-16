@@ -12,6 +12,7 @@ from agent.brain.content import ContentEngine
 from agent.memory.store import MemoryStore
 from agent.social.twitter import TwitterClient
 from agent.myx.hedge import HedgeManager
+from agent.identity.registry import AgentIdentity
 
 
 @dataclass
@@ -50,6 +51,7 @@ class LifecycleEngine:
         memory: MemoryStore,
         twitter: TwitterClient,
         hedge_manager: HedgeManager | None = None,
+        identity: AgentIdentity | None = None,
     ) -> None:
         self.monitor = monitor
         self.strategy = strategy
@@ -57,6 +59,7 @@ class LifecycleEngine:
         self.memory = memory
         self.twitter = twitter
         self.hedge_manager = hedge_manager
+        self.identity = identity
         self.action_log: list[LifecycleAction] = []
         self._last_action_time: dict[str, float] = {}
         self._celebrated_milestones: dict[str, set] = {}
@@ -123,13 +126,37 @@ class LifecycleEngine:
             self.memory.get_launch(token_address)
             and self.memory.get_launch(token_address).graduated
         ):
+            grad_time = time.time()
             self.memory.update_launch(
                 token_address,
                 graduated=True,
-                graduation_time=time.time(),
+                graduation_time=grad_time,
             )
             milestone = "GRADUATED to PancakeSwap"
             logger.info("{} ({}) GRADUATED!", health.name, health.symbol)
+
+            # Submit ERC-8004 reputation attestation. Failures must not crash the tick.
+            if self.identity is not None:
+                launch = self.memory.get_launch(token_address)
+                try:
+                    record = await self.identity.attest_graduation(
+                        token_address,
+                        metadata={
+                            "symbol": health.symbol,
+                            "name": health.name,
+                            "quote_asset": health.quote_asset,
+                            "graduation_time": grad_time,
+                            "peak_holders": launch.peak_holders if launch else health.unique_buyers,
+                        },
+                    )
+                    if record and record.tx_hash:
+                        self.memory.update_launch(
+                            token_address,
+                            attestation_tx_hash=record.tx_hash,
+                            attestation_block=record.block_number,
+                        )
+                except Exception as e:
+                    logger.error("[ATTEST] Unexpected error for {}: {}", health.symbol, e)
 
         # Decide action based on health + phase
         if milestone:

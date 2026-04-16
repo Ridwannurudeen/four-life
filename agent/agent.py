@@ -57,6 +57,7 @@ class FourLifeAgent:
         self.lifecycle = LifecycleEngine(
             self.monitor, self.strategy, self.content_engine, self.memory, self.twitter,
             hedge_manager=self.hedge_manager,
+            identity=self.identity,
         )
 
         # State
@@ -79,18 +80,8 @@ class FourLifeAgent:
         except Exception as e:
             logger.warning("Graduation registry warm-up failed (will retry on demand): {}", e)
 
-        # Check/register ERC-8004 identity
-        agent_id = await self.identity.get_agent_id()
-        if agent_id:
-            logger.info("ERC-8004 Agent ID: {}", agent_id)
-        else:
-            try:
-                agent_id = await self.identity.register(
-                    "https://four-life.gudman.xyz/.well-known/agent-registration.json"
-                )
-                logger.info("ERC-8004 registered! Agent ID: {}", agent_id)
-            except Exception as e:
-                logger.warning("ERC-8004 registration failed (no BNB?): {}", e)
+        # Check/register ERC-8004 identity — idempotent, persists to data/identity.json.
+        await self.identity.ensure_registered()
 
         # Load existing memory
         context = self.memory.get_context_for_ai()

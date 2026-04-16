@@ -36,7 +36,7 @@ class StrategyEngine:
                 "curve_progress": round(t.curve_progress_pct, 1),
             })
 
-        return await get_llm().chat_json([{
+        return await get_llm().chat_json_task([{
             "role": "user",
             "content": f"""You are FOUR-LIFE, an autonomous meme token agent on Four.meme (BNB Chain).
 Should you launch a new token right now?
@@ -61,7 +61,7 @@ Consider:
 - If past launches show patterns, learn from them
 
 Respond in JSON: {{"should_launch": bool, "reason": str, "optimal_delay_minutes": int, "confidence": float}}"""
-        }])
+        }], task="risk")
 
     async def get_lifecycle_action(self, health: TokenHealth, concept: dict, memory_context: str = "") -> dict:
         """Get the next action for a token based on its current phase and health.
@@ -70,7 +70,7 @@ Respond in JSON: {{"should_launch": bool, "reason": str, "optimal_delay_minutes"
             dict with 'action_type' (post_content|transparency|alert|celebrate|defend|nothing),
             'content' (the actual post/message), 'urgency' (low|medium|high), 'reasoning'
         """
-        return await get_llm().chat_json([{
+        return await get_llm().chat_json_task([{
             "role": "user",
             "content": f"""You are FOUR-LIFE, managing the token {health.name} ({health.symbol}) on Four.meme.
 
@@ -109,4 +109,4 @@ Respond in JSON: {{"action_type": str, "content": str, "urgency": str, "reasonin
 
 The content should be in the token's personality voice. Max 280 chars for Twitter.
 Make it genuinely engaging — not corporate, not cringe."""
-        }])
+        }], task="risk")

@@ -223,6 +223,124 @@ class TestPlatformCohorts:
         assert "whale_risk_distribution" in data
 
 
+class TestContractRiskEndpoint:
+    def _stub_risk(self, mock_agent, score=25, flags=None, has_mint=False, has_blacklist=False):
+        from agent.security.contract_analyzer import ContractRisk
+        return ContractRisk(
+            token_address="0xcontract",
+            analyzed_at=1700000000.0,
+            has_mint_function=has_mint,
+            has_blacklist=has_blacklist,
+            is_proxy=False,
+            has_pause=False,
+            has_ownership=True,
+            owner_address="0x" + "00" * 20,
+            owner_is_renounced=True,
+            is_verified_on_bscscan=True,
+            risk_score=score,
+            flags=flags or [],
+            raw_bytecode_hash="abc123",
+            confidence="high",
+        )
+
+    def test_contract_risk_endpoint_returns_payload(self, client, mock_agent):
+        from agent import api as api_module
+        api_module._contract_risk_cache.clear()
+
+        risk = self._stub_risk(mock_agent, score=40, has_mint=True, flags=[
+            {"id": "mint_function", "severity": "critical", "evidence": "abi", "message": "m"},
+        ])
+        with patch.object(
+            api_module.ContractAnalyzer, "analyze", AsyncMock(return_value=risk)
+        ):
+            resp = client.get("/api/token/0xcontract/contract-risk")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["risk_score"] == 40
+        assert data["has_mint_function"] is True
+        assert any(f["id"] == "mint_function" for f in data["flags"])
+        assert data["confidence"] == "high"
+
+    def test_contract_risk_endpoint_caches_across_requests(self, client, mock_agent):
+        from agent import api as api_module
+        api_module._contract_risk_cache.clear()
+
+        risk = self._stub_risk(mock_agent, score=10)
+        analyze_mock = AsyncMock(return_value=risk)
+        with patch.object(api_module.ContractAnalyzer, "analyze", analyze_mock):
+            r1 = client.get("/api/token/0xcache/contract-risk")
+            r2 = client.get("/api/token/0xcache/contract-risk")
+        assert r1.status_code == 200 and r2.status_code == 200
+        assert analyze_mock.call_count == 1  # second call used cache
+
+    def test_contract_risk_endpoint_returns_502_when_analyzer_fails(self, client, mock_agent):
+        from agent import api as api_module
+        api_module._contract_risk_cache.clear()
+
+        with patch.object(
+            api_module.ContractAnalyzer,
+            "analyze",
+            AsyncMock(side_effect=RuntimeError("rpc down")),
+        ):
+            resp = client.get("/api/token/0xfail/contract-risk")
+        assert resp.status_code == 502
+
+    def test_risk_snapshot_merges_contract_flags(self, client, mock_agent):
+        """The legacy /risk-snapshot endpoint should include contract-analyzer flags."""
+        from agent import api as api_module
+        from agent.fourmeme.monitor import TokenHealth
+        api_module._contract_risk_cache.clear()
+
+        health = TokenHealth(
+            address="0xmerge", name="M", symbol="M", phase="defend",
+            top_holder_pct=5, buy_sell_ratio=1.2, holder_velocity=2, age_hours=5,
+            curve_progress_pct=10, whale_count=0, unique_buyers=100,
+            graduation_confidence="high", graduation_target=18.0,
+        )
+        mock_agent.monitor.state.tokens = {"0xmerge": health}
+        risk = self._stub_risk(mock_agent, score=70, has_mint=True, has_blacklist=True, flags=[
+            {"id": "mint_function", "severity": "critical", "evidence": "abi", "message": "mint"},
+            {"id": "blacklist", "severity": "high", "evidence": "abi", "message": "bl"},
+        ])
+        with patch.object(
+            api_module.ContractAnalyzer, "analyze", AsyncMock(return_value=risk)
+        ):
+            resp = client.get("/api/token/0xmerge/risk-snapshot")
+        assert resp.status_code == 200
+        data = resp.json()
+        ids = {f["id"] for f in data["evidence"]}
+        assert "mint_function" in ids
+        assert "blacklist" in ids
+        assert data["metrics"]["contract_risk_score"] == 70
+        assert data["contract_risk"]["risk_score"] == 70
+
+    def test_badge_at_risk_when_contract_risk_high(self, client, mock_agent):
+        """Badge endpoint should force at_risk when contract_risk_score >= 60."""
+        from agent import api as api_module
+        from agent.fourmeme.monitor import TokenHealth
+        api_module._contract_risk_cache.clear()
+
+        # Otherwise this token would be 'healthy' — mint override must flip it to 'at_risk'.
+        health = TokenHealth(
+            address="0xoverride", name="O", symbol="O", phase="nurture",
+            health_score=80, buy_sell_ratio=2.0, holder_velocity=10,
+            top_holder_pct=5, curve_progress_pct=30, age_hours=3,
+            unique_buyers=200, whale_count=0, graduation_confidence="high",
+            graduation_target=18.0,
+        )
+        mock_agent.monitor.state.tokens = {"0xoverride": health}
+        risk = self._stub_risk(mock_agent, score=70, has_mint=True)
+        with patch.object(
+            api_module.ContractAnalyzer, "analyze", AsyncMock(return_value=risk)
+        ):
+            resp = client.get("/api/token/0xoverride/badge")
+        assert resp.status_code == 200
+        badge = resp.json()["badge"]
+        assert badge["tier"] == "at_risk"
+        rules = {r["rule"] for r in badge["why"]}
+        assert "contract_rug_risk" in rules
+
+
 class TestMYXEndpoint:
     def test_myx_disabled(self, client):
         resp = client.get("/api/myx/status")
@@ -248,3 +366,41 @@ class TestMYXEndpoint:
         resp = client.get("/api/myx/signal/0xtest")
         assert resp.status_code == 200
         assert resp.json()["error"] == "MYX not configured"
+
+
+class TestDGridStatsEndpoint:
+    def test_returns_llm_config_and_counters(self, client):
+        resp = client.get("/api/dgrid/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        # Config surface
+        assert "providers_configured" in data
+        assert "primary_order" in data
+        assert "default_dgrid_model" in data
+        assert "task_model_map" in data
+        # Task mapping includes the four task types
+        tm = data["task_model_map"]
+        assert "narrative" in tm
+        assert "content" in tm
+        assert "risk" in tm
+        assert "vision" in tm
+        # Counters are present (possibly empty — that's fine)
+        assert "usage_by_provider" in data
+        assert "usage_by_task" in data
+        assert "usage_by_model" in data
+        assert "fallback_events" in data
+        assert "last_dgrid_error" in data
+        assert "uptime_seconds" in data
+        assert "session_started_at" in data
+        assert "llm_provider" in data
+
+    def test_stats_available_without_agent(self):
+        """Endpoint must respond even when the agent failed to initialize."""
+        from fastapi.testclient import TestClient
+        with patch("agent.api.agent", None):
+            from agent.api import app
+            c = TestClient(app)
+            resp = c.get("/api/dgrid/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "primary_order" in data

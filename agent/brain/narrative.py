@@ -23,7 +23,7 @@ class NarrativeEngine:
         token_summary = json.dumps([slim(t) for t in trending_tokens[:10]], indent=2, default=str)
         recent_summary = json.dumps([slim(t) for t in recent_creates[:10]], indent=2, default=str)
 
-        return await get_llm().chat_json([{
+        return await get_llm().chat_json_task([{
             "role": "user",
             "content": f"""Analyze these meme tokens currently on Four.meme (BNB Chain).
 
@@ -40,7 +40,7 @@ Identify:
 4. **recommended_narrative**: The single best narrative to launch into right now, with reasoning.
 
 Respond in JSON only. No markdown. Be concise."""
-        }], max_tokens=4000)
+        }], task="narrative", max_tokens=4000)
 
     async def generate_concept(self, narrative: str, avoid_names: list[str] = None) -> dict:
         """Generate a complete token concept for a given narrative.
@@ -51,7 +51,7 @@ Respond in JSON only. No markdown. Be concise."""
         """
         avoid = json.dumps(avoid_names or [])
 
-        return await get_llm().chat_json([{
+        return await get_llm().chat_json_task([{
             "role": "user",
             "content": f"""Create a meme token concept for Four.meme (BNB Chain launchpad).
 
@@ -71,11 +71,11 @@ Generate:
 Make it GENUINELY funny — not corporate, not generic. Think 4chan humor meets crypto Twitter.
 
 Respond in JSON only. No markdown."""
-        }], max_tokens=4000)
+        }], task="content", max_tokens=4000)
 
     async def generate_image_prompt(self, concept: dict) -> str:
         """Generate a DALL-E prompt for the token's artwork."""
-        return await get_llm().chat([{
+        return await get_llm().chat_task([{
             "role": "user",
             "content": f"""Create a DALL-E image prompt for a meme token logo.
 
@@ -91,4 +91,4 @@ Requirements:
 - NO text in the image
 
 Return ONLY the prompt, nothing else."""
-        }], max_tokens=300)
+        }], task="vision", max_tokens=300)

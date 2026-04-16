@@ -36,6 +36,10 @@ class LaunchRecord:
     total_buys: int = 0
     total_sells: int = 0
 
+    # ERC-8004 reputation attestation — set once when this token graduates.
+    attestation_tx_hash: str = ""
+    attestation_block: int = 0
+
     # Strategy learnings
     what_worked: list[str] = field(default_factory=list)
     what_failed: list[str] = field(default_factory=list)

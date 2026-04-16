@@ -72,6 +72,7 @@ def compute_badge(
     graduation_confidence: str = "high",
     unique_buyers: int = 0,
     whale_count: int = 0,
+    contract_risk_score: int = 0,
 ) -> Badge:
     """Compute the Certified badge from raw metrics. Deterministic, no network, no LLM."""
 
@@ -86,7 +87,22 @@ def compute_badge(
         "graduation_confidence": graduation_confidence,
         "unique_buyers": unique_buyers,
         "whale_count": whale_count,
+        "contract_risk_score": int(contract_risk_score),
     }
+
+    # 0) CONTRACT RUG OVERRIDE — force at_risk when the contract-level analyzer
+    #    scores >= 60 (mint + blacklist, or mint + proxy, etc.). Runs FIRST so the
+    #    override is audit-visible even for tokens that would otherwise graduate.
+    if contract_risk_score >= 60:
+        return Badge(
+            tier=TIER_AT_RISK,
+            label="At Risk",
+            description=TIER_DESCRIPTIONS[TIER_AT_RISK],
+            why=[
+                _rule("contract_rug_risk", "contract_risk_score", int(contract_risk_score), 60, ">=", True),
+            ],
+            metrics_snapshot=metrics,
+        )
 
     # 1) GRADUATED — curve is full or phase explicitly says graduated
     if curve_progress_pct >= 100 or phase == "graduated":
@@ -176,7 +192,7 @@ def compute_badge(
     )
 
 
-def badge_from_health(health) -> Badge:
+def badge_from_health(health, contract_risk_score: int = 0) -> Badge:
     """Convenience: compute a badge from a TokenHealth dataclass."""
     return compute_badge(
         curve_progress_pct=health.curve_progress_pct,
@@ -189,6 +205,7 @@ def badge_from_health(health) -> Badge:
         graduation_confidence=getattr(health, "graduation_confidence", "high"),
         unique_buyers=health.unique_buyers,
         whale_count=health.whale_count,
+        contract_risk_score=contract_risk_score,
     )
 
 

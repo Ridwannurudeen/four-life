@@ -37,7 +37,7 @@ class ContentEngine:
     async def generate_launch_thread(self, concept: dict) -> list[str]:
         """Generate a Twitter launch thread (3-5 tweets)."""
         llm = get_llm()
-        text = await llm.chat([{
+        text = await llm.chat_task([{
             "role": "user",
             "content": f"""Write a launch announcement thread for a new meme token on Four.meme (BNB Chain).
 
@@ -59,7 +59,7 @@ Write 3-4 tweets as a thread. Rules:
 - Sound like a degenerate crypto trader, not a marketing team
 
 Return as JSON array of strings. No markdown."""
-        }], max_tokens=1500)
+        }], task="content", max_tokens=1500)
 
         try:
             return json.loads(text)
@@ -74,7 +74,7 @@ Return as JSON array of strings. No markdown."""
         self, health: TokenHealth, concept: dict, milestone: str = ""
     ) -> str:
         """Generate a single update/milestone/meme tweet."""
-        return await get_llm().chat([{
+        return await get_llm().chat_task([{
             "role": "user",
             "content": f"""Write a tweet for ${concept['symbol']} ({concept['name']}) on Four.meme.
 
@@ -93,11 +93,11 @@ If there's a milestone, celebrate it. If health is dropping, rally the community
 NO emojis. Be raw and real, not corporate.
 
 Return ONLY the tweet text, nothing else."""
-        }], max_tokens=400)
+        }], task="content", max_tokens=400)
 
     async def generate_transparency_post(self, health: TokenHealth, concept: dict) -> str:
         """Generate a transparency update when whale concentration is high."""
-        return await get_llm().chat([{
+        return await get_llm().chat_task([{
             "role": "user",
             "content": f"""Write a transparency tweet for ${concept['symbol']} ({concept['name']}).
 
@@ -111,4 +111,4 @@ Acknowledge the concentration, explain why it's not a rug, show the data.
 Be direct. No sugar-coating. Trust is earned through transparency.
 
 Max 280 chars. No emojis. Return ONLY the tweet text."""
-        }], max_tokens=400)
+        }], task="content", max_tokens=400)
