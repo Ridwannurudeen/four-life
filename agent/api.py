@@ -42,7 +42,75 @@ async def lifespan(app: FastAPI):
         await agent.api.close()
 
 
-app = FastAPI(title="FOUR-LIFE Agent API", version="1.0.0", lifespan=lifespan)
+API_DESCRIPTION = """
+The **FOUR-LIFE Certified** public API — the trust, discovery, and survival layer for
+Four.meme launches on BNB Chain.
+
+### What this API provides
+
+- **Certified Badge** (`GET /api/token/{addr}/badge`) — deterministic tier
+  (graduated / graduation_watch / healthy / at_risk / observed) with a full `why[]` rule
+  trace you can audit.
+- **Risk Snapshot** (`GET /api/token/{addr}/risk-snapshot`) — evidence-backed risk flags.
+- **Operator Checklist** (`GET /api/token/{addr}/operator-checklist`) — deterministic
+  72h action plan, no LLM involvement.
+- **Contract Risk** (`GET /api/token/{addr}/contract-risk`) — mint / blacklist / proxy /
+  pause / ownership detection.
+- **Graduation Radar** (`GET /api/graduation-radar`) — live Four.meme token leaderboard
+  with filters (quote asset, min confidence, sort key).
+- **Creator Survival** (`GET /api/creator/{wallet}/survival-score`) — track record with
+  deterministic trust tier.
+- **Platform Cohorts** (`GET /api/platform/cohorts`) — cross-launch analytics.
+
+### Determinism & trust
+
+No LLM is involved in any trust-path response. Every Certified badge and risk flag is
+computed from raw on-chain metrics. Every response includes `confidence_score`,
+`fallback_used`, `data_sources`, `model_version`, and `last_updated_at` so you can verify
+the response without trusting the label.
+
+### Rate limits
+
+Public GET endpoints: 120 requests per minute per IP (rolling window). Write endpoints
+(`POST /api/agent/*`) are rate-limited to 30/min and require a bearer token.
+
+### Integration
+
+- TypeScript SDK: [`@four-life/sdk`](https://github.com/Ridwannurudeen/four-life/tree/master/sdk)
+- Embeddable widget: `<script src="https://four-life.gudman.xyz/embed.js?token=0x..."></script>`
+- Browser extension: [repo link](https://github.com/Ridwannurudeen/four-life/tree/master/extension)
+
+Source: [github.com/Ridwannurudeen/four-life](https://github.com/Ridwannurudeen/four-life)
+Live: [four-life.gudman.xyz](https://four-life.gudman.xyz)
+"""
+
+tags_metadata = [
+    {"name": "platform", "description": "Platform-native primitives Four.meme can embed directly. Deterministic, auditable, zero LLM in trust path."},
+    {"name": "radar", "description": "Live leaderboard of Four.meme tokens. The main discovery surface."},
+    {"name": "creator", "description": "Creator track-record scoring across every FOUR-LIFE-tracked launch."},
+    {"name": "contract", "description": "On-chain contract analysis — mint, blacklist, pause, proxy, ownable, honeypot detection."},
+    {"name": "identity", "description": "ERC-8004 / BRC-8004 agent card + reputation attestations."},
+    {"name": "dgrid", "description": "DGrid AI Gateway usage — task-model routing, fallback chain, per-provider counters."},
+    {"name": "radar-bot", "description": "Health feed for the X alert bot that broadcasts Certified tier transitions."},
+    {"name": "myx", "description": "MYX V2 perp integration. Signal-only by default; execution opt-in via MYX_EXECUTION_ENABLED."},
+    {"name": "agent", "description": "Agent lifecycle controls (start/stop/track). Protected by API_SECRET bearer token."},
+    {"name": "dashboard", "description": "Internal status + history endpoints used by the FOUR-LIFE dashboard."},
+]
+
+app = FastAPI(
+    title="FOUR-LIFE Certified API",
+    description=API_DESCRIPTION,
+    version="1.1.0",
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
+    contact={
+        "name": "FOUR-LIFE",
+        "url": "https://four-life.gudman.xyz",
+    },
+    license_info={"name": "MIT", "url": "https://github.com/Ridwannurudeen/four-life/blob/master/LICENSE"},
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,9 +123,68 @@ app.add_middleware(
 )
 
 
+# ── Rate limiting (in-memory token bucket per IP) ────────────────────
+# Simple, dependency-free. For a multi-process deployment this would move to Redis,
+# but the VPS runs a single uvicorn worker so an in-memory bucket is sufficient.
+
+import time as _time_rl
+from collections import defaultdict as _defaultdict
+
+_RL_WINDOW_SECONDS = 60
+_RL_PUBLIC_LIMIT = 120   # GET /api/** (public read)
+_RL_WRITE_LIMIT = 30     # POST /api/agent/** (write)
+_rate_buckets: dict[tuple[str, str], list[float]] = _defaultdict(list)
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    """Per-IP rolling-window rate limit. Skips /docs, /openapi, /.well-known."""
+    path = request.url.path
+    if path.startswith("/docs") or path.startswith("/redoc") or path.startswith("/openapi") or path.startswith("/.well-known"):
+        return await call_next(request)
+
+    # Bucket key: (client IP, bucket class). Write endpoints get a stricter bucket.
+    client_ip = request.client.host if request.client else "unknown"
+    is_write = request.method == "POST" and path.startswith("/api/agent/")
+    bucket_class = "write" if is_write else "public"
+    limit = _RL_WRITE_LIMIT if is_write else _RL_PUBLIC_LIMIT
+    key = (client_ip, bucket_class)
+
+    now = _time_rl.time()
+    cutoff = now - _RL_WINDOW_SECONDS
+    bucket = _rate_buckets[key]
+    # Prune old entries (cheap — most buckets are short)
+    while bucket and bucket[0] < cutoff:
+        bucket.pop(0)
+
+    if len(bucket) >= limit:
+        retry_after = max(1, int(_RL_WINDOW_SECONDS - (now - bucket[0])))
+        return JSONResponse(
+            {
+                "error": "rate_limited",
+                "limit": limit,
+                "window_seconds": _RL_WINDOW_SECONDS,
+                "retry_after_seconds": retry_after,
+                "message": f"Too many requests — slow down. {limit} req/{_RL_WINDOW_SECONDS}s per IP.",
+            },
+            status_code=429,
+            headers={
+                "Retry-After": str(retry_after),
+                "X-RateLimit-Limit": str(limit),
+                "X-RateLimit-Window": str(_RL_WINDOW_SECONDS),
+            },
+        )
+
+    bucket.append(now)
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(max(0, limit - len(bucket)))
+    return response
+
+
 # ── Agent Card (ERC-8004 discovery) ──────────────────────────────────
 
-@app.get("/.well-known/agent-registration.json")
+@app.get("/.well-known/agent-registration.json", tags=["identity"], summary="ERC-8004 agent card")
 async def agent_card():
     if not agent:
         return JSONResponse({"name": "FOUR-LIFE", "status": "not configured"})
@@ -67,7 +194,7 @@ async def agent_card():
 
 # ── Identity + Reputation (public) ───────────────────────────────────
 
-@app.get("/api/identity")
+@app.get("/api/identity", tags=["identity"], summary="Agent card + reputation attestations")
 async def identity_feed():
     """Public identity + reputation feed — the judge-facing version of the agent card.
 
@@ -126,7 +253,7 @@ async def identity_feed():
 
 # ── Radar Bot status (public health endpoint) ────────────────────────
 
-@app.get("/api/radar-bot/status")
+@app.get("/api/radar-bot/status", tags=["radar-bot"], summary="Radar bot health feed")
 async def radar_bot_status():
     """Public health feed for the X alert bot. Reads its status file — the bot itself
     writes this every tick. If the file is missing, the bot isn't running."""
@@ -152,7 +279,7 @@ async def radar_bot_status():
 
 # ── Agent Status ─────────────────────────────────────────────────────
 
-@app.get("/api/status")
+@app.get("/api/status", tags=["dashboard"], summary="Agent status + lifetime stats")
 async def status():
     if not agent:
         return {
@@ -185,7 +312,7 @@ async def status():
 
 # ── Token Health ─────────────────────────────────────────────────────
 
-@app.get("/api/tokens")
+@app.get("/api/tokens", tags=["dashboard"], summary="All tokens currently under FOUR-LIFE lifecycle management")
 async def list_tokens():
     if not agent:
         return {"tokens": []}
@@ -210,7 +337,7 @@ async def list_tokens():
     return {"tokens": tokens}
 
 
-@app.get("/api/tokens/{address}")
+@app.get("/api/tokens/{address}", tags=["dashboard"], summary="Deep detail for a tracked token")
 async def token_detail(address: str):
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
@@ -256,7 +383,7 @@ async def token_detail(address: str):
 
 # ── Memory ───────────────────────────────────────────────────────────
 
-@app.get("/api/memory")
+@app.get("/api/memory", tags=["dashboard"], summary="Agent memory (learnings, launch history)")
 async def memory():
     if not agent:
         return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
@@ -290,7 +417,7 @@ async def memory():
 
 # ── Actions Log ──────────────────────────────────────────────────────
 
-@app.get("/api/actions")
+@app.get("/api/actions", tags=["dashboard"], summary="Recent lifecycle actions")
 async def actions(limit: int = 50):
     if not agent:
         return {"actions": []}
@@ -313,7 +440,7 @@ async def actions(limit: int = 50):
 
 # ── DGrid Bounty Dashboard ───────────────────────────────────────────
 
-@app.get("/api/dgrid/stats")
+@app.get("/api/dgrid/stats", tags=["dgrid"], summary="DGrid gateway usage — task routing, fallback events, per-provider counters")
 async def dgrid_stats():
     """Public stats on task-typed LLM routing through the DGrid gateway.
 
@@ -331,7 +458,7 @@ async def dgrid_stats():
 
 # ── MYX V2 Perps ─────────────────────────────────────────────────────
 
-@app.get("/api/myx/status")
+@app.get("/api/myx/status", tags=["myx"], summary="MYX connection + execution mode")
 async def myx_status():
     if not agent or not agent.myx:
         return {"enabled": False, "execution_mode": "disabled", "reason": "MYX not configured"}
@@ -351,7 +478,7 @@ async def myx_status():
         }
 
 
-@app.get("/api/myx/signal/{token_address}")
+@app.get("/api/myx/signal/{token_address}", tags=["myx"], summary="AI-generated perp signal for a tracked token")
 async def myx_signal(token_address: str):
     if not agent or not agent.myx_strategy:
         return {"error": "MYX not configured"}
@@ -383,7 +510,7 @@ async def myx_signal(token_address: str):
         return {"error": str(e)}
 
 
-@app.get("/api/myx/portfolio")
+@app.get("/api/myx/portfolio", tags=["myx"], summary="Hedge portfolio summary across all tokens")
 async def myx_portfolio():
     """Get hedge portfolio summary across all tokens."""
     if not agent or not agent.hedge_manager:
@@ -391,7 +518,7 @@ async def myx_portfolio():
     return agent.hedge_manager.get_portfolio_summary()
 
 
-@app.get("/api/myx/positions/{token_address}")
+@app.get("/api/myx/positions/{token_address}", tags=["myx"], summary="Hedge positions for a specific token")
 async def myx_positions(token_address: str):
     """Get all hedge positions for a specific token."""
     if not agent or not agent.hedge_manager:
@@ -402,7 +529,7 @@ async def myx_positions(token_address: str):
     }
 
 
-@app.post("/api/myx/evaluate/{token_address}")
+@app.post("/api/myx/evaluate/{token_address}", tags=["myx"], summary="Manually trigger a hedge evaluation")
 async def myx_evaluate(token_address: str):
     """Manually trigger a hedge evaluation for a token."""
     if not agent or not agent.hedge_manager:
@@ -553,7 +680,7 @@ def _suggested_action(health) -> str:
     return "Hold course — metrics within healthy operating range."
 
 
-@app.get("/api/health-score/{token_address}")
+@app.get("/api/health-score/{token_address}", tags=["platform"], summary="Pair-aware health score + Certified badge for any token")
 async def public_health_score(token_address: str):
     """Public health score for any Four.meme token.
 
@@ -705,7 +832,7 @@ async def public_health_score(token_address: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.post("/api/raise-plan/{token_address}")
+@app.post("/api/raise-plan/{token_address}", tags=["platform"], summary="LLM-generated 72h raise plan (pair-aware target)")
 async def generate_raise_plan(token_address: str):
     """Generate a 72-hour lifecycle raise plan for a token.
 
@@ -816,7 +943,7 @@ Be specific and actionable. No vague advice. Reference the actual pair-aware gra
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.get("/api/graduation-radar")
+@app.get("/api/graduation-radar", tags=["radar"], summary="Live Four.meme radar with filters (quote asset, min confidence, sort key)")
 async def graduation_radar(
     limit: int = 20,
     quote_asset: str = "all",
@@ -933,7 +1060,7 @@ async def graduation_radar(
 
 # ── Platform Primitives (Four.meme-native integration surface) ───────
 
-@app.get("/api/token/{token_address}/badge")
+@app.get("/api/token/{token_address}/badge", tags=["platform"], summary="FOUR-LIFE Certified — deterministic trust tier with why[] rule trace")
 async def token_badge(token_address: str):
     """FOUR-LIFE Certified — deterministic trust badge for any Four.meme token.
 
@@ -997,7 +1124,7 @@ async def token_badge(token_address: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.get("/api/token/{token_address}/risk-snapshot")
+@app.get("/api/token/{token_address}/risk-snapshot", tags=["platform"], summary="Evidence-backed risk snapshot with per-metric flags")
 async def token_risk_snapshot(token_address: str):
     """Risk snapshot for a tracked token. Evidence-backed — every risk-level assignment
     is traceable to the exact metric that produced it."""
@@ -1078,7 +1205,7 @@ async def token_risk_snapshot(token_address: str):
     }
 
 
-@app.get("/api/token/{token_address}/contract-risk")
+@app.get("/api/token/{token_address}/contract-risk", tags=["contract"], summary="Bytecode + source analysis — mint, blacklist, proxy, pause, ownership, honeypot")
 async def token_contract_risk(token_address: str):
     """Deterministic contract-level rug-risk analysis for a BSC token.
 
@@ -1102,7 +1229,7 @@ async def token_contract_risk(token_address: str):
     }
 
 
-@app.get("/api/creator/{wallet}/survival-score")
+@app.get("/api/creator/{wallet}/survival-score", tags=["creator"], summary="Creator track record + deterministic trust tier")
 async def creator_survival_score(wallet: str):
     """Aggregate survival performance for a creator wallet across all FOUR-LIFE-tracked launches.
 
@@ -1189,7 +1316,7 @@ async def creator_survival_score(wallet: str):
     }
 
 
-@app.get("/api/platform/cohorts")
+@app.get("/api/platform/cohorts", tags=["platform"], summary="Cohort-level analytics: age, narrative, quote asset, whale risk")
 async def platform_cohorts():
     """Platform analytics — cohort survival by age, narrative, and quote asset.
 
@@ -1276,7 +1403,7 @@ async def platform_cohorts():
     }
 
 
-@app.get("/api/token/{token_address}/operator-checklist")
+@app.get("/api/token/{token_address}/operator-checklist", tags=["platform"], summary="Deterministic 72h operator checklist (rule-based, not LLM)")
 async def operator_checklist(token_address: str):
     """Deterministic 72h operator checklist — the thing Four.meme creators should actually
     do at each phase. Rules-based, no LLM. Optional style-matched posts can layer on top."""
@@ -1367,7 +1494,7 @@ async def operator_checklist(token_address: str):
 
 # ── Manual Controls ──────────────────────────────────────────────────
 
-@app.post("/api/agent/start")
+@app.post("/api/agent/start", tags=["agent"], summary="Start the autonomous loop")
 async def start_agent(_=Depends(require_auth)):
     """Start the agent loop."""
     import asyncio
@@ -1379,7 +1506,7 @@ async def start_agent(_=Depends(require_auth)):
     return {"status": "already running"}
 
 
-@app.post("/api/agent/stop")
+@app.post("/api/agent/stop", tags=["agent"], summary="Stop the autonomous loop")
 async def stop_agent(_=Depends(require_auth)):
     """Stop the agent loop."""
     if not agent:
@@ -1390,7 +1517,7 @@ async def stop_agent(_=Depends(require_auth)):
 
 # ── Manual Token Management ──────────────────────────────────────────
 
-@app.post("/api/agent/think")
+@app.post("/api/agent/think", tags=["agent"], summary="Run a single THINK cycle")
 async def manual_think(_=Depends(require_auth)):
     """Run one THINK cycle — always generates a concept for manual creation."""
     if not agent:
@@ -1460,7 +1587,7 @@ async def manual_think(_=Depends(require_auth)):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.post("/api/agent/track")
+@app.post("/api/agent/track", tags=["agent"], summary="Begin lifecycle tracking for a token")
 async def manual_track(data: dict, _=Depends(require_auth)):
     """Track an existing token for lifecycle management.
 
