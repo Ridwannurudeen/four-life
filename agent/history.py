@@ -315,6 +315,33 @@ class HistoryStore:
             ).fetchone()
         return _row_to_snapshot(row) if row else None
 
+    def iter_export(
+        self,
+        *,
+        since: int | None = None,
+        token_address: str | None = None,
+    ) -> "Any":
+        """Yield snapshots as dicts for bulk export. Oldest-first, streams from the
+        cursor so memory stays flat even for large DBs. Optional filters: time
+        window (`since`) and token (`token_address`)."""
+        query = "SELECT * FROM snapshots WHERE 1=1"
+        params: list[Any] = []
+        if since is not None:
+            query += " AND recorded_at >= ?"
+            params.append(int(since))
+        if token_address:
+            query += " AND token_address = ?"
+            params.append(token_address.lower())
+        query += " ORDER BY recorded_at ASC"
+
+        conn = self._connect()
+        try:
+            cursor = conn.execute(query, params)
+            for row in cursor:
+                yield _row_to_snapshot(row).to_dict()
+        finally:
+            conn.close()
+
     def tokens_with_history(self, limit: int = 500) -> list[str]:
         """Distinct token addresses with at least one snapshot, newest-activity first."""
         limit = max(1, min(int(limit), 5000))

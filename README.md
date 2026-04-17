@@ -101,10 +101,46 @@ python server.py
 | `GET /api/token/{token}/badge` | **FOUR-LIFE Certified** — deterministic trust tier (observed/healthy/at_risk/graduation_watch/graduated) with the exact rules that fired |
 | `GET /api/token/{token}/risk-snapshot` | Evidence-backed risk snapshot: each risk level traces to the metric that produced it |
 | `GET /api/token/{token}/operator-checklist` | Deterministic 72h operator checklist tailored to the token's current phase |
+| `GET /api/token/{token}/history?limit=&since=&transitions_only=` | Historical tier snapshots (time-series) for a token |
+| `GET /api/token/{token}/diff?since=` | Summary of what changed for a token since a given timestamp (tier transitions + first/last snapshot) |
+| `GET /api/history/tokens` | Distinct tokens with at least one recorded snapshot |
+| `GET /api/history/export.ndjson` | Full history store as newline-delimited JSON (supports `?since=` and `?token_address=`) |
 | `GET /api/creator/{wallet}/survival-score` | Aggregate launch-survival performance for a creator wallet (launches, graduations, trust tier) |
+| `GET /api/creators/leaderboard?sort_by=&trust_tier=&min_launches=&limit=` | Creator ledger across every FOUR-LIFE-tracked launch |
 | `GET /api/platform/cohorts` | Platform analytics: cohorts by age/narrative/quote asset, whale-risk distribution, avg time-to-graduation |
 | `POST /api/raise-plan/{token}` | AI-generated 72-hour raise plan (uses the actual pair-aware graduation target) |
 | `GET /.well-known/agent-registration.json` | ERC-8004 / BRC-8004 agent card |
+
+### Webhooks (bearer-auth on writes)
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/webhooks` | Create a subscription. Returns the shared HMAC secret **exactly once**. |
+| `GET /api/webhooks` | List active (or all) subscriptions. |
+| `DELETE /api/webhooks/{id}` | Delete a subscription. |
+| `GET /api/webhooks/{id}/deliveries` | Recent delivery attempts (status, http_status, retry counts). |
+
+Events: `badge.tier_changed`, `protection.level_changed`. Signature header is `X-FourLife-Signature: t=<unix_ts>,v1=<hex_hmac_sha256(t + "." + body)>`. Retry schedule: 30s, 2m, 15m — then dead. Auto-disable after 10 consecutive dead deliveries. See the signed-payload recipe at [/webhooks](https://four-life.gudman.xyz/webhooks).
+
+### Protection Mode (per-token defensive thresholds)
+
+| Endpoint | Description |
+|----------|-------------|
+| `PUT /api/protection/{token}` | Create or update a token's protection policy (bearer-auth). |
+| `GET /api/protection/{token}` | Read policy + current live verdict (safe / warn / critical). |
+| `DELETE /api/protection/{token}` | Remove a policy (bearer-auth). |
+| `GET /api/protection` | List every configured policy. |
+
+A `critical` verdict halts non-safety content posts and fires `protection.level_changed` through the webhook + notification pipeline. All rule thresholds have conservative defaults — untouched tokens still get baseline protection.
+
+### Notifications (Telegram + Discord)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/notifications/status` | Which channels are currently configured (never reveals secrets). |
+| `POST /api/notifications/test` | Send a synthetic event to every enabled channel (bearer-auth). |
+
+Configure via `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` and/or `DISCORD_WEBHOOK_URL`. Notifications fan-out on tier transitions and protection-level changes.
 
 Every public endpoint returns `confidence_score`, `fallback_used`, `data_sources`, `model_version`, and `last_updated_at` so judges and Four.meme can audit the response without trusting the label.
 

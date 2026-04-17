@@ -7,13 +7,14 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
 from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from agent.agent import FourLifeAgent
 from agent.badge import badge_from_health, badge_from_ranking
 from agent.history import default_store as _history_store
 from agent.security.contract_analyzer import ContractAnalyzer, ContractRisk
+from agent import notifications as _notifications
 from agent.protection import (
     LEVEL_CRITICAL,
     LEVEL_SAFE,
@@ -74,6 +75,16 @@ def _record_history(
                 schedule_deliveries(ids)
         except Exception as e:
             logger.warning("webhook dispatch failed for {}: {}", token_address, e)
+        # Fan out to Telegram/Discord notification channels (no-ops if not configured).
+        try:
+            _notifications.dispatch_event("badge.tier_changed", {
+                "token_address": token_address,
+                "from_tier": result.prev_tier,
+                "to_tier": result.tier,
+                "at": result.recorded_at,
+            })
+        except Exception as e:
+            logger.warning("notification dispatch failed for {}: {}", token_address, e)
 
 
 agent: FourLifeAgent | None = None
@@ -157,6 +168,7 @@ tags_metadata = [
     {"name": "myx", "description": "MYX V2 perp integration. Signal-only by default; execution opt-in via MYX_EXECUTION_ENABLED."},
     {"name": "webhooks", "description": "Outbound webhook subscriptions. Signed HMAC deliveries on tier-change and protection.level-changed events. Protected by API_SECRET bearer token."},
     {"name": "protection", "description": "Protection mode — per-token defensive thresholds. Deterministic verdict (safe/warn/critical). Writes are protected by API_SECRET."},
+    {"name": "notifications", "description": "Telegram + Discord alert channels. Fan out tier and protection transitions to human-readable channels. Configured via env."},
     {"name": "agent", "description": "Agent lifecycle controls (start/stop/track). Protected by API_SECRET bearer token."},
     {"name": "dashboard", "description": "Internal status + history endpoints used by the FOUR-LIFE dashboard."},
 ]
@@ -1335,6 +1347,38 @@ async def token_diff(token_address: str, since: int):
     }
 
 
+@app.get(
+    "/api/history/export.ndjson",
+    tags=["platform"],
+    summary="Stream the full history store as newline-delimited JSON for backfill",
+)
+async def history_export(since: int | None = None, token_address: str | None = None):
+    """Stream every historical snapshot as newline-delimited JSON (NDJSON).
+
+    Optional filters:
+      - `since` — unix timestamp lower bound
+      - `token_address` — single-token export
+
+    Intended for integrators who need a full backfill of tier history without
+    paginating through `/api/token/{addr}/history` per token. The response streams
+    from the SQLite cursor — memory stays flat regardless of DB size.
+    """
+    store = _history_store()
+
+    def _iter():
+        for snap in store.iter_export(since=since, token_address=token_address):
+            yield (json.dumps(snap, separators=(",", ":")) + "\n").encode("utf-8")
+
+    return StreamingResponse(
+        _iter(),
+        media_type="application/x-ndjson",
+        headers={
+            "Content-Disposition": 'attachment; filename="four-life-history.ndjson"',
+            "X-Model-Version": MODEL_VERSION,
+        },
+    )
+
+
 @app.get("/api/history/tokens", tags=["platform"], summary="Tokens with recorded history, newest-activity first")
 async def history_tokens(limit: int = 200):
     """List of token addresses that have at least one recorded snapshot.
@@ -1575,6 +1619,65 @@ async def list_protection_policies(include_inactive: bool = True):
         "count": len(policies),
         "policies": [p.to_dict() for p in policies],
         "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/notifications/status",
+    tags=["notifications"],
+    summary="Which notification channels are active",
+)
+async def notifications_status():
+    """Public status of notification channels. Never reveals tokens — just which
+    channels are currently configured."""
+    chs = _notifications.channels()
+    return {
+        "channels": [
+            {"name": c.name, "enabled": c.enabled}
+            for c in (_notifications.TelegramChannel(), _notifications.DiscordChannel())
+        ],
+        "active_count": len(chs),
+        "supported_events": ["badge.tier_changed", "protection.level_changed"],
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.post(
+    "/api/notifications/test",
+    tags=["notifications"],
+    summary="Send a test event to every configured channel",
+    dependencies=[Depends(require_auth)],
+)
+async def notifications_test(event_type: str = "badge.tier_changed"):
+    """Fire a synthetic event through all enabled notification channels. Useful
+    for verifying Telegram/Discord config from the dashboard."""
+    if event_type == "badge.tier_changed":
+        fake = {
+            "type": "badge.tier_changed",
+            "token_address": "0x" + "00" * 20,
+            "from_tier": "healthy",
+            "to_tier": "at_risk",
+            "at": int(time.time()),
+        }
+    elif event_type == "protection.level_changed":
+        fake = {
+            "type": "protection.level_changed",
+            "token_address": "0x" + "00" * 20,
+            "from_level": "safe",
+            "to_level": "critical",
+            "fired_rules": [
+                {"rule": "test_rule", "severity": "critical"},
+            ],
+            "at": int(time.time()),
+        }
+    else:
+        return JSONResponse({"error": "unsupported event_type"}, status_code=400)
+
+    results = await _notifications.send_sync(event_type, fake)
+    return {
+        "event_type": event_type,
+        "results": results,
+        "dispatched_count": sum(1 for v in results.values() if v),
     }
 
 

@@ -13,6 +13,7 @@ from agent.memory.store import MemoryStore
 from agent.social.twitter import TwitterClient
 from agent.myx.hedge import HedgeManager
 from agent.identity.registry import AgentIdentity
+from agent import notifications as _notifications
 from agent.protection import LEVEL_CRITICAL, default_store as _protection_store, evaluate_protection
 from agent.webhooks import fire_protection_level_changed, schedule_deliveries
 
@@ -103,6 +104,16 @@ class LifecycleEngine:
                         schedule_deliveries(ids)
                 except Exception as e:
                     logger.warning("[PROTECTION] webhook fire failed for {}: {}", health.symbol, e)
+                # Fan out to Telegram/Discord (no-ops if not configured).
+                try:
+                    _notifications.dispatch_event("protection.level_changed", {
+                        "token_address": token_address,
+                        "from_level": prev_level,
+                        "to_level": verdict.level,
+                        "fired_rules": [r.to_dict() for r in verdict.fired_rules],
+                    })
+                except Exception as e:
+                    logger.warning("[PROTECTION] notification dispatch failed: {}", e)
             protection_verdict = verdict
         except Exception as e:
             logger.warning("[PROTECTION] evaluate failed for {}: {}", health.symbol, e)

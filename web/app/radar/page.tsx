@@ -702,6 +702,7 @@ export default function RadarPage() {
               </span>
             )}
             <Link href="/creators" className="btn-pill bg-white/5 hover:bg-white/10 border border-white/10 text-xs">Creators</Link>
+            <Link href="/webhooks" className="btn-pill bg-white/5 hover:bg-white/10 border border-white/10 text-xs">Webhooks</Link>
             <a
               href="https://github.com/Ridwannurudeen/four-life"
               target="_blank"

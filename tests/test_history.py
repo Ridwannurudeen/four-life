@@ -171,6 +171,33 @@ class TestDiff:
         assert d["first"]["tier"] == "graduated"
 
 
+class TestExport:
+    def test_iter_export_oldest_first(self, store: HistoryStore) -> None:
+        for ts, tier in [(3_000, "graduated"), (1_000, "healthy"), (2_000, "at_risk")]:
+            store.record(token_address=TOKEN, tier=tier, metrics=METRICS, why=WHY, now=ts)
+        exported = list(store.iter_export())
+        assert [e["tier"] for e in exported] == ["healthy", "at_risk", "graduated"]
+        assert [e["recorded_at"] for e in exported] == [1_000, 2_000, 3_000]
+
+    def test_iter_export_since_filter(self, store: HistoryStore) -> None:
+        for ts, tier in [(1_000, "healthy"), (2_000, "at_risk"), (3_000, "graduated")]:
+            store.record(token_address=TOKEN, tier=tier, metrics=METRICS, why=WHY, now=ts)
+        exported = list(store.iter_export(since=2_000))
+        assert len(exported) == 2
+        assert exported[0]["tier"] == "at_risk"
+
+    def test_iter_export_token_filter(self, store: HistoryStore) -> None:
+        other = "0x" + "22" * 20
+        store.record(token_address=TOKEN, tier="healthy", metrics=METRICS, why=WHY, now=1_000)
+        store.record(token_address=other, tier="at_risk", metrics=METRICS, why=WHY, now=2_000)
+        exported = list(store.iter_export(token_address=TOKEN))
+        assert len(exported) == 1
+        assert exported[0]["token_address"] == TOKEN.lower()
+
+    def test_iter_export_empty(self, store: HistoryStore) -> None:
+        assert list(store.iter_export()) == []
+
+
 class TestPersistence:
     def test_store_reopens_cleanly(self, tmp_path: Path) -> None:
         path = tmp_path / "history.db"
