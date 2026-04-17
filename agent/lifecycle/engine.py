@@ -13,6 +13,8 @@ from agent.memory.store import MemoryStore
 from agent.social.twitter import TwitterClient
 from agent.myx.hedge import HedgeManager
 from agent.identity.registry import AgentIdentity
+from agent.protection import LEVEL_CRITICAL, default_store as _protection_store, evaluate_protection
+from agent.webhooks import fire_protection_level_changed, schedule_deliveries
 
 
 @dataclass
@@ -69,6 +71,43 @@ class LifecycleEngine:
         # Update health
         health = await self.monitor.update_token(token_address)
 
+        # Protection mode — deterministic defensive check. Runs BEFORE any content
+        # decision so a critical verdict can suppress non-safety posts and fire a
+        # webhook event on level transitions. Never raises into the lifecycle.
+        try:
+            p_store = _protection_store()
+            policy = p_store.get_policy(token_address)
+            verdict = evaluate_protection(
+                token_address=token_address,
+                policy=policy,
+                top_holder_pct=health.top_holder_pct,
+                whale_count=health.whale_count,
+                buy_sell_ratio=health.buy_sell_ratio,
+                age_hours=health.age_hours,
+                contract_risk_score=0,
+            )
+            transitioned, prev_level = p_store.record_level(
+                token_address=token_address, verdict=verdict,
+            )
+            if transitioned:
+                try:
+                    ids = fire_protection_level_changed(
+                        token_address=token_address,
+                        from_level=prev_level,
+                        to_level=verdict.level,
+                        fired_rules=[r.to_dict() for r in verdict.fired_rules],
+                        recommended_actions=verdict.recommended_actions,
+                        thresholds=verdict.thresholds,
+                    )
+                    if ids:
+                        schedule_deliveries(ids)
+                except Exception as e:
+                    logger.warning("[PROTECTION] webhook fire failed for {}: {}", health.symbol, e)
+            protection_verdict = verdict
+        except Exception as e:
+            logger.warning("[PROTECTION] evaluate failed for {}: {}", health.symbol, e)
+            protection_verdict = None
+
         # Run MYX hedge evaluation (independent of content actions)
         if self.hedge_manager:
             try:
@@ -89,6 +128,26 @@ class LifecycleEngine:
                     logger.info("[HEDGE] {} for {}: {}", hedge_result["action"], health.symbol, hedge_result)
             except Exception as e:
                 logger.error("[HEDGE] Error for {}: {}", health.symbol, e)
+
+        # Protection Mode halt — if the verdict is critical, skip all content posts
+        # for this tick. We log a "protection_halt" action so the action feed shows
+        # why FOUR-LIFE went quiet. Hedge evaluation above still runs.
+        if protection_verdict and protection_verdict.level == LEVEL_CRITICAL:
+            rules_summary = ", ".join(r.rule for r in protection_verdict.fired_rules) or "critical"
+            halt_action = LifecycleAction(
+                token_address=token_address,
+                action_type="protection_halt",
+                content="",
+                urgency="critical",
+                reasoning=f"Protection mode critical: {rules_summary}",
+                timestamp=time.time(),
+            )
+            self.action_log.append(halt_action)
+            logger.warning(
+                "[PROTECTION] halting content actions for {} ({}): {}",
+                health.name, health.symbol, rules_summary,
+            )
+            return halt_action
 
         # Check if we should act (rate limiting per phase)
         interval = self.PHASE_INTERVALS.get(health.phase, 3600)

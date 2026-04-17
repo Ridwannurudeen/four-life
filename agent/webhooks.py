@@ -37,7 +37,8 @@ WEBHOOK_DIR = Path(__file__).parent.parent / "data"
 WEBHOOK_FILE = WEBHOOK_DIR / "webhooks.db"
 
 EVENT_BADGE_TIER_CHANGED = "badge.tier_changed"
-SUPPORTED_EVENTS = frozenset({EVENT_BADGE_TIER_CHANGED})
+EVENT_PROTECTION_LEVEL_CHANGED = "protection.level_changed"
+SUPPORTED_EVENTS = frozenset({EVENT_BADGE_TIER_CHANGED, EVENT_PROTECTION_LEVEL_CHANGED})
 
 # Retry schedule (seconds from first attempt) — fail-fast then widen.
 # Delivery is considered dead after we exhaust the schedule.
@@ -630,6 +631,45 @@ def fire_tier_changed(
         did = s.enqueue_delivery(
             subscription=sub,
             event_type=EVENT_BADGE_TIER_CHANGED,
+            event=event,
+            now=ts,
+        )
+        delivery_ids.append(did)
+    return delivery_ids
+
+
+def fire_protection_level_changed(
+    *,
+    token_address: str,
+    from_level: str | None,
+    to_level: str,
+    fired_rules: list[dict],
+    recommended_actions: list[str],
+    thresholds: dict,
+    at: int | None = None,
+    store: WebhookStore | None = None,
+) -> list[int]:
+    """Enqueue `protection.level_changed` deliveries for every matching subscription."""
+    s = store or default_store()
+    ts = at if at is not None else int(time.time())
+    token_key = (token_address or "").lower()
+    event = {
+        "token_address": token_key,
+        "from_level": from_level,
+        "to_level": to_level,
+        "at": ts,
+        "fired_rules": fired_rules,
+        "recommended_actions": recommended_actions,
+        "thresholds": thresholds,
+    }
+    subs = s.subscriptions_for_event(
+        event_type=EVENT_PROTECTION_LEVEL_CHANGED, token_address=token_key,
+    )
+    delivery_ids: list[int] = []
+    for sub in subs:
+        did = s.enqueue_delivery(
+            subscription=sub,
+            event_type=EVENT_PROTECTION_LEVEL_CHANGED,
             event=event,
             now=ts,
         )

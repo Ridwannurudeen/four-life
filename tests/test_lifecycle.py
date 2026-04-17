@@ -26,6 +26,16 @@ def mock_deps():
     return monitor, strategy, content, memory, twitter
 
 
+@pytest.fixture(autouse=True)
+def _isolate_protection_store(tmp_path, monkeypatch):
+    """Point the protection singleton at a per-test tmp DB so lifecycle tests that
+    exercise the tick() path don't share state with other tests or the real
+    data/protection.db file."""
+    from agent import protection as p
+    from agent.protection import ProtectionStore
+    monkeypatch.setattr(p, "_default_store", ProtectionStore(db_path=tmp_path / "protection.db"))
+
+
 @pytest.fixture
 def engine(mock_deps):
     return LifecycleEngine(*mock_deps)
@@ -109,6 +119,53 @@ class TestLifecycleTick:
         if action:  # May be rate-limited
             assert action.action_type == "transparency"
             assert "Whale" in action.reasoning
+
+    @pytest.mark.asyncio
+    async def test_protection_critical_halts_content_actions(self, engine, mock_deps):
+        monitor, strategy, content, memory, twitter = mock_deps
+
+        # Critical whale concentration (>= 55% default threshold) — must halt.
+        health = TokenHealth(
+            address="0xcrit", name="CritTest", symbol="CRT",
+            phase="defend", top_holder_pct=75, age_hours=10,
+            created_at=time.time() - 36000,
+        )
+        monitor.update_token.return_value = health
+
+        engine._last_action_time.pop("0xcrit", None)
+        action = await engine.tick("0xcrit", {"name": "CritTest"})
+
+        assert action is not None
+        assert action.action_type == "protection_halt"
+        assert action.urgency == "critical"
+        assert "whale_concentration_critical" in action.reasoning
+        # Content / strategy / twitter should not be invoked on critical halt.
+        strategy.get_lifecycle_action.assert_not_called()
+        content.generate_transparency_post.assert_not_called()
+        twitter.post_tweet.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_protection_safe_does_not_interfere(self, engine, mock_deps):
+        monitor, strategy, content, memory, twitter = mock_deps
+
+        # Clean metrics — verdict safe, normal flow proceeds.
+        health = TokenHealth(
+            address="0xok", name="OkTest", symbol="OK",
+            phase="nurture", top_holder_pct=5, buy_sell_ratio=1.3,
+            holder_velocity=10, age_hours=0.5,
+            created_at=time.time() - 1800,
+        )
+        monitor.update_token.return_value = health
+        strategy.get_lifecycle_action.return_value = {
+            "action_type": "post_content", "content": "Hello",
+            "urgency": "low", "reasoning": "routine",
+        }
+
+        engine._last_action_time.pop("0xok", None)
+        action = await engine.tick("0xok", {"name": "OkTest"})
+
+        # Either strategy ran (non-halt path) or None (rate-limited). Never a halt.
+        assert action is None or action.action_type != "protection_halt"
 
     def test_action_history(self, engine):
         from agent.lifecycle.engine import LifecycleAction

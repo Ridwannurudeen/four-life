@@ -14,10 +14,20 @@ from agent.agent import FourLifeAgent
 from agent.badge import badge_from_health, badge_from_ranking
 from agent.history import default_store as _history_store
 from agent.security.contract_analyzer import ContractAnalyzer, ContractRisk
+from agent.protection import (
+    LEVEL_CRITICAL,
+    LEVEL_SAFE,
+    LEVEL_WARN,
+    ProtectionPolicy,
+    default_store as _protection_store,
+    evaluate_protection,
+)
 from agent.webhooks import (
     EVENT_BADGE_TIER_CHANGED,
+    EVENT_PROTECTION_LEVEL_CHANGED,
     SUPPORTED_EVENTS,
     default_store as _webhook_store,
+    fire_protection_level_changed,
     fire_tier_changed,
     schedule_deliveries,
 )
@@ -145,7 +155,8 @@ tags_metadata = [
     {"name": "dgrid", "description": "DGrid AI Gateway usage — task-model routing, fallback chain, per-provider counters."},
     {"name": "radar-bot", "description": "Health feed for the X alert bot that broadcasts Certified tier transitions."},
     {"name": "myx", "description": "MYX V2 perp integration. Signal-only by default; execution opt-in via MYX_EXECUTION_ENABLED."},
-    {"name": "webhooks", "description": "Outbound webhook subscriptions. Signed HMAC deliveries on tier-change events. Protected by API_SECRET bearer token."},
+    {"name": "webhooks", "description": "Outbound webhook subscriptions. Signed HMAC deliveries on tier-change and protection.level-changed events. Protected by API_SECRET bearer token."},
+    {"name": "protection", "description": "Protection mode — per-token defensive thresholds. Deterministic verdict (safe/warn/critical). Writes are protected by API_SECRET."},
     {"name": "agent", "description": "Agent lifecycle controls (start/stop/track). Protected by API_SECRET bearer token."},
     {"name": "dashboard", "description": "Internal status + history endpoints used by the FOUR-LIFE dashboard."},
 ]
@@ -1434,6 +1445,135 @@ async def list_webhook_deliveries(subscription_id: str, limit: int = 50):
         "subscription": sub.to_dict(),
         "count": len(deliveries),
         "deliveries": [d.to_dict() for d in deliveries],
+        "last_updated_at": int(time.time()),
+    }
+
+
+# ── Protection Mode ──────────────────────────────────────────────────
+
+class _ProtectionPolicyBody(BaseModel):
+    active: bool = True
+    max_whale_concentration: float | None = None
+    critical_whale_concentration: float | None = None
+    critical_buy_sell_ratio: float | None = None
+    max_contract_risk: int | None = None
+    critical_contract_risk: int | None = None
+    max_whale_count: int | None = None
+    critical_whale_count: int | None = None
+    created_by: str | None = None
+
+
+def _evaluate_protection_for_token(token_address: str, *, agent_obj=None) -> dict | None:
+    """Evaluate the current protection verdict for a token. Returns None if the
+    token is not tracked (we can't score without metrics)."""
+    a = agent_obj if agent_obj is not None else agent
+    if not a:
+        return None
+    health = a.monitor.state.tokens.get(token_address)
+    if not health:
+        return None
+    policy = _protection_store().get_policy(token_address)
+    # Best-effort contract risk — use cached value if present, otherwise 0 (evaluator
+    # still fires whale/sell-pressure rules regardless).
+    cached_risk = _contract_risk_cache.get(token_address.lower())
+    crs = cached_risk[1].risk_score if cached_risk else 0
+    verdict = evaluate_protection(
+        token_address=token_address,
+        policy=policy,
+        top_holder_pct=health.top_holder_pct,
+        whale_count=health.whale_count,
+        buy_sell_ratio=health.buy_sell_ratio,
+        age_hours=health.age_hours,
+        contract_risk_score=crs,
+    )
+    return verdict.to_dict()
+
+
+@app.put(
+    "/api/protection/{token_address}",
+    tags=["protection"],
+    summary="Create or update a token's protection policy",
+    dependencies=[Depends(require_auth)],
+)
+async def upsert_protection_policy(token_address: str, body: _ProtectionPolicyBody):
+    """Set the protection policy for a token. Every field is optional — unset fields
+    fall back to the deterministic defaults (see GET for the resolved thresholds)."""
+    try:
+        policy = _protection_store().upsert_policy(ProtectionPolicy(
+            token_address=token_address,
+            active=body.active,
+            max_whale_concentration=body.max_whale_concentration,
+            critical_whale_concentration=body.critical_whale_concentration,
+            critical_buy_sell_ratio=body.critical_buy_sell_ratio,
+            max_contract_risk=body.max_contract_risk,
+            critical_contract_risk=body.critical_contract_risk,
+            max_whale_count=body.max_whale_count,
+            critical_whale_count=body.critical_whale_count,
+            created_by=body.created_by,
+        ))
+    except ValueError as ve:
+        return JSONResponse({"error": str(ve)}, status_code=400)
+
+    return {
+        **policy.to_dict(),
+        "current_verdict": _evaluate_protection_for_token(token_address),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/protection/{token_address}",
+    tags=["protection"],
+    summary="Read the protection policy + live verdict for a token",
+)
+async def get_protection_policy(token_address: str):
+    """Return the policy + the current verdict computed against the token's live
+    metrics. If no policy is set, returns the defaults and a baseline verdict."""
+    policy = _protection_store().get_policy(token_address)
+    verdict = _evaluate_protection_for_token(token_address)
+    if policy is None and verdict is None:
+        return JSONResponse({
+            "token_address": token_address.lower(),
+            "policy": None,
+            "current_verdict": None,
+            "note": "No policy set and token is not tracked. PUT /api/protection/{token} to configure.",
+            "model_version": MODEL_VERSION,
+            "last_updated_at": int(time.time()),
+        }, status_code=200)
+    return {
+        "token_address": token_address.lower(),
+        "policy": policy.to_dict() if policy else None,
+        "current_verdict": verdict,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+        "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
+    }
+
+
+@app.delete(
+    "/api/protection/{token_address}",
+    tags=["protection"],
+    summary="Remove a token's protection policy",
+    dependencies=[Depends(require_auth)],
+)
+async def delete_protection_policy(token_address: str):
+    ok = _protection_store().delete_policy(token_address)
+    if not ok:
+        return JSONResponse({"error": "policy not found"}, status_code=404)
+    return {"deleted": True, "token_address": token_address.lower()}
+
+
+@app.get(
+    "/api/protection",
+    tags=["protection"],
+    summary="List every configured protection policy",
+)
+async def list_protection_policies(include_inactive: bool = True):
+    policies = _protection_store().list_policies(include_inactive=include_inactive)
+    return {
+        "count": len(policies),
+        "policies": [p.to_dict() for p in policies],
         "last_updated_at": int(time.time()),
     }
 
