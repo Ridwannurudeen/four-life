@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { HeroRadar, PartnerMarquee, useReveal } from "./_components";
 
 const API = (process.env.NEXT_PUBLIC_API_URL || "https://four-life.gudman.xyz").replace(/\/$/, "");
 const GITHUB = "https://github.com/Ridwannurudeen/four-life";
@@ -237,35 +238,43 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
     <section className="relative overflow-hidden">
       <div className="hero-glow" />
       <div className="noise" />
-      <div className="relative max-w-7xl mx-auto px-5 pt-16 md:pt-28 pb-12 md:pb-20">
-        <div className="max-w-4xl">
-          <div className="eyebrow mb-6">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#6cff32] pulse-ring" />
-            Live on BNB Chain · {metrics.radarCount > 0 ? `${metrics.radarCount} tokens graded right now` : "connecting..."}
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.02] mb-6">
-            The{" "}
-            <span className="gradient-text-anim">trust layer</span>
-            <br className="hidden md:block" />
-            Four.meme is missing.
-          </h1>
-          <p className="text-white/65 text-lg md:text-2xl leading-relaxed max-w-3xl mb-4 font-light">
-            98.6% of meme tokens die within 72 hours. FOUR-LIFE grades every live launch, protects the ones that matter, and fires signed webhooks the moment trust shifts.
-          </p>
-          <p className="text-white/40 text-sm md:text-base mb-10 max-w-2xl">
-            Deterministic badges. Protection mode. Signed webhooks. SDKs. All free. All open-source.
-          </p>
+      <div className="relative max-w-7xl mx-auto px-5 pt-14 md:pt-24 pb-12 md:pb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-14 items-center">
+          <div className="lg:col-span-7">
+            <div className="eyebrow mb-6">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#6cff32] pulse-ring" />
+              Live on BNB Chain · {metrics.radarCount > 0 ? `${metrics.radarCount} tokens graded right now` : "connecting..."}
+            </div>
 
-          <div className="flex flex-wrap gap-3 mb-4">
-            <Link href="/radar" className="btn-primary">Open the Radar →</Link>
-            <a href="#install" className="btn-ghost">Install the SDK</a>
-            <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-ghost">View on GitHub</a>
+            <h1 className="display display-xl mb-7">
+              The{" "}
+              <span className="gradient-text-anim">trust layer</span>
+              <br className="hidden md:block" />
+              Four.meme is missing.
+            </h1>
+
+            <p className="text-white/70 text-lg md:text-2xl leading-[1.45] max-w-2xl mb-4 font-light">
+              98.6% of meme tokens die within 72 hours. FOUR-LIFE grades every live launch, protects the ones that matter, and fires signed webhooks the moment trust shifts.
+            </p>
+            <p className="text-white/40 text-sm md:text-base mb-10 max-w-2xl">
+              Deterministic badges. Protection mode. Signed webhooks. SDKs. All free. All open-source.
+            </p>
+
+            <div className="flex flex-wrap gap-3 mb-5">
+              <Link href="/radar" className="btn-primary">Open the Radar →</Link>
+              <a href="#install" className="btn-ghost">Install the SDK</a>
+              <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-ghost">View on GitHub</a>
+            </div>
+
+            <div className="text-[11px] text-white/30 font-mono mt-4 tabular">
+              <span className="text-white/50">$</span> pip install four-life{" "}
+              <span className="text-white/20">·</span>{" "}
+              <span className="text-white/50">$</span> npm install {NPM_PKG}
+            </div>
           </div>
 
-          <div className="text-[11px] text-white/30 font-mono mt-6">
-            <span className="text-white/50">$</span> pip install four-life{" "}
-            <span className="text-white/20">·</span>{" "}
-            <span className="text-white/50">$</span> npm install {NPM_PKG}
+          <div className="lg:col-span-5">
+            <HeroRadar entries={metrics.radarSample} />
           </div>
         </div>
       </div>
@@ -284,7 +293,7 @@ function LiveMetricsBand({ metrics }: { metrics: LiveMetrics }) {
             <span className="h-1.5 w-1.5 rounded-full bg-[#6cff32] pulse-ring" />
             Real-time · auto-refresh 30s
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">The network, right now.</h2>
+          <h2 className="display display-md">The network, right now.</h2>
         </div>
         <Link href="/radar" className="hidden md:inline-flex text-sm text-[#6cff32] hover:underline">Browse the radar →</Link>
       </div>
@@ -321,7 +330,7 @@ function Primitives() {
     <section className="max-w-7xl mx-auto px-5 pb-16 md:pb-24">
       <div className="mb-10 max-w-3xl">
         <div className="eyebrow mb-4">Primitives</div>
-        <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight mb-3">
+        <h2 className="display display-lg mb-3">
           Three layers. <span className="gradient-text">One trust model.</span>
         </h2>
         <p className="text-white/55 text-base md:text-lg">
@@ -432,7 +441,7 @@ function HowItWorks() {
       <div className="max-w-7xl mx-auto px-5 py-16 md:py-24">
         <div className="mb-12 max-w-3xl">
           <div className="eyebrow mb-4">How it works</div>
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+          <h2 className="display display-lg">
             Compute. Persist. <span className="gradient-text">Dispatch.</span>
           </h2>
         </div>
@@ -469,7 +478,7 @@ function Developers() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
         <div className="lg:col-span-2">
           <div className="eyebrow mb-4">Developers</div>
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight mb-4">
+          <h2 className="display display-lg mb-4">
             One import. <span className="gradient-text">Live data.</span>
           </h2>
           <p className="text-white/55 text-base md:text-lg leading-relaxed mb-6">
@@ -569,7 +578,7 @@ function WhoUses() {
     <section className="max-w-7xl mx-auto px-5 py-16 md:py-24">
       <div className="mb-10 max-w-3xl">
         <div className="eyebrow mb-4">Who it's for</div>
-        <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-tight">
+        <h2 className="display display-lg">
           Four roles. <span className="gradient-text">One primitive.</span>
         </h2>
       </div>
@@ -614,7 +623,7 @@ function BuiltOn() {
       <div className="max-w-7xl mx-auto px-5 py-16 md:py-20">
         <div className="mb-10 max-w-3xl">
           <div className="eyebrow mb-4">Built on</div>
-          <h2 className="text-2xl md:text-4xl font-bold tracking-tight">The Four.meme AI Sprint stack.</h2>
+          <h2 className="display display-md">The Four.meme AI Sprint stack.</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {partners.map(p => (
@@ -637,7 +646,7 @@ function FinalCTA() {
       <div className="hero-glow" />
       <div className="relative max-w-4xl mx-auto px-5 py-20 md:py-28 text-center">
         <div className="eyebrow mb-5 mx-auto">Ship it</div>
-        <h2 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.05] mb-5">
+        <h2 className="display display-xl mb-5">
           <span className="gradient-text-anim">Four.meme should ship this.</span>
         </h2>
         <p className="text-white/55 text-base md:text-xl max-w-2xl mx-auto mb-8">
@@ -750,6 +759,16 @@ function Footer() {
 
 // ── Page ──────────────────────────────────────────────────────────────
 
+function Reveal({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: 0 | 1 | 2 | 3 | 4 }) {
+  const ref = useReveal<HTMLDivElement>();
+  const delayClass = delay > 0 ? ` reveal-delay-${delay}` : "";
+  return (
+    <div ref={ref} className={`reveal${delayClass} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
 export default function Landing() {
   const metrics = useLiveMetrics();
 
@@ -757,14 +776,26 @@ export default function Landing() {
     <div className="min-h-screen bg-[#0f1012] text-white bg-grid">
       <Nav />
       <Hero metrics={metrics} />
+
+      {/* Partner logo marquee — "built on / integrates with" */}
+      <Reveal className="border-y border-white/5 bg-black/30">
+        <div className="max-w-7xl mx-auto">
+          <div className="px-5 pt-5 pb-1 flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/35">Built on · Integrates with</div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-white/25 hidden md:block tabular">Mainnet live</div>
+          </div>
+          <PartnerMarquee />
+        </div>
+      </Reveal>
+
       <LiveTicker sample={metrics.radarSample} />
-      <LiveMetricsBand metrics={metrics} />
-      <Primitives />
-      <HowItWorks />
-      <Developers />
-      <WhoUses />
-      <BuiltOn />
-      <FinalCTA />
+      <Reveal><LiveMetricsBand metrics={metrics} /></Reveal>
+      <Reveal><Primitives /></Reveal>
+      <Reveal><HowItWorks /></Reveal>
+      <Reveal><Developers /></Reveal>
+      <Reveal><WhoUses /></Reveal>
+      <Reveal><BuiltOn /></Reveal>
+      <Reveal><FinalCTA /></Reveal>
       <Footer />
     </div>
   );
