@@ -71,6 +71,38 @@ Every AI agent on Four.meme today does the same thing: create → dump → repea
 
 ## Quick Start
 
+**Install the SDK and grade any Four.meme token in 3 lines:**
+
+```bash
+pip install four-life
+```
+
+```python
+from four_life import FourLife
+fl = FourLife()
+badge = fl.get_badge("0x72b0a042e19871c046c1bd31e5b5ad3770c94444")
+print(badge["badge"]["tier"])   # "healthy" | "graduation_watch" | ...
+```
+
+**TypeScript / JavaScript:**
+
+```bash
+npm install @gudman/four-life-sdk
+```
+
+```ts
+import { FourLife } from "@gudman/four-life-sdk";
+const fl = new FourLife();
+const badge = await fl.getBadge("0x72b0a042...");
+```
+
+**SDK registries:**
+
+- **PyPI:** [`four-life`](https://pypi.org/project/four-life/) — sync + async clients, webhook signature helpers, streaming history export
+- **npm:** [`@gudman/four-life-sdk`](https://www.npmjs.com/package/@gudman/four-life-sdk) — works in browsers, Node 18+, Deno, Bun, edge runtimes
+
+### Run the agent locally
+
 ```bash
 # Clone
 git clone https://github.com/Ridwannurudeen/four-life.git
