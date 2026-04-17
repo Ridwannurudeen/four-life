@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "four-life"
+version = "0.1.0"
+description = "Python SDK for the FOUR-LIFE Certified trust layer — Four.meme token grading, risk snapshots, creator scores, protection mode, webhooks."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "FOUR-LIFE" }]
+requires-python = ">=3.9"
+keywords = [
+    "four-life",
+    "four.meme",
+    "bnb-chain",
+    "meme-token",
+    "rug-detection",
+    "certified-badge",
+    "erc-8004",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "httpx>=0.24",
+]
+
+[project.urls]
+Homepage = "https://four-life.gudman.xyz"
+Repository = "https://github.com/Ridwannurudeen/four-life"
+Issues = "https://github.com/Ridwannurudeen/four-life/issues"
+Documentation = "https://four-life.gudman.xyz/docs"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+    "pytest-asyncio>=0.21",
+    "respx>=0.20",
+]
+
+[tool.setuptools.packages.find]
+include = ["four_life*"]
