@@ -1,11 +1,11 @@
 /**
- * @four-life/sdk — TypeScript client for the FOUR-LIFE Certified trust layer.
+ * @gudman/four-life-sdk — TypeScript client for the FOUR-LIFE Certified trust layer.
  *
  * Zero runtime dependencies. Works in browsers, Node 18+, Deno, Bun, edge runtimes.
  *
  * @example
  * ```ts
- * import { FourLife } from "@four-life/sdk";
+ * import { FourLife } from "@gudman/four-life-sdk";
  *
  * const fl = new FourLife();
  * const badge = await fl.getBadge("0xabc...");
@@ -316,7 +316,7 @@ export class FourLife {
     try {
       const headers = new Headers(init.headers);
       headers.set("Accept", "application/json");
-      headers.set("User-Agent", `@four-life/sdk v${SDK_VERSION}`);
+      headers.set("User-Agent", `@gudman/four-life-sdk v${SDK_VERSION}`);
       if (this.apiSecret && !headers.has("Authorization")) {
         headers.set("Authorization", `Bearer ${this.apiSecret}`);
       }

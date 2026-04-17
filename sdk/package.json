@@ -1,5 +1,5 @@
 {
-  "name": "@four-life/sdk",
+  "name": "@gudman/four-life-sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for the FOUR-LIFE Certified trust layer — Four.meme token grading, risk snapshots, creator scores, operator checklists.",
   "type": "module",

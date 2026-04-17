@@ -1,4 +1,4 @@
-# @four-life/sdk
+# @gudman/four-life-sdk
 
 > TypeScript SDK for the [FOUR-LIFE Certified](https://four-life.gudman.xyz) trust layer — Four.meme token grading, risk snapshots, creator scores, operator checklists.
 
@@ -7,13 +7,13 @@ Zero runtime dependencies. Works in browsers, Node 18+, Deno, Bun, and edge runt
 ## Install
 
 ```bash
-npm install @four-life/sdk
+npm install @gudman/four-life-sdk
 ```
 
 ## Quick start
 
 ```ts
-import { FourLife } from "@four-life/sdk";
+import { FourLife } from "@gudman/four-life-sdk";
 
 const fl = new FourLife();
 
@@ -129,7 +129,7 @@ const fl = new FourLife({
 Every call throws `FourLifeError` on failure:
 
 ```ts
-import { FourLife, FourLifeError } from "@four-life/sdk";
+import { FourLife, FourLifeError } from "@gudman/four-life-sdk";
 
 try {
   await fl.getBadge(addr);
