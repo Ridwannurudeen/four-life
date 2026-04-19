@@ -166,7 +166,7 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
   return (
     <div className="stat-card">
       <div className="text-[10px] uppercase tracking-[0.15em] text-white/40">{label}</div>
-      <div className="text-3xl md:text-4xl font-bold tabular mt-1 gradient-text-anim">{value}</div>
+      <div className="text-3xl md:text-4xl font-bold tabular mt-1 text-white">{value}</div>
       {hint && <div className="text-[11px] text-white/40 mt-1">{hint}</div>}
     </div>
   );
@@ -503,87 +503,64 @@ function LiveMetricsBand({ metrics }: { metrics: LiveMetrics }) {
 // ── Primitives — 3 big feature cards ─────────────────────────────────
 
 function Primitives() {
+  const cards = [
+    {
+      n: "1",
+      eyebrow: "Certified",
+      title: "Deterministic badge",
+      body: "Five tiers — graduated, watch, healthy, at_risk, observed — computed from on-chain metrics with a full rule trace. Pair-aware graduation targets sourced live from Four.meme.",
+      bullets: ["0 LLM calls in trust path", "Reproducible from raw data", "Pair-aware graduation targets"],
+      href: "/radar",
+      cta: "Explore",
+    },
+    {
+      n: "2",
+      eyebrow: "Protection Mode",
+      title: "Autonomous defender",
+      body: "Declare defensive thresholds per token. On critical verdict, FOUR-LIFE halts content posts, fires a webhook, and emits a short-hedge signal — all deterministically.",
+      bullets: ["Whale / contract / sell-pressure rules", "Auto-halt on critical breach", "Level-change webhooks"],
+      href: "/alerts",
+      cta: "See firings",
+    },
+    {
+      n: "3",
+      eyebrow: "Webhooks + SDKs",
+      title: "Integration surface",
+      body: "Signed HMAC webhooks for every tier and protection transition. Python + TypeScript SDKs. Telegram + Discord fan-out. Build on top in minutes.",
+      bullets: ["HMAC-SHA256 signed payloads", "Retry + auto-disable policies", "Sync + async clients"],
+      href: "/webhooks",
+      cta: "Read the docs",
+    },
+  ];
   return (
     <section className="max-w-7xl mx-auto px-5 pb-16 md:pb-24">
       <div className="mb-10 max-w-3xl">
         <div className="eyebrow mb-4">Primitives</div>
-        <h2 className="display display-lg mb-3">
-          Three layers. <span className="gradient-text">One trust model.</span>
-        </h2>
+        <h2 className="display display-lg mb-3">Three layers. One trust model.</h2>
         <p className="text-white/55 text-base md:text-lg">
-          Every primitive is computed from raw on-chain metrics with a full <code className="font-mono text-[#6cff32] bg-white/5 px-1.5 py-0.5 rounded">why[]</code> trace. No LLM in the trust path. Anyone can reproduce any grade from the raw data.
+          Every primitive is computed from raw on-chain metrics with a full <code className="font-mono text-white/80 bg-white/5 px-1.5 py-0.5 rounded">why[]</code> trace. No LLM in the trust path. Anyone can reproduce any grade from the raw data.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* 1. Badge */}
-        <div className="card p-6 md:p-7 group relative overflow-hidden">
-          <div className="absolute top-0 right-0 h-32 w-32 bg-[#6cff32]/8 rounded-full blur-3xl -translate-y-12 translate-x-12" />
-          <div className="relative">
+        {cards.map((c) => (
+          <div key={c.n} className="card p-6 md:p-7 relative">
             <div className="flex items-center gap-2 mb-4">
-              <span className="h-8 w-8 rounded-lg bg-[#6cff32]/10 border border-[#6cff32]/30 flex items-center justify-center text-[#6cff32] font-bold">1</span>
-              <span className="text-[10px] uppercase tracking-[0.15em] text-white/40">Certified</span>
+              <span className="h-8 w-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-white/70 font-bold tabular">{c.n}</span>
+              <span className="text-[10px] uppercase tracking-[0.15em] text-white/40">{c.eyebrow}</span>
             </div>
-            <h3 className="text-xl font-bold mb-2">Deterministic badge</h3>
-            <p className="text-sm text-white/55 mb-5 leading-relaxed">
-              Five tiers — graduated, watch, healthy, at_risk, observed — computed from on-chain metrics with a full rule trace. Pair-aware graduation targets sourced live from Four.meme.
-            </p>
+            <h3 className="text-xl font-bold mb-2">{c.title}</h3>
+            <p className="text-sm text-white/55 mb-5 leading-relaxed">{c.body}</p>
             <div className="space-y-1.5 text-xs text-white/60 mb-5">
-              {["0 LLM calls in trust path", "Reproducible from raw data", "Pair-aware graduation targets"].map(b => (
+              {c.bullets.map((b) => (
                 <div key={b} className="flex items-center gap-2">
-                  <span className="text-[#6cff32]">✓</span><span>{b}</span>
+                  <span className="text-white/30">—</span><span>{b}</span>
                 </div>
               ))}
             </div>
-            <Link href="/radar" className="inline-flex items-center gap-1 text-sm text-[#6cff32] hover:gap-2 transition-all">Explore →</Link>
+            <Link href={c.href} className="inline-flex items-center gap-1 text-sm text-white/70 hover:text-white hover:gap-2 transition-all">{c.cta} →</Link>
           </div>
-        </div>
-
-        {/* 2. Protection */}
-        <div className="card p-6 md:p-7 group relative overflow-hidden">
-          <div className="absolute top-0 right-0 h-32 w-32 bg-[#ff494a]/8 rounded-full blur-3xl -translate-y-12 translate-x-12" />
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="h-8 w-8 rounded-lg bg-[#ff494a]/10 border border-[#ff494a]/30 flex items-center justify-center text-[#ff494a] font-bold">2</span>
-              <span className="text-[10px] uppercase tracking-[0.15em] text-white/40">Protection Mode</span>
-            </div>
-            <h3 className="text-xl font-bold mb-2">Autonomous defender</h3>
-            <p className="text-sm text-white/55 mb-5 leading-relaxed">
-              Declare defensive thresholds per token. On critical verdict, FOUR-LIFE halts content posts, fires a webhook, and emits a short-hedge signal — all deterministically.
-            </p>
-            <div className="space-y-1.5 text-xs text-white/60 mb-5">
-              {["Whale / contract / sell-pressure rules", "Auto-halt on critical breach", "Level-change webhooks"].map(b => (
-                <div key={b} className="flex items-center gap-2">
-                  <span className="text-[#ff494a]">◆</span><span>{b}</span>
-                </div>
-              ))}
-            </div>
-            <a href={`${API}/api/protection`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#ff494a] hover:gap-2 transition-all">View policies →</a>
-          </div>
-        </div>
-
-        {/* 3. Webhooks + SDK */}
-        <div className="card p-6 md:p-7 group relative overflow-hidden">
-          <div className="absolute top-0 right-0 h-32 w-32 bg-[#00d4ff]/8 rounded-full blur-3xl -translate-y-12 translate-x-12" />
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="h-8 w-8 rounded-lg bg-[#00d4ff]/10 border border-[#00d4ff]/30 flex items-center justify-center text-[#00d4ff] font-bold">3</span>
-              <span className="text-[10px] uppercase tracking-[0.15em] text-white/40">Webhooks + SDKs</span>
-            </div>
-            <h3 className="text-xl font-bold mb-2">Integration surface</h3>
-            <p className="text-sm text-white/55 mb-5 leading-relaxed">
-              Signed HMAC webhooks for every tier and protection transition. Python + TypeScript SDKs. Telegram + Discord fan-out. Build on top in minutes.
-            </p>
-            <div className="space-y-1.5 text-xs text-white/60 mb-5">
-              {["HMAC-SHA256 signed payloads", "Retry + auto-disable policies", "Sync + async clients"].map(b => (
-                <div key={b} className="flex items-center gap-2">
-                  <span className="text-[#00d4ff]">▸</span><span>{b}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/webhooks" className="inline-flex items-center gap-1 text-sm text-[#00d4ff] hover:gap-2 transition-all">Read the docs →</Link>
-          </div>
-        </div>
+        ))}
       </div>
     </section>
   );
@@ -597,19 +574,16 @@ function HowItWorks() {
       n: "01",
       title: "Compute",
       body: "Every token grade is computed from raw on-chain metrics — holders, whale concentration, buy/sell ratio, curve progress, contract risk — against deterministic thresholds. No LLM.",
-      color: "text-[#6cff32]",
     },
     {
       n: "02",
       title: "Persist",
       body: "Every grade is written to a time-series store. Tier changes + keepalive snapshots. Query the history, compute diffs, export NDJSON for backfills.",
-      color: "text-[#00d4ff]",
     },
     {
       n: "03",
       title: "Dispatch",
       body: "On every transition, fire signed HMAC webhooks and fan out to Telegram + Discord. Subscribers verify, react, and halt trading in real time.",
-      color: "text-[#ffd641]",
     },
   ];
 
@@ -618,15 +592,13 @@ function HowItWorks() {
       <div className="max-w-7xl mx-auto px-5 py-16 md:py-24">
         <div className="mb-12 max-w-3xl">
           <div className="eyebrow mb-4">How it works</div>
-          <h2 className="display display-lg">
-            Compute. Persist. <span className="gradient-text">Dispatch.</span>
-          </h2>
+          <h2 className="display display-lg">Compute. Persist. Dispatch.</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5 rounded-xl overflow-hidden">
           {steps.map((s) => (
             <div key={s.n} className="bg-[#0f1012] p-6 md:p-8 relative">
-              <div className={`text-5xl md:text-6xl font-bold tabular leading-none mb-4 ${s.color}`}>{s.n}</div>
+              <div className="text-5xl md:text-6xl font-bold tabular leading-none mb-4 text-white/20">{s.n}</div>
               <h3 className="text-lg md:text-xl font-bold mb-2">{s.title}</h3>
               <p className="text-sm text-white/55 leading-relaxed">{s.body}</p>
             </div>
@@ -655,9 +627,7 @@ function Developers() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 items-start">
         <div className="lg:col-span-2">
           <div className="eyebrow mb-4">Developers</div>
-          <h2 className="display display-lg mb-4">
-            One import. <span className="gradient-text">Live data.</span>
-          </h2>
+          <h2 className="display display-lg mb-4">One import. Live data.</h2>
           <p className="text-white/55 text-base md:text-lg leading-relaxed mb-6">
             Parallel SDKs for Python and TypeScript, covering every endpoint. Sync or async. Zero config. Write custom agents, alert bots, or treasury guards in minutes.
           </p>
@@ -718,7 +688,6 @@ function WhoUses() {
   const cards = [
     {
       tag: "Traders",
-      color: "text-[#6cff32]",
       title: "Browse the Radar",
       body: "Every live Four.meme token, ranked deterministically. Filter by confidence, sort by graduation odds. Click for the full rule trace.",
       href: "/radar",
@@ -726,7 +695,6 @@ function WhoUses() {
     },
     {
       tag: "Agents",
-      color: "text-[#00d4ff]",
       title: "Subscribe to webhooks",
       body: "React to tier changes and protection transitions in real time. HMAC-signed, retried, verified. Built for autonomous trading bots.",
       href: "/webhooks",
@@ -734,7 +702,6 @@ function WhoUses() {
     },
     {
       tag: "Creators",
-      color: "text-[#ffd641]",
       title: "Embed the badge",
       body: "One line of HTML drops a live Certified badge on your Discord, site, or bio. Auto-refresh. No build step. No tracking.",
       href: "/embed",
@@ -742,7 +709,6 @@ function WhoUses() {
     },
     {
       tag: "Platforms",
-      color: "text-[#a770ef]",
       title: "Drop in on token pages",
       body: "The badge belongs next to every Four.meme token address. A composable trust primitive — embed the widget, consume the API, fork the SDKs.",
       href: GITHUB,
@@ -755,15 +721,13 @@ function WhoUses() {
     <section className="max-w-7xl mx-auto px-5 py-16 md:py-24">
       <div className="mb-10 max-w-3xl">
         <div className="eyebrow mb-4">Who it&apos;s for</div>
-        <h2 className="display display-lg">
-          Four roles. <span className="gradient-text">One primitive.</span>
-        </h2>
+        <h2 className="display display-lg">Four roles. One primitive.</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {cards.map((c) => {
           const body = (
             <>
-              <div className={`text-[10px] uppercase tracking-[0.15em] mb-3 ${c.color}`}>{c.tag}</div>
+              <div className="text-[10px] uppercase tracking-[0.15em] mb-3 text-white/40">{c.tag}</div>
               <h3 className="text-base font-bold mb-2">{c.title}</h3>
               <p className="text-xs text-white/55 mb-4 leading-relaxed">{c.body}</p>
               <div className={`inline-flex items-center gap-1 text-xs font-semibold ${c.color} group-hover:gap-2 transition-all`}>{c.cta}</div>
@@ -788,12 +752,12 @@ function WhoUses() {
 
 function BuiltOn() {
   const partners = [
-    { t: "BNB Chain", body: "Runs on BSC mainnet. Every graduation attestation is on-chain.", accent: "text-[#f3ba2f]" },
-    { t: "Four.meme", body: "Pair-aware graduation targets sourced live from the platform config.", accent: "text-[#6cff32]" },
-    { t: "DGrid", body: "Every LLM call routes through DGrid with 3-tier fallback (DGrid → Anthropic → OpenAI).", accent: "text-[#00d4ff]" },
-    { t: "MYX V2", body: "Perp signals for hedging meme-token exposure through lifecycle phases.", accent: "text-[#a770ef]" },
-    { t: "ERC-8004 / BRC-8004", body: "FOUR-LIFE is a registered agent on BSC. Reputation attestations per graduation.", accent: "text-[#ffd641]" },
-    { t: "Unibase", body: "Agent memory synced across sessions. Every launch outcome improves the next.", accent: "text-[#ff494a]" },
+    { t: "BNB Chain", body: "Runs on BSC mainnet. Every graduation attestation is on-chain." },
+    { t: "Four.meme", body: "Pair-aware graduation targets sourced live from the platform config." },
+    { t: "DGrid", body: "Every LLM call routes through DGrid with 3-tier fallback (DGrid → Anthropic → OpenAI)." },
+    { t: "MYX V2", body: "Perp signals for hedging meme-token exposure through lifecycle phases." },
+    { t: "ERC-8004 / BRC-8004", body: "FOUR-LIFE is a registered agent on BSC. Reputation attestations per graduation." },
+    { t: "Unibase", body: "Agent memory synced across sessions. Every launch outcome improves the next." },
   ];
   return (
     <section className="border-y border-white/5 bg-black/20">
@@ -805,7 +769,7 @@ function BuiltOn() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {partners.map(p => (
             <div key={p.t} className="card p-5">
-              <div className={`text-sm font-bold mb-1.5 ${p.accent}`}>{p.t}</div>
+              <div className="text-sm font-bold mb-1.5 text-white">{p.t}</div>
               <div className="text-xs text-white/55 leading-relaxed">{p.body}</div>
             </div>
           ))}
@@ -823,9 +787,7 @@ function FinalCTA() {
       <div className="hero-glow" />
       <div className="relative max-w-4xl mx-auto px-5 py-20 md:py-28 text-center">
         <div className="eyebrow mb-5 mx-auto">Ship it</div>
-        <h2 className="display display-xl mb-5">
-          <span className="gradient-text-anim">Four.meme should ship this.</span>
-        </h2>
+        <h2 className="display display-xl mb-5">Four.meme should ship this.</h2>
         <p className="text-white/55 text-base md:text-xl max-w-2xl mx-auto mb-8">
           Drop-in platform primitive. Creator widget. Trader radar. Autonomous defender. Zero trust cost. Open source.
         </p>
