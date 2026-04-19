@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Committed — default production URL so static builds target the right host
+# regardless of whether a developer's `.env.local` is present.
+!.env.production
 
 # vercel
 .vercel
