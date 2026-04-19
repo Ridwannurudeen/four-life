@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { authFetch, getApiSecret, setApiSecret } from "../_lib/auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "";
@@ -1332,6 +1333,32 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-[1200px] mx-auto px-5 py-8 space-y-8">
+        {/* ── Public pages rail — judge-facing surfaces ── */}
+        <div className="flex items-center gap-2 flex-wrap text-[11px]">
+          <span className="text-white/30 uppercase tracking-wide mr-1">Public surfaces:</span>
+          {[
+            { href: "/", label: "Landing" },
+            { href: "/radar", label: "Radar" },
+            { href: "/evidence", label: "Evidence" },
+            { href: "/alerts", label: "Alerts" },
+            { href: "/activity", label: "Activity" },
+            { href: "/dgrid", label: "DGrid", accent: true },
+            { href: "/metrics", label: "Metrics" },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`rounded-md border px-2.5 py-1 transition-colors ${
+                l.accent
+                  ? "text-[#6cff32] border-[#6cff32]/30 hover:bg-[#6cff32]/10"
+                  : "text-white/60 border-white/10 hover:text-white hover:border-white/30"
+              }`}
+            >
+              {l.label} ↗
+            </Link>
+          ))}
+        </div>
+
         {/* ── Auth unlock — dashboard needs API_SECRET to see wallet + learnings + write ── */}
         {!hasSecret && (
           <div className="rounded-xl border border-[#ffd641]/30 bg-[#ffd641]/[0.04] px-4 py-3 flex items-center justify-between gap-3 flex-wrap">

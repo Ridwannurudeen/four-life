@@ -187,10 +187,12 @@ function Nav() {
         </Link>
         <nav className="hidden md:flex items-center gap-1 text-sm">
           <Link href="/radar" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Radar</Link>
-          <Link href="/creators" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Creators</Link>
-          <Link href="/webhooks" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Webhooks</Link>
-          <Link href="/embed" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Embed</Link>
-          <a href={`${API}/docs`} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">API Docs</a>
+          <Link href="/evidence" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Evidence</Link>
+          <Link href="/alerts" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Alerts</Link>
+          <Link href="/activity" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Activity</Link>
+          <Link href="/dgrid" className="px-3 py-1.5 rounded-md text-[#6cff32] hover:text-white hover:bg-white/5 transition-colors">DGrid</Link>
+          <Link href="/metrics" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Metrics</Link>
+          <a href={`${API}/docs`} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">API</a>
         </nav>
         <div className="flex items-center gap-2">
           <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-ghost hidden sm:inline-flex text-xs" style={{ padding: "8px 16px", fontSize: 13 }}>GitHub</a>
@@ -845,6 +847,11 @@ function Footer() {
       title: "Product",
       links: [
         { label: "Radar", href: "/radar" },
+        { label: "Evidence", href: "/evidence" },
+        { label: "Alerts", href: "/alerts" },
+        { label: "Activity", href: "/activity" },
+        { label: "DGrid showcase", href: "/dgrid" },
+        { label: "Metrics", href: "/metrics" },
         { label: "Creators", href: "/creators" },
         { label: "Webhooks", href: "/webhooks" },
         { label: "Embed widget", href: "/embed" },
