@@ -591,6 +591,76 @@ async def dgrid_stats():
     }
 
 
+@app.get("/api/dgrid/trace", tags=["dgrid"], summary="Recent LLM calls (ring buffer) — which provider served each request")
+async def dgrid_trace(limit: int = 50):
+    """Per-call trace log. Every LLM decision the agent makes lands here with
+    provider, model, task, latency, token counts, fallback depth, and the
+    error (if any) that triggered a fallback. Newest first, up to ``limit``
+    entries (hard cap 200).
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    limit = max(1, min(int(limit or 50), 200))
+    return {
+        "count": len(llm._trace),
+        "limit": limit,
+        "trace": llm.get_trace(limit=limit),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get("/api/dgrid/health", tags=["dgrid"], summary="DGrid reachability probe — green/red state")
+async def dgrid_health():
+    """Lightweight reachability check. Reports whether DGrid is configured,
+    its last-served tick (if any), the most recent fallback reason, and a
+    status flag that flips red when we've recorded a fallback event without
+    a subsequent success.
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    stats = llm.get_usage_stats()
+    dgrid_seen = stats.get("last_seen", {}).get("provider:dgrid")
+    last_provider = stats.get("last_provider")
+    status = "green"
+    if not llm.dgrid_configured:
+        status = "red"
+    elif stats.get("dgrid_calls", 0) == 0 and stats.get("fallback_events", 0) > 0:
+        status = "amber"
+    elif last_provider != "dgrid" and stats.get("last_dgrid_error"):
+        status = "amber"
+    return {
+        "status": status,
+        "dgrid_configured": llm.dgrid_configured,
+        "primary_model": llm.model,
+        "last_dgrid_success_ts": int(dgrid_seen) if dgrid_seen else None,
+        "last_provider": last_provider,
+        "last_dgrid_error": stats.get("last_dgrid_error"),
+        "dgrid_calls": stats.get("dgrid_calls", 0),
+        "dgrid_share": stats.get("dgrid_share", 0.0),
+        "fallback_events": stats.get("fallback_events", 0),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.post("/api/dgrid/probe", tags=["dgrid"], summary="Force a DGrid-only call — no fallback — to prove the gateway is live")
+async def dgrid_probe():
+    """Fire a single call that MUST land on DGrid (no fallback chain).
+    Returns provider/model/latency + DGrid's raw response. If DGrid is down
+    or out of credits, returns the exact error — no silent fallback, because
+    this endpoint exists specifically so judges can verify DGrid on demand.
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    result = await llm.probe_dgrid()
+    status_code = 200 if result.get("ok") else 503
+    return JSONResponse(
+        {**result, "model_version": MODEL_VERSION, "last_updated_at": int(time.time())},
+        status_code=status_code,
+    )
+
+
 # ── MYX V2 Perps ─────────────────────────────────────────────────────
 
 @app.get("/api/myx/status", tags=["myx"], summary="MYX connection + execution mode")

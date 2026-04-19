@@ -114,11 +114,29 @@ What we did build on MYX V2 (so the technical work is visible to judges):
 - **Phase-aware AI signal layer**: `GET /api/myx/signal/{token}` returns long/short/close/hold with confidence per lifecycle phase (NURTURE=monitor, DEFEND=short hedge, ACCELERATE=scale, GRADUATED=close all).
 - **Execution layer is implemented and tested** but disabled at submission because (a) MYX V2's BSC Router is an ERC-1967 proxy with unverified implementation we couldn't fork-simulate against in the available time, and (b) the bounty's $20K liquidity requirement makes real activation infeasible.
 
-### DGrid bounty
-- **Every LLM call** in the agent (narrative analysis, content generation, strategy decisions, raise-plan generation) routes through DGrid's unified OpenAI-compatible API.
-- 3-tier fallback: DGrid → Anthropic → OpenAI. If DGrid returns balance/rate-limit/5xx, FOUR-LIFE transparently falls back.
-- `/api/dgrid/stats` endpoint exposes per-task/per-model routing, fallback events, and usage counters for auditability.
-- Every response includes an `llm_provider` field identifying which provider served the call.
+### DGrid bounty — eligibility + unbeatable audit surface
+
+**Requirement check:**
+- ✅ Uses DGrid's AI Gateway API (primary provider in `agent/brain/llm.py` via the OpenAI-compatible SDK)
+- ✅ Functional prototype — fully deployed at four-life.gudman.xyz with 10+ live tokens ticking
+
+**What makes our DGrid integration defensible under any audit:**
+
+1. **Dedicated showcase page:** [`/dgrid`](https://four-life.gudman.xyz/dgrid) — live counters, provider share, fallback chain diagram, task-routing map, last 20 calls with per-call latency + token counts, and a **"probe DGrid now"** button judges can click to verify a live DGrid-served call on demand.
+
+2. **Four public audit endpoints:**
+   - `GET /api/dgrid/stats` — per-task routing, per-provider counters, per-model usage, token totals, fallback events
+   - `GET /api/dgrid/health` — green/amber/red reachability state + last error
+   - `GET /api/dgrid/trace?limit=50` — ring-buffer log of every LLM call (success + failure) with provider, model, task, latency, tokens, fallback depth, error
+   - `POST /api/dgrid/probe` — force a DGrid-only call with no fallback; returns raw DGrid response + timing
+
+3. **Cost-aware routing** — every task (narrative, content, risk, vision) defaults to `google/gemini-2.5-flash` via DGrid so even a small credit sustains the full judging window. Operators can promote specific tasks to a heavier model via `DGRID_TASK_OVERRIDES=content=anthropic/claude-sonnet-4.5,risk=openai/gpt-4o` — one env var, no code change.
+
+4. **3-tier resilient fallback:** DGrid → Anthropic → OpenAI. If DGrid returns `BALANCE_INSUFFICIENT` / rate-limit / 5xx, the agent transparently degrades and retries DGrid on the next call. Every fallback event is logged with the DGrid error that triggered it — no silent failures.
+
+5. **Per-response provenance:** every public LLM-backed response (`/api/token/{addr}/badge`, operator checklist, risk snapshot, MYX signal, etc.) includes an `llm_provider` field identifying which provider served that specific decision. Audit one response, see exactly which model made the call.
+
+6. **Full trace on the ring buffer:** last 200 calls kept in memory. No sampling, no aggregation — judges see every call, including failures, including which DGrid error caused each fallback.
 
 ## Tech stack
 

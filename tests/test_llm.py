@@ -196,20 +196,38 @@ class TestTaskRouting:
         assert client.last_task == "narrative"
 
     @pytest.mark.asyncio
-    async def test_content_task_uses_claude(self):
+    async def test_content_task_defaults_to_gemini_flash(self):
+        # Every task now defaults to google/gemini-2.5-flash so a small DGrid
+        # credit lasts the full judging window. Promotion to a heavier model
+        # is opt-in via DGRID_TASK_OVERRIDES.
         client = _make_client(dgrid=True, anthropic=True)
         client._dgrid.chat.completions.create.return_value = _mock_openai_response("ok")
         await client.chat_task([{"role": "user", "content": "hi"}], task="content")
         kwargs = client._dgrid.chat.completions.create.call_args[1]
-        assert kwargs["model"] == "anthropic/claude-sonnet-4.5"
+        assert kwargs["model"] == "google/gemini-2.5-flash"
 
     @pytest.mark.asyncio
-    async def test_risk_task_uses_gpt4o(self):
+    async def test_risk_task_defaults_to_gemini_flash(self):
         client = _make_client(dgrid=True, anthropic=True)
         client._dgrid.chat.completions.create.return_value = _mock_openai_response("ok")
         await client.chat_task([{"role": "user", "content": "hi"}], task="risk")
         kwargs = client._dgrid.chat.completions.create.call_args[1]
-        assert kwargs["model"] == "openai/gpt-4o"
+        assert kwargs["model"] == "google/gemini-2.5-flash"
+
+    def test_task_override_env_remaps_task(self, monkeypatch):
+        # Operators can remap a task to a stronger model via env without
+        # touching code: DGRID_TASK_OVERRIDES="content=anthropic/claude-sonnet-4.5"
+        from agent.brain import llm as llm_mod
+        original = dict(llm_mod.TASK_MODEL_MAP)
+        try:
+            monkeypatch.setattr(llm_mod.settings, "dgrid_task_overrides", "content=anthropic/claude-sonnet-4.5")
+            llm_mod._apply_task_overrides()
+            assert llm_mod.TASK_MODEL_MAP["content"] == "anthropic/claude-sonnet-4.5"
+            # Non-overridden tasks stay on Flash
+            assert llm_mod.TASK_MODEL_MAP["risk"] == "google/gemini-2.5-flash"
+        finally:
+            llm_mod.TASK_MODEL_MAP.clear()
+            llm_mod.TASK_MODEL_MAP.update(original)
 
     @pytest.mark.asyncio
     async def test_vision_task_uses_gemini(self):
@@ -297,7 +315,8 @@ class TestTaskRouting:
         )
         assert result == {"action": "hold"}
         kwargs = client._dgrid.chat.completions.create.call_args[1]
-        assert kwargs["model"] == "openai/gpt-4o"
+        # Default routing — all tasks go to gemini-2.5-flash for cost efficiency.
+        assert kwargs["model"] == "google/gemini-2.5-flash"
 
 
 class TestUsageStats:
@@ -312,8 +331,10 @@ class TestUsageStats:
         assert stats["usage_by_provider"]["dgrid"] == 3
         assert stats["usage_by_task"]["narrative"] == 1
         assert stats["usage_by_task"]["content"] == 2
-        assert stats["usage_by_model"]["google/gemini-2.5-flash"] == 1
-        assert stats["usage_by_model"]["anthropic/claude-sonnet-4.5"] == 2
+        # All tasks default to gemini-2.5-flash (cost-aware), so usage_by_model
+        # collapses onto one key — which is exactly the "one API, many tasks,
+        # one cheap model" story we want the DGrid panel to show.
+        assert stats["usage_by_model"]["google/gemini-2.5-flash"] == 3
 
     @pytest.mark.asyncio
     async def test_fallback_events_counted(self):
