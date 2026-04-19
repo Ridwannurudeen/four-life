@@ -45,7 +45,7 @@ Plus an **autonomous lifecycle engine** that manages the full loop:
 
 - **DGrid AI Gateway** (bounty target) — every LLM call routes through DGrid. 3-tier fallback (DGrid → Anthropic → OpenAI) so the demo never black-holes. Every LLM-backed response includes an `llm_provider` field for auditability.
 - **MYX V2 Perps** (bounty target) — signal layer live by default (AI-generated long/short/hold/close per phase). Execution layer opt-in behind `MYX_EXECUTION_ENABLED` so the demo surface never submits on-chain orders with hardcoded collateral.
-- **ERC-8004 / BRC-8004** — agent registered on BSC. Graduated tokens trigger on-chain reputation attestations.
+- **ERC-8004 / BRC-8004** — agent registered on BSC as **Agent ID 20** ([tx](https://bscscan.com/tx/0x62a1a43d9e782686b833ed44eee7ea95a9ee3370f2f372334dc7bbf85cc14762)). Graduated tokens trigger on-chain reputation attestations via `giveFeedback`.
 - **Unibase / Membase** — persistent learning memory across launches.
 
 ### Production surface
@@ -54,7 +54,7 @@ Plus an **autonomous lifecycle engine** that manages the full loop:
 - **7 public web pages**: landing, radar, creators, webhooks docs, embed docs, dashboard, agent card
 - **3 SDKs**: TypeScript (`@gudman/four-life-sdk`), Python (`four-life`), Chrome extension
 - **2 event channels**: signed HMAC webhooks + Telegram/Discord fan-out
-- **275 Python tests + 32 Python SDK tests + 8 TS SDK tests** — 315 total, all passing
+- **275 Python tests + 32 Python SDK tests + 9 TS SDK tests** — 316 total, all passing
 - **Fully deployed**: https://four-life.gudman.xyz
 
 ### Why this wins
@@ -91,15 +91,28 @@ badge = fl.get_badge("0x72b0a042e19871c046c1bd31e5b5ad3770c94444")
 print(badge["badge"]["tier"])  # "observed" | "healthy" | "graduation_watch" | ...
 ```
 
+## Why this scores against the judging rubric
+
+| Criterion | Weight | How FOUR-LIFE delivers |
+|---|---|---|
+| **Innovation** — originality and depth of AI application | 30% | Deterministic trust path with **zero LLM in grading** is a deliberate AI-architecture choice (not absence of AI). 3-tier LLM fallback (DGrid → Anthropic → OpenAI) keeps demos honest. Pair-aware graduation targets pulled live from Four.meme's `/public/config` show platform-native depth most submissions skip. THINK → BIRTH → RAISE → LEARN is a real autonomous loop, not a one-shot inference. |
+| **Technical Implementation** — code quality and demo stability | 30% | 316 tests passing across Python core + TS SDK + Python SDK. 46 API routes, 7 web pages, 3 SDKs (TS / Python / Chrome MV3 extension). Real on-chain integrations: ERC-8004 Agent ID 20 verifiable on BscScan, MYX V2 Pool read directly from chain, BNB Chain RPC monitoring. Production stack: nginx + Let's Encrypt + systemd, signed-HMAC webhooks, per-IP rate limiting, full OpenAPI spec, SQLite persistence. Live and uptime-monitored at four-life.gudman.xyz. |
+| **Practical Value** — user impact or commercial potential | 20% | Addresses Four.meme's top operational problem (98.6% of tokens die within 72h). Distribution surface that any Four.meme-adjacent project can adopt today: SDKs (`pip install four-life`, `npm install @gudman/four-life-sdk`), embeddable Certified badge, signed webhooks, Telegram + Discord notifications, Chrome extension. Six platform endpoints turn one-off agent insights into a shared trust primitive. |
+| **Presentation** — clarity of pitch and execution capability | 20% | Production-grade landing page with live data. Full demo video walking through Radar → Certified badge → Protection Mode → Webhooks → Operator Checklist. README + OpenAPI docs + per-endpoint examples. SUBMISSION.md tracks every claim back to a verifiable artifact. |
+
 ## Bounty claims
 
 ### Main prize (FOUR-LIFE autonomous agent)
 Directly extends Four.meme's Agentic Mode with the missing post-launch phase. Addresses their #1 problem (token death rate). Uses every piece of partner tech explicitly called out in the hackathon brief.
 
-### MYX V2 bounty
-- Signal layer live (default): `GET /api/myx/signal/{token}` returns AI-generated long/short/close/hold with confidence per lifecycle phase.
-- Execution layer ready: phase-based (NURTURE=monitor, DEFEND=short hedge, ACCELERATE=scale, GRADUATED=close all). Opt-in via `MYX_EXECUTION_ENABLED=true`.
-- Fully-tested hedge manager with MYX V2 permissionless-pair awareness.
+### MYX V2 integration (technical highlight, not a bounty claim)
+The MYX V2 bounty requires launching the agent's own token on Four.meme and seeding **$20,000 of liquidity** to activate a perp pair — outside scope for a solo hackathon submission. We're not claiming this bounty.
+
+What we did build on MYX V2 (so the technical work is visible to judges):
+- **On-chain Pool wired**: `MYX_POOL_ADDRESS=0x22cEc08111BBae24D0b80BDA2a6503EaB9BA704b` (the verified MYX V2 Pool on BSC). `getPairIndex(WBNB, USDT)` resolves to `3` directly from chain — no hardcoded constants.
+- **Live market data**: 37 perp markets fetched live from `api.myx.finance`.
+- **Phase-aware AI signal layer**: `GET /api/myx/signal/{token}` returns long/short/close/hold with confidence per lifecycle phase (NURTURE=monitor, DEFEND=short hedge, ACCELERATE=scale, GRADUATED=close all).
+- **Execution layer is implemented and tested** but disabled at submission because (a) MYX V2's BSC Router is an ERC-1967 proxy with unverified implementation we couldn't fork-simulate against in the available time, and (b) the bounty's $20K liquidity requirement makes real activation infeasible.
 
 ### DGrid bounty
 - **Every LLM call** in the agent (narrative analysis, content generation, strategy decisions, raise-plan generation) routes through DGrid's unified OpenAI-compatible API.
@@ -118,7 +131,7 @@ Directly extends Four.meme's Agentic Mode with the missing post-launch phase. Ad
 
 ## Team
 
-[YOUR NAME] — Solo builder.
+Ridwan Nurudeen ([@gudman](https://github.com/Ridwannurudeen)) — solo builder.
 
 ## What's next
 
@@ -133,10 +146,12 @@ Directly extends Four.meme's Agentic Mode with the missing post-launch phase. Ad
 | DoraHacks field | Paste |
 |---|---|
 | Project name | `FOUR-LIFE` |
-| Track | AI Sprint |
+| Track | **Autonomous Workflows** |
+| Is this BUIDL an AI Agent | Yes |
 | Tagline | Deterministic trust grading, protection mode, and signed webhooks for every Four.meme token. |
 | Repo URL | `https://github.com/Ridwannurudeen/four-life` |
 | Demo URL | `https://four-life.gudman.xyz` |
 | Video URL | [YOUR_UNLISTED_YOUTUBE_OR_LOOM] |
+| License | MIT |
 | Description | Paste the "Long description" above |
-| Bounty selections | DGrid + MYX V2 (check both) |
+| Bounty selections | **DGrid only.** MYX V2 not claimed (requires $20K liquidity to activate a perp pair — out of scope for solo hackathon). |

@@ -51,6 +51,7 @@ interface RadarEntry {
   graduation_probability: number;
   holder_velocity: number;
   confidence_score: "low" | "medium" | "high";
+  badge_tier: Badge["tier"];
   status: string;
   fourmeme_url: string;
 }
@@ -160,13 +161,12 @@ function ago(ts: number) {
   return `${Math.floor(s / 3600)}h ago`;
 }
 
-// Derive a badge tier from radar entry metrics (mirrors the backend rule; used before
-// we fetch the full /badge endpoint so cards show tier instantly).
-function tierFromEntry(e: RadarEntry): Badge["tier"] {
-  if (e.curve_progress >= 100) return "graduated";
-  if (e.curve_progress >= 70 && e.confidence_score === "high" && e.increase_pct >= 0) return "graduation_watch";
-  if (e.increase_pct < -50) return "at_risk";
-  return "observed";
+// Backend is the single source of truth for tiers. Each radar entry carries
+// `badge_tier` computed server-side by the same Certified rules; we never
+// re-derive on the client. If an older API response omits the field, fall
+// back to "observed" rather than inventing a different label.
+function entryTier(e: RadarEntry): Badge["tier"] {
+  return e.badge_tier ?? "observed";
 }
 
 // ── Components ─────────────────────────────────────────────────
@@ -205,7 +205,7 @@ function Progress({ value, max = 100 }: { value: number; max?: number }) {
 }
 
 function TokenCard({ entry, onSelect }: { entry: RadarEntry; onSelect: () => void }) {
-  const tier = tierFromEntry(entry);
+  const tier = entryTier(entry);
   return (
     <button
       onClick={onSelect}
@@ -486,7 +486,7 @@ function DetailDrawer({
     }
   }, [entry]);
 
-  const tier = badge?.badge?.tier ?? tierFromEntry(entry);
+  const tier = badge?.badge?.tier ?? entryTier(entry);
   const shareUrl = `https://four-life.gudman.xyz/radar?token=${entry.token_address}`;
 
   return (
@@ -679,7 +679,7 @@ export default function RadarPage() {
 
   const tierCounts = useMemo(() => {
     const counts = { graduated: 0, graduation_watch: 0, healthy: 0, at_risk: 0, observed: 0 };
-    filtered.forEach(e => { counts[tierFromEntry(e)] += 1; });
+    filtered.forEach(e => { counts[entryTier(e)] += 1; });
     return counts;
   }, [filtered]);
 

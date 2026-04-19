@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { HeroRadar, PartnerMarquee, useReveal } from "./_components";
 
@@ -67,9 +67,12 @@ function useLiveMetrics() {
   }, []);
 
   useEffect(() => {
-    fetchAll();
+    const initial = setTimeout(fetchAll, 0);
     const id = setInterval(fetchAll, 30_000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
   }, [fetchAll]);
 
   return m;
@@ -577,7 +580,7 @@ function WhoUses() {
   return (
     <section className="max-w-7xl mx-auto px-5 py-16 md:py-24">
       <div className="mb-10 max-w-3xl">
-        <div className="eyebrow mb-4">Who it's for</div>
+        <div className="eyebrow mb-4">Who it&apos;s for</div>
         <h2 className="display display-lg">
           Four roles. <span className="gradient-text">One primitive.</span>
         </h2>

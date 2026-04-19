@@ -4,13 +4,25 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+# Runs as a dedicated non-root user (`fourlife` — created by deploy/setup.sh).
+# Reading /opt/four-life and writing ./data/ are the only filesystem touches
+# needed at runtime; the service does not require root for anything else.
+User=fourlife
+Group=fourlife
 WorkingDirectory=/opt/four-life
-ExecStartPre=-/bin/fuser -k 8030/tcp
 ExecStart=/usr/bin/python3 -m uvicorn agent.api:app --host 127.0.0.1 --port 8030 --log-level info
 Restart=always
 RestartSec=10
 Environment=PYTHONUNBUFFERED=1
+
+# Basic hardening. NoNewPrivileges prevents setuid helpers escalating;
+# ProtectSystem=strict makes the rootfs read-only; ReadWritePaths carves out
+# the one directory the service actually writes to.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/four-life/data
 
 [Install]
 WantedBy=multi-user.target

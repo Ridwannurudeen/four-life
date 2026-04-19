@@ -19,8 +19,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import secrets
+import socket
 import sqlite3
 import threading
 import time
@@ -28,9 +30,118 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
+from urllib.parse import urlparse
 
 import httpx
 from loguru import logger
+
+
+# ── SSRF guard ─────────────────────────────────────────────────────────
+#
+# Webhook URLs are user-supplied. Without validation, an attacker can register
+# a webhook pointed at 127.0.0.1, 169.254.169.254 (cloud metadata), or an
+# internal RFC1918 host and turn FOUR-LIFE into an SSRF probe.
+#
+# The guard runs in TWO places:
+#   1. registration (`register`) — rejects obvious private hosts + resolves the
+#      hostname and rejects if ANY resolved A/AAAA points at a private/reserved
+#      range.
+#   2. delivery (`_post_once`) — re-resolves and re-validates before POST so
+#      DNS rebinding at delivery time still fails.
+#
+# We deliberately block the full IANA reserved/special-use ranges (private,
+# loopback, link-local, multicast, reserved, unspecified) plus the common cloud
+# metadata endpoint 169.254.169.254.
+
+_BLOCKED_HOSTS: frozenset[str] = frozenset({
+    "localhost",
+    "ip6-localhost",
+    "ip6-loopback",
+    "metadata.google.internal",
+    "metadata",
+})
+
+
+def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def _resolve_all(hostname: str) -> list[ipaddress._BaseAddress]:
+    """Return every A/AAAA address for a hostname. Raises on resolution failure."""
+    results: list[ipaddress._BaseAddress] = []
+    for family, _, _, _, sockaddr in socket.getaddrinfo(
+        hostname, None, type=socket.SOCK_STREAM
+    ):
+        if family == socket.AF_INET:
+            results.append(ipaddress.IPv4Address(sockaddr[0]))
+        elif family == socket.AF_INET6:
+            # sockaddr[0] may include a scope id separated by %; strip it.
+            addr_str = str(sockaddr[0]).split("%", 1)[0]
+            results.append(ipaddress.IPv6Address(addr_str))
+    return results
+
+
+def validate_webhook_url(url: str, *, require_resolvable: bool = True) -> None:
+    """Validate a webhook URL against SSRF payloads.
+
+    Raises ``ValueError`` with a specific reason if the URL:
+      - is not http/https,
+      - has no hostname,
+      - matches a blocked host alias (localhost, metadata.google.internal, …),
+      - is a literal IP in a private/reserved/loopback/link-local range,
+      - resolves (via DNS) to any address in a private/reserved range.
+
+    Call with ``require_resolvable=False`` at registration so transient DNS
+    failure (host temporarily offline) doesn't prevent the user from creating
+    a subscription — delivery-time validation with the default will still
+    reject any real SSRF target. Literal-IP and blocked-alias checks always
+    run regardless.
+    """
+    if not url or not isinstance(url, str):
+        raise ValueError("url is required")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("url must be an absolute http(s) URL")
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        raise ValueError("url has no hostname")
+    if host in _BLOCKED_HOSTS:
+        raise ValueError(f"webhook host '{host}' is not allowed")
+
+    # If the host is a literal IP, check it directly (no DNS).
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None:
+        if _is_blocked_ip(literal):
+            raise ValueError(f"webhook host IP {literal} is in a blocked range")
+        return
+
+    # Hostname — resolve and check every A/AAAA record.
+    try:
+        addresses = _resolve_all(host)
+    except socket.gaierror as e:
+        if require_resolvable:
+            raise ValueError(f"webhook host '{host}' does not resolve: {e}")
+        # Registration path — tolerate transient DNS, re-check at delivery.
+        return
+    if not addresses:
+        if require_resolvable:
+            raise ValueError(f"webhook host '{host}' has no A/AAAA records")
+        return
+    for addr in addresses:
+        if _is_blocked_ip(addr):
+            raise ValueError(
+                f"webhook host '{host}' resolves to blocked address {addr}"
+            )
 
 
 WEBHOOK_DIR = Path(__file__).parent.parent / "data"
@@ -182,8 +293,7 @@ class WebhookStore:
         for e in events:
             if e not in SUPPORTED_EVENTS:
                 raise ValueError(f"Unsupported event type: {e}")
-        if not url.startswith(("http://", "https://")):
-            raise ValueError("url must be an absolute http(s) URL")
+        validate_webhook_url(url, require_resolvable=False)
 
         sub_id = "whs_" + uuid.uuid4().hex[:20]
         secret = "whsec_" + secrets.token_urlsafe(32)
@@ -494,6 +604,9 @@ def set_transport_override(fn: Callable[..., Any] | None) -> None:
 async def _post_once(url: str, body: str, headers: dict[str, str]) -> tuple[int, str]:
     if _TRANSPORT_OVERRIDE is not None:
         return await _TRANSPORT_OVERRIDE(url, body, headers)
+    # Re-validate right before sending — guards against DNS rebinding where the
+    # hostname resolved to a public IP at registration but now resolves inside.
+    validate_webhook_url(url)
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
         resp = await client.post(url, content=body, headers=headers)
         return resp.status_code, resp.text[:2000]

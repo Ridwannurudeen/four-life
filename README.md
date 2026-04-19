@@ -23,12 +23,14 @@ Every AI agent on Four.meme today does the same thing: create → dump → repea
 
 - **Narrative Intelligence** — Scans Four.meme + social trends to find unsaturated narrative gaps
 - **Real-Time Health Monitoring** — Tracks holder velocity, whale concentration, buy/sell pressure, bonding curve progress
-- **Graduation Probability** — ML-based prediction of whether a token will reach the 18 BNB threshold
-- **Adaptive Content** — AI generates memes, updates, and transparency posts that match each token's personality
-- **Persistent Memory** — Learns from every launch via Unibase. Each cycle is better than the last.
-- **On-Chain Identity** — ERC-8004 registered agent with verifiable track record on BNB Chain
-- **MYX V2 Perp Integration** — Creates derivative markets for launched tokens (MYX bounty)
-- **DGrid AI Gateway** — All AI inference routed through DGrid's unified API (DGrid bounty)
+- **Pair-Aware Graduation Targets** — Sourced live from Four.meme's `/public/config` (BNB=18, USD1/USDT/USDC=12000, CAKE=10000, etc.) — no hardcoded thresholds
+- **FOUR-LIFE Certified Badge** — Deterministic 5-tier trust grade with full `why[]` rule trace. Zero LLM in the trust path — every grade is reproducible from raw on-chain data
+- **Protection Mode** — Per-token defensive thresholds (whale concentration, sell pressure, contract risk). On `critical`, halts content posts, fires signed webhooks, emits MYX hedge signal
+- **Adaptive Content** — AI generates updates and transparency posts that match each token's lifecycle phase
+- **Persistent Memory** — Learns from every launch via Unibase. Each cycle is better than the last
+- **On-Chain Identity** — ERC-8004 registered agent (Agent ID 20 on BNB Chain) with reputation attestations on graduation
+- **MYX V2 Integration** — On-chain Pool wired (real `getPairIndex` resolution), AI-generated long/short/close/hold signals per lifecycle phase, opt-in execution layer
+- **DGrid AI Gateway** — All LLM inference routed through DGrid with 3-tier fallback (DGrid → Anthropic → OpenAI). Every response carries an `llm_provider` field
 
 ## Architecture
 

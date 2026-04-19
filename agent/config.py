@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     )
     min_launch_interval_hours: int = Field(default=24, alias="MIN_LAUNCH_INTERVAL_HOURS")
     max_concurrent_tokens: int = Field(default=3, alias="MAX_CONCURRENT_TOKENS")
+    # Autostart the agent lifecycle loop when the API boots. Default True so the
+    # deployed service is genuinely autonomous — set AGENT_AUTOSTART=false in
+    # tests or for maintenance mode.
+    agent_autostart: bool = Field(default=True, alias="AGENT_AUTOSTART")
 
     # API auth
     api_secret: str = Field(default="", alias="API_SECRET")

@@ -15,6 +15,7 @@ from agent.myx.hedge import HedgeManager
 from agent.identity.registry import AgentIdentity
 from agent import notifications as _notifications
 from agent.protection import LEVEL_CRITICAL, default_store as _protection_store, evaluate_protection
+from agent.security.risk_cache import get_contract_risk as _fetch_contract_risk
 from agent.webhooks import fire_protection_level_changed, schedule_deliveries
 
 
@@ -78,6 +79,20 @@ class LifecycleEngine:
         try:
             p_store = _protection_store()
             policy = p_store.get_policy(token_address)
+            # Fetch real contract risk through the shared cache (10 min TTL).
+            # Swallow analyzer failures — the evaluator still fires whale /
+            # sell-pressure / age rules when contract risk is unavailable.
+            try:
+                from agent.config import settings as _settings
+                _risk = await _fetch_contract_risk(
+                    token_address,
+                    self.monitor.chain.w3,
+                    bscscan_api_key=_settings.bscscan_api_key,
+                )
+                contract_risk_score = _risk.risk_score if _risk else 0
+            except Exception as _risk_err:
+                logger.debug("[PROTECTION] contract-risk fetch skipped: {}", _risk_err)
+                contract_risk_score = 0
             verdict = evaluate_protection(
                 token_address=token_address,
                 policy=policy,
@@ -85,7 +100,7 @@ class LifecycleEngine:
                 whale_count=health.whale_count,
                 buy_sell_ratio=health.buy_sell_ratio,
                 age_hours=health.age_hours,
-                contract_risk_score=0,
+                contract_risk_score=contract_risk_score,
             )
             transitioned, prev_level = p_store.record_level(
                 token_address=token_address, verdict=verdict,

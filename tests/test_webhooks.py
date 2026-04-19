@@ -65,6 +65,24 @@ class TestSubscriptions:
         with pytest.raises(ValueError, match="http"):
             store.subscribe(url="ftp://example.com/hook", events=[EVENT_BADGE_TIER_CHANGED])
 
+    def test_subscribe_rejects_ssrf_targets(self, store: WebhookStore) -> None:
+        from agent.webhooks import validate_webhook_url
+        # Literal private/loopback/link-local IPs — rejected at registration.
+        for bad in [
+            "http://127.0.0.1/hook",
+            "http://10.0.0.5/hook",
+            "http://192.168.1.1/hook",
+            "http://169.254.169.254/latest/meta-data",  # EC2 / GCP metadata
+            "http://[::1]/hook",
+            "http://[fe80::1]/hook",
+        ]:
+            with pytest.raises(ValueError):
+                store.subscribe(url=bad, events=[EVENT_BADGE_TIER_CHANGED])
+        # Blocked hostname aliases.
+        for bad in ["http://localhost/hook", "http://metadata.google.internal/"]:
+            with pytest.raises(ValueError):
+                validate_webhook_url(bad, require_resolvable=False)
+
     def test_list_excludes_disabled_by_default(self, store: WebhookStore) -> None:
         sub1, _ = store.subscribe(url="https://a.example/hook", events=[EVENT_BADGE_TIER_CHANGED])
         sub2, _ = store.subscribe(url="https://b.example/hook", events=[EVENT_BADGE_TIER_CHANGED])

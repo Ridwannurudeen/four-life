@@ -42,17 +42,27 @@ class FourLifeAgent:
         self.identity = AgentIdentity()
         self.twitter = TwitterClient()
 
-        # MYX V2 perp integration. Signals are always generated when router+pool are
-        # configured; execution only happens when MYX_EXECUTION_ENABLED=true.
-        self.myx = MYXClient(
-            router_address=settings.myx_router_address,
-            pool_address=settings.myx_pool_address,
-        ) if settings.myx_router_address else None
-        self.myx_strategy = MYXStrategy(self.myx) if self.myx else None
-        self.hedge_manager = HedgeManager(
-            self.myx, self.myx_strategy,
-            execution_enabled=settings.myx_execution_enabled,
-        ) if self.myx else None
+        # MYX V2 perp integration. Signal-only mode needs the Pool (for on-chain
+        # pair resolution + position reads). Router is only required when
+        # MYX_EXECUTION_ENABLED=true — if execution is on without a router
+        # address, fall back to signal-only rather than crashing.
+        execution_enabled = (
+            settings.myx_execution_enabled and bool(settings.myx_router_address)
+        )
+        if settings.myx_pool_address or settings.myx_router_address:
+            self.myx = MYXClient(
+                router_address=settings.myx_router_address,
+                pool_address=settings.myx_pool_address,
+            )
+            self.myx_strategy = MYXStrategy(self.myx)
+            self.hedge_manager = HedgeManager(
+                self.myx, self.myx_strategy,
+                execution_enabled=execution_enabled,
+            )
+        else:
+            self.myx = None
+            self.myx_strategy = None
+            self.hedge_manager = None
 
         self.lifecycle = LifecycleEngine(
             self.monitor, self.strategy, self.content_engine, self.memory, self.twitter,
@@ -193,14 +203,30 @@ class FourLifeAgent:
             ]
             logger.info("[BIRTH] Running create-token-instant...")
 
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
+            # Async subprocess so a 120s launch doesn't freeze the event loop —
+            # the API worker keeps serving requests while the child runs.
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 env=env,
                 cwd=str(Path(__file__).parent.parent),
-                timeout=120,
             )
+            try:
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    proc.communicate(), timeout=120
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                raise RuntimeError("create-token-instant timed out after 120s")
+
+            class _R:
+                pass
+            result = _R()
+            result.returncode = proc.returncode or 0
+            result.stdout = stdout_b.decode("utf-8", errors="replace")
+            result.stderr = stderr_b.decode("utf-8", errors="replace")
 
             # Clean up temp image
             try:

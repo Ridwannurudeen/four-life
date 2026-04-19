@@ -99,20 +99,56 @@ async def require_auth(authorization: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+async def is_authorized(authorization: str = Header(default="")) -> bool:
+    """Optional auth check. Returns True if the caller presents a valid bearer
+    token (or if API_SECRET is unset, in which case there's no notion of auth).
+    Used on dashboard endpoints to decide whether to include operational
+    internals (wallet address, global_learnings, what_worked/what_failed).
+    """
+    from agent.config import settings
+    if not settings.api_secret:
+        return True
+    return authorization == f"Bearer {settings.api_secret}"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start agent in background on server boot."""
+    """Start agent in background on server boot.
+
+    The agent runs its lifecycle loop as a background asyncio task — no manual
+    /api/agent/start POST is required for autonomous operation. Disable via
+    AGENT_AUTOSTART=false (useful for tests or maintenance).
+    """
     global agent
+    from loguru import logger
+    import asyncio as _asyncio
+    from agent.config import settings
+
+    loop_task: _asyncio.Task | None = None
     try:
         agent = FourLifeAgent()
     except Exception as e:
-        from loguru import logger
         logger.warning("Agent init failed (missing keys?): {}. API running in read-only mode.", e)
         agent = None
-    yield
-    if agent:
-        await agent.stop()
-        await agent.api.close()
+
+    if agent and settings.agent_autostart:
+        try:
+            loop_task = _asyncio.create_task(agent.run(), name="four-life.lifecycle")
+            logger.info("Agent lifecycle loop started on boot.")
+        except Exception as e:
+            logger.error("Failed to autostart agent lifecycle loop: {}", e)
+
+    try:
+        yield
+    finally:
+        if agent:
+            await agent.stop()
+            if loop_task and not loop_task.done():
+                try:
+                    await _asyncio.wait_for(loop_task, timeout=10)
+                except _asyncio.TimeoutError:
+                    loop_task.cancel()
+            await agent.api.close()
 
 
 API_DESCRIPTION = """
@@ -191,10 +227,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     # "*" is safe here because we never send cookies (allow_credentials defaults to False).
-    # Write endpoints (POST /api/agent/*) stay protected by the API_SECRET bearer check in
-    # require_auth() — widening origins does not bypass that.
+    # Write endpoints (POST/PUT/DELETE /api/agent/*, /api/protection/*) stay protected by
+    # the API_SECRET bearer check in require_auth() — widening origins does not bypass that.
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -356,34 +392,40 @@ async def radar_bot_status():
 # ── Agent Status ─────────────────────────────────────────────────────
 
 @app.get("/api/status", tags=["dashboard"], summary="Agent status + lifetime stats")
-async def status():
+async def status(authorized: bool = Depends(is_authorized)):
+    """Public status feed. Wallet address and recent global_learnings are
+    redacted for unauthenticated callers — those are operational internals that
+    don't belong in a public scraper surface. Authenticated callers (dashboard)
+    get the full view.
+    """
     if not agent:
         return {
             "agent_name": "FOUR-LIFE",
             "running": False,
             "agent_id": None,
-            "wallet": "",
             "total_launches": 0,
             "total_graduations": 0,
             "graduation_rate": 0,
             "avg_peak_holders": 0,
             "active_tokens": 0,
-            "global_learnings": [],
             "message": "Agent not configured — add keys to .env",
         }
     mem = agent.memory.memory
-    return {
+    body = {
         "agent_name": "FOUR-LIFE",
         "running": agent.running,
         "agent_id": agent.identity.agent_id,
-        "wallet": agent.chain.account.address,
         "total_launches": mem.total_launches,
         "total_graduations": mem.total_graduations,
         "graduation_rate": round(mem.graduation_rate * 100, 1),
         "avg_peak_holders": round(mem.avg_peak_holders, 0),
         "active_tokens": len(agent.active_concepts),
-        "global_learnings": mem.global_learnings[-10:],
+        "learnings_count": len(mem.global_learnings),
     }
+    if authorized:
+        body["wallet"] = agent.chain.account.address
+        body["global_learnings"] = mem.global_learnings[-10:]
+    return body
 
 
 # ── Token Health ─────────────────────────────────────────────────────
@@ -414,7 +456,7 @@ async def list_tokens():
 
 
 @app.get("/api/tokens/{address}", tags=["dashboard"], summary="Deep detail for a tracked token")
-async def token_detail(address: str):
+async def token_detail(address: str, authorized: bool = Depends(is_authorized)):
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
     health = agent.monitor.state.tokens.get(address)
@@ -424,6 +466,19 @@ async def token_detail(address: str):
     concept = agent.active_concepts.get(address, {})
     actions = agent.lifecycle.get_action_history(address)
     launch = agent.memory.get_launch(address)
+
+    launch_record = {
+        "launched_at": launch.launched_at if launch else None,
+        "peak_holders": launch.peak_holders if launch else 0,
+        "peak_health_score": launch.peak_health_score if launch else 0,
+        "graduated": launch.graduated if launch else False,
+    }
+    # Learning lists are the agent's internal post-mortem — leak competitive
+    # intel when exposed unconditionally. Gate behind the API secret so the
+    # internal dashboard still gets them.
+    if authorized:
+        launch_record["what_worked"] = launch.what_worked if launch else []
+        launch_record["what_failed"] = launch.what_failed if launch else []
 
     return {
         "health": {
@@ -446,20 +501,18 @@ async def token_detail(address: str):
         },
         "concept": concept,
         "actions": actions,
-        "launch_record": {
-            "launched_at": launch.launched_at if launch else None,
-            "peak_holders": launch.peak_holders if launch else 0,
-            "peak_health_score": launch.peak_health_score if launch else 0,
-            "graduated": launch.graduated if launch else False,
-            "what_worked": launch.what_worked if launch else [],
-            "what_failed": launch.what_failed if launch else [],
-        },
+        "launch_record": launch_record,
     }
 
 
 # ── Memory ───────────────────────────────────────────────────────────
 
-@app.get("/api/memory", tags=["dashboard"], summary="Agent memory (learnings, launch history)")
+@app.get(
+    "/api/memory",
+    tags=["dashboard"],
+    summary="Agent memory (learnings, launch history)",
+    dependencies=[Depends(require_auth)],
+)
 async def memory():
     if not agent:
         return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
@@ -638,30 +691,57 @@ async def myx_evaluate(token_address: str):
 
 MODEL_VERSION = "four-life-v1.1"
 
-# ── Contract-risk cache (10 min TTL, in-memory) ──────────────────────
-CONTRACT_RISK_TTL_SECONDS = 600
-_contract_risk_cache: dict[str, tuple[float, ContractRisk]] = {}
+# ── Contract-risk cache ──────────────────────────────────────────────
+# Delegates to agent.security.risk_cache so the API and the lifecycle engine
+# share one cache and one risk score per token. The `_contract_risk_cache`
+# alias below preserves the in-tree test API; both names point at the same
+# dict, so `.clear()` / `.get()` behave identically.
+from agent.security import risk_cache as _risk_cache_module
+from agent.security.risk_cache import (
+    get_contract_risk as _shared_get_contract_risk,
+    peek_contract_risk as _peek_contract_risk,
+)
+
+_contract_risk_cache = _risk_cache_module._cache
+
+
+def _shallow_radar_tier(
+    *,
+    curve_progress_pct: float,
+    increase_pct: float,
+    confidence: str,
+) -> str:
+    """Tier for radar entries where we don't yet have full on-chain health.
+
+    Mirrors the frontend's former ``tierFromEntry`` so the radar view is always
+    driven by a server-computed label, not UI-side math. For tracked tokens the
+    caller upgrades this to the full deterministic badge.
+    """
+    from agent.badge import (
+        TIER_GRADUATED,
+        TIER_GRADUATION_WATCH,
+        TIER_AT_RISK,
+        TIER_OBSERVED,
+    )
+    if curve_progress_pct >= 100:
+        return TIER_GRADUATED
+    if curve_progress_pct >= 70 and confidence == "high" and increase_pct >= 0:
+        return TIER_GRADUATION_WATCH
+    if increase_pct < -50:
+        return TIER_AT_RISK
+    return TIER_OBSERVED
 
 
 async def _get_contract_risk(token_address: str) -> ContractRisk | None:
     """Fetch (or return cached) contract risk for a token. TTL = 10 minutes."""
     if not agent:
         return None
-    key = token_address.lower()
-    cached = _contract_risk_cache.get(key)
-    now = time.time()
-    if cached and now - cached[0] < CONTRACT_RISK_TTL_SECONDS:
-        return cached[1]
-
     from agent.config import settings
-    analyzer = ContractAnalyzer(agent.chain.w3, bscscan_api_key=settings.bscscan_api_key)
-    try:
-        risk = await analyzer.analyze(token_address)
-    except Exception as e:
-        logger.warning("contract analyze failed for {}: {}", token_address, e)
-        return None
-    _contract_risk_cache[key] = (now, risk)
-    return risk
+    return await _shared_get_contract_risk(
+        token_address,
+        agent.chain.w3,
+        bscscan_api_key=settings.bscscan_api_key,
+    )
 
 
 def _deterministic_risk_flags(
@@ -1090,6 +1170,25 @@ async def graduation_radar(
             # Holder velocity is only available from on-chain monitor — proxy 0 for ranking-only tokens
             holder_velocity = 0.0
 
+            # Server-computed tier so the UI never re-derives trust labels.
+            # For tokens we already track on-chain, use the full deterministic
+            # badge (which factors in whale distribution, buy/sell ratio,
+            # holder velocity, contract risk). For untracked tokens we return
+            # a shallow tier computed from the same radar inputs.
+            badge_tier = _shallow_radar_tier(
+                curve_progress_pct=progress * 100,
+                increase_pct=increase * 100,
+                confidence=target.confidence,
+            )
+            if agent and addr in agent.monitor.state.tokens:
+                try:
+                    tracked = agent.monitor.state.tokens[addr]
+                    risk = _peek_contract_risk(addr)
+                    crs = risk.risk_score if risk else 0
+                    badge_tier = badge_from_health(tracked, contract_risk_score=crs).tier
+                except Exception:
+                    pass
+
             all_tokens.append({
                 "token_address": addr,
                 "name": t.get("name", ""),
@@ -1107,6 +1206,7 @@ async def graduation_radar(
                 "graduation_probability": round(min(100, grad_prob * 100), 1),
                 "holder_velocity": holder_velocity,
                 "confidence_score": target.confidence,
+                "badge_tier": badge_tier,
                 "status": t.get("status", ""),
                 "fourmeme_url": f"https://four.meme/token/{addr}",
             })
@@ -1507,9 +1607,16 @@ class _ProtectionPolicyBody(BaseModel):
     created_by: str | None = None
 
 
-def _evaluate_protection_for_token(token_address: str, *, agent_obj=None) -> dict | None:
-    """Evaluate the current protection verdict for a token. Returns None if the
-    token is not tracked (we can't score without metrics)."""
+async def _evaluate_protection_for_token(
+    token_address: str, *, agent_obj=None
+) -> dict | None:
+    """Evaluate the current protection verdict for a token.
+
+    Fetches contract risk through the shared cache (10 min TTL) so the
+    protection verdict actually reflects mint/blacklist/pause/ownable signals
+    instead of silently defaulting to 0. Returns None if the token isn't
+    tracked (we can't score without health metrics).
+    """
     a = agent_obj if agent_obj is not None else agent
     if not a:
         return None
@@ -1517,10 +1624,10 @@ def _evaluate_protection_for_token(token_address: str, *, agent_obj=None) -> dic
     if not health:
         return None
     policy = _protection_store().get_policy(token_address)
-    # Best-effort contract risk — use cached value if present, otherwise 0 (evaluator
-    # still fires whale/sell-pressure rules regardless).
-    cached_risk = _contract_risk_cache.get(token_address.lower())
-    crs = cached_risk[1].risk_score if cached_risk else 0
+
+    risk = await _get_contract_risk(token_address)
+    crs = risk.risk_score if risk else 0
+
     verdict = evaluate_protection(
         token_address=token_address,
         policy=policy,
@@ -1560,7 +1667,7 @@ async def upsert_protection_policy(token_address: str, body: _ProtectionPolicyBo
 
     return {
         **policy.to_dict(),
-        "current_verdict": _evaluate_protection_for_token(token_address),
+        "current_verdict": await _evaluate_protection_for_token(token_address),
         "model_version": MODEL_VERSION,
         "last_updated_at": int(time.time()),
     }
@@ -1575,7 +1682,7 @@ async def get_protection_policy(token_address: str):
     """Return the policy + the current verdict computed against the token's live
     metrics. If no policy is set, returns the defaults and a baseline verdict."""
     policy = _protection_store().get_policy(token_address)
-    verdict = _evaluate_protection_for_token(token_address)
+    verdict = await _evaluate_protection_for_token(token_address)
     if policy is None and verdict is None:
         return JSONResponse({
             "token_address": token_address.lower(),

@@ -31,7 +31,11 @@ from agent.config import settings
 IDENTITY_DIR = Path(__file__).parent.parent.parent / "data"
 IDENTITY_FILE = IDENTITY_DIR / "identity.json"
 
-# BRC8004 IdentityRegistry on BSC mainnet
+# BRC8004 IdentityRegistry on BSC mainnet.
+# The deployed registry is ERC-721 + ERC-721Enumerable: each agentId is a tokenId,
+# owner is looked up via `ownerOf(tokenId)`, and wallet→agentId via
+# `balanceOf(owner)` + `tokenOfOwnerByIndex(owner, index)`. URI lookup is the
+# standard `tokenURI(tokenId)`.
 IDENTITY_REGISTRY_ABI = json.loads("""[
     {
         "inputs": [{"name": "uri", "type": "string"}],
@@ -51,18 +55,35 @@ IDENTITY_REGISTRY_ABI = json.loads("""[
         "type": "function"
     },
     {
-        "inputs": [{"name": "agentId", "type": "uint256"}],
-        "name": "agentURI",
+        "inputs": [{"name": "tokenId", "type": "uint256"}],
+        "name": "tokenURI",
         "outputs": [{"name": "", "type": "string"}],
         "stateMutability": "view",
         "type": "function"
     },
     {
+        "inputs": [{"name": "tokenId", "type": "uint256"}],
+        "name": "ownerOf",
+        "outputs": [{"name": "", "type": "address"}],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [{"name": "owner", "type": "address"}],
-        "name": "agentIdOf",
+        "name": "balanceOf",
         "outputs": [{"name": "", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {"indexed": true, "name": "from", "type": "address"},
+            {"indexed": true, "name": "to", "type": "address"},
+            {"indexed": true, "name": "tokenId", "type": "uint256"}
+        ],
+        "name": "Transfer",
+        "type": "event"
     }
 ]""")
 
@@ -184,8 +205,9 @@ class AgentIdentity:
 
     # ── Low-level tx helper ──────────────────────────────────────────
 
-    async def _send_tx(self, tx_func, gas: int = 300_000) -> tuple[str, int]:
-        """Build, sign, broadcast, and confirm a tx. Returns (tx_hash, block_number)."""
+    async def _send_tx(self, tx_func, gas: int = 300_000):
+        """Build, sign, broadcast, and confirm a tx. Returns the receipt object so
+        callers can parse emitted events (e.g. the ERC-721 Transfer on register)."""
         nonce = await self.w3.eth.get_transaction_count(self.account.address)
         gas_price = await self.w3.eth.gas_price
         tx = await tx_func.build_transaction({
@@ -198,25 +220,73 @@ class AgentIdentity:
         signed = self.account.sign_transaction(tx)
         tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
         receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        tx_hex = f"0x{tx_hash.hex()}"
         if receipt["status"] != 1:
-            raise RuntimeError(f"Tx reverted: {tx_hex}")
-        return tx_hex, int(receipt["blockNumber"])
+            raise RuntimeError(f"Tx reverted: 0x{tx_hash.hex()}")
+        return receipt
 
     # ── Registration ────────────────────────────────────────────────
 
+    def _extract_agent_id_from_receipt(self, receipt) -> int | None:
+        """Parse the ERC-721 Transfer event emitted by `register()` and return
+        the minted tokenId (= agentId). Matches Transfers where from=0x0 and
+        to=this wallet on the identity registry address."""
+        registry_addr = self.identity_registry.address.lower()
+        wallet = self.account.address.lower()
+        for log in receipt.get("logs", []):
+            if log["address"].lower() != registry_addr:
+                continue
+            topics = log.get("topics") or []
+            if len(topics) < 4:
+                continue
+            # topic[0] = keccak("Transfer(address,address,uint256)")
+            t0 = topics[0].hex() if hasattr(topics[0], "hex") else topics[0]
+            if not t0.endswith("ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"):
+                continue
+            from_addr = "0x" + (topics[1].hex() if hasattr(topics[1], "hex") else topics[1])[-40:]
+            to_addr = "0x" + (topics[2].hex() if hasattr(topics[2], "hex") else topics[2])[-40:]
+            if int(from_addr, 16) != 0 or to_addr.lower() != wallet:
+                continue
+            token_id_hex = topics[3].hex() if hasattr(topics[3], "hex") else topics[3]
+            return int(token_id_hex, 16)
+        return None
+
     async def get_agent_id(self) -> int | None:
-        """Check if this wallet already has a registered agent."""
+        """Resolve this wallet's registered agentId.
+
+        The deployed BRC-8004 IdentityRegistry is ERC-721 but NOT ERC-721
+        Enumerable, so there is no owner→tokenId view. Resolution order:
+
+        1. If we already persisted an ``agent_id``, confirm it's still owned by
+           this wallet via ``ownerOf(tokenId)``. If yes, return it.
+        2. Otherwise, check ``balanceOf(wallet)`` to detect whether a prior
+           registration exists. If the wallet owns agents but we don't know the
+           IDs (state was lost), return ``None`` so the caller can re-resolve
+           the ID from the registration tx receipt instead of blindly minting
+           another agent.
+        """
+        if self.state.agent_id:
+            try:
+                owner = await self.identity_registry.functions.ownerOf(
+                    int(self.state.agent_id)
+                ).call()
+                if owner and owner.lower() == self.account.address.lower():
+                    self.agent_id = int(self.state.agent_id)
+                    return self.agent_id
+            except Exception as e:
+                logger.debug("ownerOf({}) failed: {}", self.state.agent_id, e)
         try:
-            agent_id = await self.identity_registry.functions.agentIdOf(
+            bal = await self.identity_registry.functions.balanceOf(
                 self.account.address
             ).call()
-            if agent_id and agent_id > 0:
-                self.agent_id = int(agent_id)
-                self.state.agent_id = int(agent_id)
-                return int(agent_id)
+            if bal and bal > 0:
+                # Existing agents but no persisted id — caller must recover
+                # from registration tx logs rather than re-registering.
+                logger.warning(
+                    "Wallet {} owns {} agent(s) but no id persisted locally.",
+                    self.account.address, int(bal),
+                )
         except Exception as e:
-            logger.debug("agentIdOf call failed: {}", e)
+            logger.debug("balanceOf call failed: {}", e)
         return None
 
     async def ensure_registered(self, agent_card_url: str | None = None) -> int | None:
@@ -242,17 +312,42 @@ class AgentIdentity:
             )
             return existing
 
+        # Safety net: if the registry reports a non-zero balance for this
+        # wallet but we couldn't resolve an id, a prior registration exists
+        # whose id was lost from local state. Refuse to mint another — callers
+        # should recover the id from the registration tx receipt instead.
+        try:
+            bal = await self.identity_registry.functions.balanceOf(
+                self.account.address
+            ).call()
+        except Exception:
+            bal = 0
+        if bal and bal > 0:
+            logger.error(
+                "Refusing to re-register: wallet {} already owns {} agent(s). "
+                "Recover the id from the original registration tx.",
+                self.account.address, int(bal),
+            )
+            return None
+
         # Not registered — attempt on-chain register. Fail gracefully.
         try:
-            tx_hex, block = await self._send_tx(
+            receipt = await self._send_tx(
                 self.identity_registry.functions.register(uri)
             )
         except Exception as e:
             logger.warning("ERC-8004 registration failed (insufficient BNB?): {}", e)
             return None
 
-        # Re-read the assigned ID
-        assigned = await self.get_agent_id()
+        tx_hex = f"0x{receipt['transactionHash'].hex()}"
+        block = int(receipt["blockNumber"])
+
+        # Prefer the tokenId from the Transfer event — it's the exact ID minted
+        # by this tx. Fall back to balanceOf enumeration if the event is missing.
+        assigned = self._extract_agent_id_from_receipt(receipt)
+        if not assigned:
+            assigned = await self.get_agent_id()
+
         self.state.agent_id = assigned or 0
         self.state.registration_tx = tx_hex
         self.state.registration_block = block
@@ -273,9 +368,10 @@ class AgentIdentity:
         """Update the agent card URI."""
         if not self.state.agent_id:
             raise RuntimeError("Agent not registered")
-        tx_hex, _ = await self._send_tx(
+        receipt = await self._send_tx(
             self.identity_registry.functions.setAgentURI(self.state.agent_id, new_uri)
         )
+        tx_hex = f"0x{receipt['transactionHash'].hex()}"
         self.state.agent_card_uri = new_uri
         self._save_state()
         logger.info("Agent URI updated: {}", tx_hex)
@@ -344,7 +440,7 @@ class AgentIdentity:
         endpoint = feedback_uri
 
         try:
-            tx_hex, block = await self._send_tx(
+            receipt = await self._send_tx(
                 self.reputation_registry.functions.giveFeedback(
                     int(self.state.agent_id),
                     int(value),
@@ -357,6 +453,8 @@ class AgentIdentity:
                 ),
                 gas=500_000,
             )
+            tx_hex = f"0x{receipt['transactionHash'].hex()}"
+            block = int(receipt["blockNumber"])
         except Exception as e:
             logger.error(
                 "Reputation attestation failed for {} ({}): {}",

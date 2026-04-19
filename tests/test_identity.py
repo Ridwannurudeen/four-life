@@ -80,11 +80,24 @@ class TestAgentCard:
 # ── Attestation pipeline ────────────────────────────────────────────
 
 
+def _mk_receipt(tx_hex: str, block: int):
+    """Build a dict that mimics a web3 TxReceipt for _send_tx mocks."""
+    class _HashBytes(bytes):
+        def hex(self) -> str:
+            return tx_hex[2:] if tx_hex.startswith("0x") else tx_hex
+    return {
+        "transactionHash": _HashBytes(),
+        "blockNumber": block,
+        "status": 1,
+        "logs": [],
+    }
+
+
 class TestAttestGraduation:
     @pytest.mark.asyncio
     async def test_constructs_valid_tx_and_persists(self, identity):
         identity.state.agent_id = 7
-        identity._send_tx = AsyncMock(return_value=("0xdeadbeef", 12345))
+        identity._send_tx = AsyncMock(return_value=_mk_receipt("0xdeadbeef", 12345))
 
         record = await identity.attest_graduation(
             "0xToken",
@@ -126,7 +139,7 @@ class TestAttestGraduation:
     @pytest.mark.asyncio
     async def test_duplicate_attestation_is_suppressed(self, identity):
         identity.state.agent_id = 7
-        identity._send_tx = AsyncMock(return_value=("0xfirst", 11))
+        identity._send_tx = AsyncMock(return_value=_mk_receipt("0xfirst", 11))
 
         # First submission goes through
         first = await identity.attest_graduation("0xDupe", metadata={"symbol": "D"})

@@ -128,13 +128,25 @@ class TokenMonitor:
         if not health:
             raise ValueError(f"Token {token_address} not tracked")
 
-        from_block = max(health.created_block, self.state.last_scanned_block.get(token_address, 0))
+        # Resume scanning ONE block after the last scanned tip — replaying the
+        # terminal block would double-count every trade in that block, which
+        # cascades into corrupted buy/sell counts, balances, curve progress,
+        # health score, and badge tier. When the chain hasn't advanced we skip
+        # the trade fetch (empty window) but STILL update time-based fields
+        # below (age, phase, velocity) so the lifecycle keeps ticking.
+        last_scanned = self.state.last_scanned_block.get(token_address)
+        if last_scanned is None:
+            from_block = health.created_block
+        else:
+            from_block = max(health.created_block, last_scanned + 1)
         current_block = await self.chain.get_block_number()
 
-        # Fetch trade events
-        trades = await self.chain.get_token_trades(
-            token_address, from_block=from_block, to_block=current_block
-        )
+        if from_block > current_block:
+            trades = {"buys": [], "sells": []}
+        else:
+            trades = await self.chain.get_token_trades(
+                token_address, from_block=from_block, to_block=current_block
+            )
 
         # Process buys
         for buy in trades["buys"]:
