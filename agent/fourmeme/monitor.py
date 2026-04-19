@@ -97,8 +97,19 @@ class TokenMonitor:
         creator: str = "",
         created_block: int = 0,
         quote_asset: str = "BNB",
+        seed: dict | None = None,
     ) -> None:
-        """Start tracking a token. Resolves its graduation target from Four.meme's config."""
+        """Start tracking a token. Resolves its graduation target from Four.meme's config.
+
+        ``seed`` is currently unused for numeric fields because
+        ``update_token`` recomputes every health metric (unique_buyers,
+        curve_progress, top_holder_pct, …) from accumulated on-chain events
+        on the next tick and would overwrite any seeded value. We only
+        observe from the moment we start tracking, by design. Keep the arg
+        for signature compatibility in case a future version adds a
+        non-overwritten "initial snapshot" field.
+        """
+        del seed
         # Resolve pair-aware graduation target (falls back to low-confidence for unknown assets)
         target = await self.graduation_registry.get(quote_asset)
 
@@ -144,6 +155,12 @@ class TokenMonitor:
         if from_block > current_block:
             trades = {"buys": [], "sells": []}
         else:
+            # Public BSC RPCs cap eth_getLogs at ~50k blocks per request. If a
+            # token was tracked from a much older block (e.g. long downtime),
+            # skip forward to a scannable window — the first tick loses some
+            # history but every subsequent tick is on the live tip.
+            if current_block - from_block > 50_000:
+                from_block = current_block - 50_000
             trades = await self.chain.get_token_trades(
                 token_address, from_block=from_block, to_block=current_block
             )

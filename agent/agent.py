@@ -100,7 +100,66 @@ class FourLifeAgent:
         else:
             logger.info("Fresh start — no previous launches")
 
+        # Restore tracked tokens from memory so a service restart doesn't
+        # drop the agent's working set. We re-track every launch that is
+        # (a) not yet graduated and (b) launched within the last 14 days —
+        # older tokens either graduated already or went dormant.
+        try:
+            await self._restore_tracked_tokens()
+        except Exception as e:
+            logger.warning("Token restore skipped: {}", e)
+
         logger.info("Initialization complete. Agent is live.")
+
+    # Public BSC RPCs cap eth_getLogs at 50k blocks per request. A token whose
+    # launch block is older than that can't be scanned in one call — rather
+    # than chunk the request (production problem, not hackathon-relevant),
+    # we skip ancient launches on restore. Any token tracked in the last
+    # ~50k blocks (~1.5 days of BSC) resumes cleanly.
+    RESTORE_MAX_BLOCK_LAG = 45_000
+
+    async def _restore_tracked_tokens(self) -> None:
+        """Re-track every non-graduated recent launch from memory.
+
+        Filters out (a) ancient launches whose on-chain range exceeds the
+        50k-block getLogs cap and (b) launches from outdated Agentic Mode
+        attempts that never produced a real token address.
+        """
+        cutoff_time = time.time() - 14 * 86400
+        current_block = await self.chain.get_block_number()
+        min_block = current_block - self.RESTORE_MAX_BLOCK_LAG
+        restored = 0
+        for launch in self.memory.memory.launches:
+            if launch.graduated:
+                continue
+            if launch.launched_at and launch.launched_at < cutoff_time:
+                continue
+            if not launch.token_address:
+                continue
+            if launch.launch_block and launch.launch_block < min_block:
+                continue
+            if launch.token_address in self.monitor.state.tokens:
+                continue
+            try:
+                created_block = launch.launch_block or current_block
+                await self.monitor.track_token(
+                    launch.token_address,
+                    name=launch.name,
+                    symbol=launch.symbol,
+                    creator=launch.creator or self.chain.account.address,
+                    created_block=created_block,
+                    quote_asset=(launch.quote_asset or "BNB").upper(),
+                )
+                self.active_concepts[launch.token_address] = launch.concept or {
+                    "name": launch.name,
+                    "symbol": launch.symbol,
+                    "narrative": launch.narrative or "",
+                }
+                restored += 1
+            except Exception as e:
+                logger.debug("Restore skipped for {}: {}", launch.token_address, e)
+        if restored:
+            logger.info("Restored {} tracked tokens from memory.", restored)
 
     # ── THINK Phase ───────────────────────────────────────────────────
 
@@ -309,15 +368,25 @@ class FourLifeAgent:
 
     # ── RAISE Phase ───────────────────────────────────────────────────
 
+    # Small gap between per-token lifecycle ticks so the BSC RPC doesn't see
+    # a 10-request burst on every loop iteration (public nodes throttle at
+    # ~10 rps and will return -32005 "limit exceeded" under that pattern).
+    # 200 ms spread keeps throughput reasonable while staying well under any
+    # reasonable provider's burst window.
+    RAISE_INTER_TICK_DELAY = 0.2
+
     async def raise_tokens(self) -> None:
         """Run lifecycle ticks for all active tokens."""
-        for token_address, concept in list(self.active_concepts.items()):
+        items = list(self.active_concepts.items())
+        for i, (token_address, concept) in enumerate(items):
             try:
                 action = await self.lifecycle.tick(token_address, concept)
                 if action:
                     logger.debug("[RAISE] Action: {} for {}", action.action_type, concept["symbol"])
             except Exception as e:
                 logger.error("[RAISE] Error managing {}: {}", concept["symbol"], e)
+            if i < len(items) - 1 and self.RAISE_INTER_TICK_DELAY > 0:
+                await asyncio.sleep(self.RAISE_INTER_TICK_DELAY)
 
     # ── LEARN Phase ───────────────────────────────────────────────────
 

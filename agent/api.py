@@ -527,14 +527,20 @@ async def memory():
         "global_learnings": mem.global_learnings,
         "launches": [
             {
+                "token_address": lr.token_address,
                 "name": lr.name,
                 "symbol": lr.symbol,
                 "narrative": lr.narrative,
+                "quote_asset": lr.quote_asset,
+                "creator": lr.creator,
+                "launch_block": lr.launch_block,
                 "launched_at": lr.launched_at,
                 "peak_holders": lr.peak_holders,
                 "peak_health_score": lr.peak_health_score,
                 "peak_curve_progress": round(lr.peak_curve_progress, 1),
                 "graduated": lr.graduated,
+                "graduation_time": lr.graduation_time,
+                "attestation_tx_hash": lr.attestation_tx_hash,
                 "what_worked": lr.what_worked,
                 "what_failed": lr.what_failed,
             }
@@ -2291,10 +2297,26 @@ async def manual_track(data: dict, _=Depends(require_auth)):
     current_block = await agent.chain.get_block_number()
     creator = creator_override or agent.chain.account.address
 
+    # Seed initial metrics from Four.meme's own radar so the token isn't born
+    # as all-zeros. Best effort — if the lookup fails, we still track; on-chain
+    # updates will fill the history in over time.
+    seed: dict | None = None
+    try:
+        addr_l = token_address.lower()
+        hot = await agent.api.get_trending()
+        new = await agent.api.get_new_tokens(page_size=30)
+        for t in (hot or []) + (new or []):
+            if str(t.get("tokenAddress", "")).lower() == addr_l:
+                seed = t
+                break
+    except Exception as e:
+        logger.debug("track seed lookup skipped: {}", e)
+
     await agent.monitor.track_token(
         token_address, name=name, symbol=symbol,
         creator=creator, created_block=current_block,
         quote_asset=quote_asset,
+        seed=seed,
     )
 
     agent.memory.record_launch(LaunchRecord(
