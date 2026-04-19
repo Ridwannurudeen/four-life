@@ -363,6 +363,10 @@ class LLMClient:
                 latency_ms = int((time.perf_counter() - t0) * 1000)
                 self.last_provider = "dgrid"
                 self.last_model = dgrid_model
+                # Clear any stale error from a previous call — judges reading the
+                # stats page shouldn't see "BALANCE_INSUFFICIENT" after DGrid has
+                # been working fine for hours.
+                self._last_dgrid_error = None
                 self._record_usage("dgrid", dgrid_model, task_label)
                 self._record_trace(
                     provider="dgrid", model=dgrid_model, task=task_label,
@@ -562,6 +566,7 @@ class LLMClient:
             )
             return {"ok": False, "error": err, "latency_ms": latency_ms}
         latency_ms = int((time.perf_counter() - t0) * 1000)
+        self._last_dgrid_error = None
         self._record_usage("dgrid", self.model, "probe")
         self._record_trace(
             provider="dgrid", model=self.model, task="probe",

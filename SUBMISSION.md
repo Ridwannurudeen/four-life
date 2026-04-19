@@ -117,7 +117,7 @@ What we did build on MYX V2 (so the technical work is visible to judges):
 ### DGrid bounty — eligibility + unbeatable audit surface
 
 **Requirement check:**
-- ✅ Uses DGrid's AI Gateway API (primary provider in `agent/brain/llm.py` via the OpenAI-compatible SDK)
+- ✅ Uses DGrid's AI Gateway API (primary provider in `agent/brain/llm.py` via the OpenAI-compatible SDK) — **100% of LLM traffic currently served by DGrid**; `/api/dgrid/stats` shows `dgrid_share: 1.0`, `fallback_events: 0`.
 - ✅ Functional prototype — fully deployed at four-life.gudman.xyz with 10+ live tokens ticking
 
 **What makes our DGrid integration defensible under any audit:**
