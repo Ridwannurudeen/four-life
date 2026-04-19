@@ -65,6 +65,20 @@ interface ProbeResult {
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 }
 
+interface CompareRow {
+  model: string;
+  ok: boolean;
+  latency_ms: number;
+  response?: string;
+  error?: string;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+}
+
+interface CompareResult {
+  prompt: string;
+  results: CompareRow[];
+}
+
 // ── Helpers ────────────────────────────────────────────────────
 
 const PROVIDER_STYLE: Record<string, { dot: string; text: string; bg: string; border: string }> = {
@@ -118,6 +132,9 @@ export default function DGridPage() {
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [probing, setProbing] = useState(false);
+  const [compareInput, setCompareInput] = useState("Describe a meme token launch in 20 words.");
+  const [compare, setCompare] = useState<CompareResult | null>(null);
+  const [comparing, setComparing] = useState(false);
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
 
   const reload = useCallback(async () => {
@@ -157,6 +174,33 @@ export default function DGridPage() {
       setProbe({ ok: false, error: String(e) });
     } finally {
       setProbing(false);
+    }
+  };
+
+  const runCompare = async () => {
+    setComparing(true);
+    setCompare(null);
+    try {
+      const res = await fetch(`${API}/api/dgrid/compare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: compareInput,
+          models: [
+            "google/gemini-2.5-flash",
+            "anthropic/claude-sonnet-4.5",
+            "openai/gpt-4o-mini",
+          ],
+          max_tokens: 120,
+        }),
+      });
+      const body: CompareResult = await res.json();
+      setCompare(body);
+      reload();
+    } catch (e) {
+      setCompare({ prompt: compareInput, results: [{ model: "error", ok: false, latency_ms: 0, error: String(e) }] });
+    } finally {
+      setComparing(false);
     }
   };
 
@@ -280,6 +324,53 @@ export default function DGridPage() {
           Remap via <code className="text-white/60">DGRID_TASK_OVERRIDES=&quot;content=anthropic/claude-sonnet-4.5&quot;</code>.
           All tasks default to the cheapest capable DGrid model for sustained operation.
         </div>
+      </Card>
+
+      {/* Side-by-side comparison */}
+      <Card className="mb-6">
+        <div className="eyebrow mb-3">Side-by-side model comparison via DGrid</div>
+        <p className="text-xs text-white/50 mb-4 max-w-2xl">
+          One prompt. Three models. One API. This is what judges from DGrid are evaluating: not just
+          &quot;did you call our endpoint&quot; but &quot;did you actually use the multi-model value prop.&quot;
+        </p>
+        <div className="grid md:grid-cols-[1fr_auto] gap-3 mb-4">
+          <input
+            value={compareInput}
+            onChange={(e) => setCompareInput(e.target.value)}
+            placeholder="Ask any question…"
+            className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 font-mono text-sm focus:outline-none focus:border-[#6cff32]/50 min-w-0"
+          />
+          <button
+            onClick={runCompare}
+            disabled={comparing || !compareInput.trim()}
+            className="btn-primary px-5 py-2 text-sm disabled:opacity-40 whitespace-nowrap"
+          >
+            {comparing ? "running 3 models…" : "compare models →"}
+          </button>
+        </div>
+        {compare && (
+          <div className="grid md:grid-cols-3 gap-3">
+            {compare.results.map((r) => (
+              <div
+                key={r.model}
+                className={`rounded-xl border p-3 ${r.ok ? "border-white/10 bg-white/[0.02]" : "border-[#ff494a]/30 bg-[#ff494a]/5"}`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-[11px] text-[#6cff32] truncate">{r.model}</span>
+                  <span className="text-[10px] text-white/40 font-mono">{r.latency_ms}ms</span>
+                </div>
+                <div className="text-xs text-white/80 whitespace-pre-wrap break-words min-h-[4rem]">
+                  {r.ok ? r.response : r.error}
+                </div>
+                {r.usage && (
+                  <div className="text-[10px] text-white/30 font-mono mt-2">
+                    {r.usage.total_tokens}tok ({r.usage.prompt_tokens} in · {r.usage.completion_tokens} out)
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Live trace */}

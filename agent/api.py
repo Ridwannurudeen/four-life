@@ -240,12 +240,75 @@ app.add_middleware(
 # but the VPS runs a single uvicorn worker so an in-memory bucket is sufficient.
 
 import time as _time_rl
-from collections import defaultdict as _defaultdict
+from collections import defaultdict as _defaultdict, deque as _deque
 
 _RL_WINDOW_SECONDS = 60
 _RL_PUBLIC_LIMIT = 120   # GET /api/** (public read)
 _RL_WRITE_LIMIT = 30     # POST /api/agent/** (write)
 _rate_buckets: dict[tuple[str, str], list[float]] = _defaultdict(list)
+
+# ── Metrics (latency + status histogram, in-memory) ──────────────────
+# Ring-buffer of per-request latency samples so the /metrics page can report
+# p50/p95/p99 without pulling in a full telemetry stack.
+METRICS_MAX_SAMPLES = 500
+_latency_samples: _deque = _deque(maxlen=METRICS_MAX_SAMPLES)
+_status_counts: dict[int, int] = _defaultdict(int)
+_endpoint_counts: dict[str, int] = _defaultdict(int)
+_endpoint_latency: dict[str, list[float]] = _defaultdict(list)
+_metrics_started_at = _time_rl.time()
+
+
+def _record_metric(path: str, status_code: int, latency_ms: float) -> None:
+    """Record one request sample. Bucket path to the first two segments so
+    parameterized routes (/api/token/{addr}/badge → /api/token) don't blow up
+    cardinality."""
+    _latency_samples.append(latency_ms)
+    _status_counts[status_code] += 1
+    parts = [p for p in path.split("/") if p][:2]
+    bucket = "/" + "/".join(parts) if parts else "/"
+    _endpoint_counts[bucket] += 1
+    samples = _endpoint_latency[bucket]
+    samples.append(latency_ms)
+    if len(samples) > 100:
+        # Trim per-bucket to last 100 so memory stays bounded.
+        del samples[: len(samples) - 100]
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    s = sorted(values)
+    k = max(0, min(len(s) - 1, int(round(len(s) * pct)) - 1))
+    return round(s[k], 2)
+
+
+def _metrics_snapshot() -> dict:
+    samples = list(_latency_samples)
+    error_count = sum(c for s, c in _status_counts.items() if s >= 500)
+    total = sum(_status_counts.values())
+    return {
+        "uptime_seconds": int(_time_rl.time() - _metrics_started_at),
+        "total_requests": total,
+        "error_rate_5xx": round(error_count / total, 4) if total else 0.0,
+        "latency_ms": {
+            "samples": len(samples),
+            "p50": _percentile(samples, 0.50),
+            "p95": _percentile(samples, 0.95),
+            "p99": _percentile(samples, 0.99),
+            "max": round(max(samples), 2) if samples else 0,
+            "avg": round(sum(samples) / len(samples), 2) if samples else 0,
+        },
+        "status_counts": dict(_status_counts),
+        "endpoints": [
+            {
+                "path": path,
+                "count": count,
+                "p50_ms": _percentile(_endpoint_latency[path], 0.50),
+                "p95_ms": _percentile(_endpoint_latency[path], 0.95),
+            }
+            for path, count in sorted(_endpoint_counts.items(), key=lambda kv: -kv[1])[:10]
+        ],
+    }
 
 
 @app.middleware("http")
@@ -288,9 +351,13 @@ async def rate_limit_middleware(request, call_next):
         )
 
     bucket.append(now)
+    t0 = _time_rl.perf_counter()
     response = await call_next(request)
+    latency_ms = (_time_rl.perf_counter() - t0) * 1000
+    _record_metric(path, response.status_code, latency_ms)
     response.headers["X-RateLimit-Limit"] = str(limit)
     response.headers["X-RateLimit-Remaining"] = str(max(0, limit - len(bucket)))
+    response.headers["X-Response-Time-Ms"] = f"{latency_ms:.1f}"
     return response
 
 
@@ -639,6 +706,98 @@ async def dgrid_health():
         "dgrid_calls": stats.get("dgrid_calls", 0),
         "dgrid_share": stats.get("dgrid_share", 0.0),
         "fallback_events": stats.get("fallback_events", 0),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/metrics",
+    tags=["dashboard"],
+    summary="Service reliability — latency p50/p95/p99, status counts, endpoint breakdown",
+)
+async def metrics():
+    """Public reliability surface. Samples the last 500 requests to report
+    latency percentiles (p50/p95/p99), 5xx error rate, request counts, and
+    the 10 busiest endpoints with per-endpoint p50/p95. Purely first-party —
+    no external telemetry required."""
+    return {
+        **_metrics_snapshot(),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/alerts",
+    tags=["protection"],
+    summary="Threat feed — recent Protection Mode level transitions",
+)
+async def alerts_feed(limit: int = 50, min_level: str | None = None):
+    """Public feed of Protection Mode firings.
+
+    Each entry is a real transition the agent observed: from_level → to_level,
+    the deterministic rules that fired, the token, and when. Filter to warn/
+    critical via ``min_level`` (default returns all transitions including
+    safe-recovery events).
+    """
+    limit = max(1, min(int(limit or 50), 200))
+    events = _protection_store().recent_events(limit=limit, min_level=min_level)
+    tokens = agent.monitor.state.tokens if agent else {}
+    enriched = []
+    for ev in events:
+        h = tokens.get(ev["token_address"])
+        enriched.append({
+            **ev,
+            "name": h.name if h else None,
+            "symbol": h.symbol if h else None,
+            "current_phase": h.phase if h else None,
+            "current_top_holder_pct": round(h.top_holder_pct, 2) if h else None,
+        })
+    return {
+        "count": len(enriched),
+        "limit": limit,
+        "min_level": min_level,
+        "events": enriched,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+class _CompareBody(BaseModel):
+    prompt: str = "Describe a meme token launch in 20 words."
+    models: list[str] = Field(
+        default_factory=lambda: [
+            "google/gemini-2.5-flash",
+            "anthropic/claude-sonnet-4.5",
+            "openai/gpt-4o-mini",
+        ]
+    )
+    max_tokens: int = 160
+
+
+@app.post(
+    "/api/dgrid/compare",
+    tags=["dgrid"],
+    summary="Run the same prompt on N models via DGrid — side-by-side comparison",
+)
+async def dgrid_compare(body: _CompareBody):
+    """Demonstrates DGrid's core value prop: one API, many models. Fires the
+    same prompt against every model in parallel and returns responses +
+    latencies + token counts so judges can see the comparison inline. Each
+    model either answers or fails with its own error — no fallback."""
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    # Cap models to 5 and prompt length to 400 chars so one call can't burn credits.
+    models = (body.models or [])[:5]
+    if not models:
+        return JSONResponse({"error": "at least one model is required"}, status_code=400)
+    prompt = (body.prompt or "")[:400] or "Say hi."
+    max_tokens = max(1, min(int(body.max_tokens or 160), 400))
+    results = await llm.compare_dgrid_models(prompt, models, max_tokens=max_tokens)
+    return {
+        "prompt": prompt,
+        "results": results,
         "model_version": MODEL_VERSION,
         "last_updated_at": int(time.time()),
     }

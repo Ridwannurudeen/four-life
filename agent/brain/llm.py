@@ -489,6 +489,51 @@ class LLMClient:
         items.reverse()
         return items[:max(0, int(limit))]
 
+    async def compare_dgrid_models(
+        self,
+        prompt: str,
+        models: list[str],
+        max_tokens: int = 200,
+    ) -> list[dict]:
+        """Run the same prompt against multiple DGrid models side-by-side.
+
+        Demonstrates the core DGrid value prop: one API, many models, one auth.
+        No fallback — each model either answers or reports its error. Failures
+        surface transparently so judges see the real behavior. Every call is
+        traced.
+        """
+        if not self.dgrid_configured:
+            return [{"model": m, "ok": False, "error": "DGrid not configured"} for m in models]
+        import asyncio
+        messages = [{"role": "user", "content": prompt}]
+
+        async def one(model: str) -> dict:
+            t0 = time.perf_counter()
+            try:
+                text, usage = await self._dgrid_chat_raw(
+                    messages, max_tokens, 0.7, json_mode=False, model=model,
+                )
+                latency_ms = int((time.perf_counter() - t0) * 1000)
+                self._record_usage("dgrid", model, "compare")
+                self._record_trace(
+                    provider="dgrid", model=model, task="compare",
+                    latency_ms=latency_ms, fallback_depth=0, success=True, usage=usage,
+                )
+                return {
+                    "model": model, "ok": True, "latency_ms": latency_ms,
+                    "response": text.strip(), "usage": usage,
+                }
+            except Exception as e:
+                latency_ms = int((time.perf_counter() - t0) * 1000)
+                err = self._redact(str(e))[:240]
+                self._record_trace(
+                    provider="dgrid", model=model, task="compare",
+                    latency_ms=latency_ms, fallback_depth=0, success=False, error=err,
+                )
+                return {"model": model, "ok": False, "latency_ms": latency_ms, "error": err}
+
+        return await asyncio.gather(*[one(m) for m in models])
+
     async def probe_dgrid(self) -> dict:
         """Fire a single DGrid-only call. Never falls back — the point is to
         let judges verify DGrid-served traffic in isolation.

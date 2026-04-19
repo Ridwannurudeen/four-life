@@ -285,6 +285,178 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
   );
 }
 
+// ── Try it now ────────────────────────────────────────────────────────
+
+interface BadgeWhy {
+  rule: string;
+  metric: string;
+  value: string | number | boolean;
+  threshold: string | number | boolean;
+  operator: string;
+  passed: boolean;
+}
+
+interface TryBadge {
+  tier: Tier;
+  label: string;
+  description: string;
+  why: BadgeWhy[];
+}
+
+interface TryBadgeResponse {
+  token_address: string;
+  badge: TryBadge;
+  last_updated_at: number;
+}
+
+const TRY_TIER_STYLE: Record<Tier, { dot: string; text: string; bg: string; border: string }> = {
+  graduated: { dot: "bg-purple-400", text: "text-purple-300", bg: "bg-purple-500/10", border: "border-purple-500/40" },
+  graduation_watch: { dot: "bg-[#00d4ff]", text: "text-[#00d4ff]", bg: "bg-[#00d4ff]/10", border: "border-[#00d4ff]/40" },
+  healthy: { dot: "bg-[#6cff32]", text: "text-[#6cff32]", bg: "bg-[#6cff32]/10", border: "border-[#6cff32]/40" },
+  at_risk: { dot: "bg-[#ff494a]", text: "text-[#ff494a]", bg: "bg-[#ff494a]/10", border: "border-[#ff494a]/40" },
+  observed: { dot: "bg-[#ffd641]", text: "text-[#ffd641]", bg: "bg-[#ffd641]/10", border: "border-[#ffd641]/40" },
+};
+
+const TRY_EXAMPLES = [
+  { label: "Graduation Watch", addr: "0xd8c1c7b065ec8548093fe237157088b984dc4444" },
+  { label: "Observed", addr: "0x8b630c0e672cac94f27cbe7bf2456e6d53694444" },
+];
+
+function TryNow() {
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<TryBadgeResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = useCallback(async (addr: string) => {
+    const cleaned = addr.trim().toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(cleaned)) {
+      setError("Paste a valid 0x… token address.");
+      setResult(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/api/token/${cleaned}/badge`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || `Grade unavailable (HTTP ${res.status}). Try /api/agent/track to start watching.`);
+        setResult(null);
+      } else {
+        setResult(await res.json());
+      }
+    } catch (e) {
+      setError(String(e));
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const badge = result?.badge;
+  const style = badge ? TRY_TIER_STYLE[badge.tier] : null;
+
+  return (
+    <section id="try" className="max-w-7xl mx-auto px-5 pb-16 md:pb-24">
+      <div className="rounded-3xl border border-white/10 bg-white/[0.02] overflow-hidden">
+        <div className="p-6 md:p-8 border-b border-white/5">
+          <div className="eyebrow mb-3">Try it — no signup</div>
+          <h2 className="display display-md mb-3">Grade any Four.meme token. Right now.</h2>
+          <p className="text-white/55 text-sm md:text-base max-w-2xl">
+            Paste an address below. Same endpoint the SDK hits. Same answer the agent uses. Zero LLM in the trust path —
+            the rules that fired are shown below the grade.
+          </p>
+        </div>
+
+        <div className="p-6 md:p-8 grid md:grid-cols-[1fr_auto] gap-3 items-stretch">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") run(input); }}
+            placeholder="0x…token_address"
+            className="bg-black/40 border border-white/10 rounded-xl px-4 py-3 font-mono text-sm focus:outline-none focus:border-[#6cff32]/50 min-w-0"
+          />
+          <button
+            onClick={() => run(input)}
+            disabled={loading || !input.trim()}
+            className="btn-primary px-6 py-3 text-sm disabled:opacity-40 whitespace-nowrap"
+          >
+            {loading ? "grading…" : "Grade →"}
+          </button>
+        </div>
+
+        <div className="px-6 md:px-8 pb-6 md:pb-8 flex items-center gap-3 flex-wrap text-xs text-white/40">
+          <span>Or try an example:</span>
+          {TRY_EXAMPLES.map((e) => (
+            <button
+              key={e.addr}
+              onClick={() => { setInput(e.addr); run(e.addr); }}
+              className="hover:text-white/80 underline font-mono"
+            >
+              {e.label}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div className="px-6 md:px-8 pb-6 text-xs text-[#ff494a]">{error}</div>
+        )}
+
+        {badge && style && (
+          <div className={`border-t ${style.border} ${style.bg} p-6 md:p-8`}>
+            <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                  <span className="eyebrow">FOUR-LIFE Certified</span>
+                </div>
+                <div className={`text-3xl md:text-4xl font-bold ${style.text}`}>{badge.label}</div>
+                <p className="text-sm text-white/60 mt-2 max-w-xl">{badge.description}</p>
+              </div>
+              <Link
+                href={`/launch/${result?.token_address}`}
+                className="text-xs text-white/60 hover:text-white underline"
+              >
+                open full page →
+              </Link>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="text-white/40 uppercase tracking-wider">
+                    <th className="text-left py-2 pr-4">Rule</th>
+                    <th className="text-left py-2 pr-4">Metric</th>
+                    <th className="text-left py-2 pr-4">Value / Threshold</th>
+                    <th className="text-left py-2">Fired</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(badge.why || []).map((w, i) => (
+                    <tr key={i} className="border-t border-white/5">
+                      <td className="py-2 pr-4 font-mono">{w.rule}</td>
+                      <td className="py-2 pr-4 text-white/60">{w.metric}</td>
+                      <td className="py-2 pr-4 font-mono text-white/70">
+                        {String(w.value)} {w.operator} {String(w.threshold)}
+                      </td>
+                      <td className="py-2">
+                        <span className={w.passed ? "text-[#6cff32]" : "text-white/40"}>
+                          {w.passed ? "✓" : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── Live metrics band ─────────────────────────────────────────────────
 
 function LiveMetricsBand({ metrics }: { metrics: LiveMetrics }) {
@@ -792,6 +964,7 @@ export default function Landing() {
       </Reveal>
 
       <LiveTicker sample={metrics.radarSample} />
+      <Reveal><TryNow /></Reveal>
       <Reveal><LiveMetricsBand metrics={metrics} /></Reveal>
       <Reveal><Primitives /></Reveal>
       <Reveal><HowItWorks /></Reveal>

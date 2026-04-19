@@ -67,6 +67,20 @@ CREATE TABLE IF NOT EXISTS protection_levels (
     fired_rules_json TEXT NOT NULL,
     recorded_at INTEGER NOT NULL
 );
+
+-- Append-only log of every level transition. Unlike protection_levels (which
+-- stores only the CURRENT state), this preserves the full threat-feed history
+-- so judges (and the /alerts page) can see what the agent caught and when.
+CREATE TABLE IF NOT EXISTS protection_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_address TEXT NOT NULL,
+    from_level TEXT,
+    to_level TEXT NOT NULL,
+    fired_rules_json TEXT NOT NULL,
+    recorded_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_protection_events_ts ON protection_events(recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_protection_events_token ON protection_events(token_address);
 """
 
 
@@ -441,9 +455,16 @@ class ProtectionStore:
         now: int | None = None,
     ) -> tuple[bool, str | None]:
         """Record a verdict. Returns (transitioned, prev_level). A transition means
-        the level is different from the last-known level for this token."""
+        the level is different from the last-known level for this token.
+
+        On transitions we also append to ``protection_events`` so the /alerts
+        threat feed has a full history, not just the current state.
+        """
         token_key = (token_address or "").lower()
         ts = now if now is not None else int(time.time())
+        fired_rules_json = json.dumps(
+            [r.to_dict() for r in verdict.fired_rules], separators=(",", ":"),
+        )
         with self._write_lock:
             with self._connect() as conn:
                 prev = conn.execute(
@@ -461,15 +482,56 @@ class ProtectionStore:
                         fired_rules_json = excluded.fired_rules_json,
                         recorded_at = excluded.recorded_at
                     """,
-                    (
-                        token_key,
-                        verdict.level,
-                        json.dumps([r.to_dict() for r in verdict.fired_rules], separators=(",", ":")),
-                        ts,
-                    ),
+                    (token_key, verdict.level, fired_rules_json, ts),
                 )
+                if transitioned:
+                    conn.execute(
+                        """
+                        INSERT INTO protection_events
+                            (token_address, from_level, to_level, fired_rules_json, recorded_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (token_key, prev_level, verdict.level, fired_rules_json, ts),
+                    )
                 conn.commit()
         return (transitioned, prev_level)
+
+    def recent_events(
+        self,
+        *,
+        limit: int = 100,
+        min_level: str | None = None,
+    ) -> list[dict]:
+        """Return the N newest transitions (newest first). If ``min_level`` is
+        set (e.g. "warn"), filters to transitions at or above that level."""
+        limit = max(1, min(int(limit), 500))
+        query = "SELECT id, token_address, from_level, to_level, fired_rules_json, recorded_at FROM protection_events"
+        params: list = []
+        if min_level:
+            # At-or-above semantics for warn → [warn, critical], critical → [critical]
+            allowed = [l for l, r in _LEVEL_RANK.items() if r >= _LEVEL_RANK.get(min_level, 0)]
+            placeholders = ",".join(["?"] * len(allowed))
+            query += f" WHERE to_level IN ({placeholders})"
+            params.extend(allowed)
+        query += " ORDER BY recorded_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        out: list[dict] = []
+        for r in rows:
+            try:
+                rules = json.loads(r["fired_rules_json"])
+            except Exception:
+                rules = []
+            out.append({
+                "id": int(r["id"]),
+                "token_address": r["token_address"],
+                "from_level": r["from_level"],
+                "to_level": r["to_level"],
+                "fired_rules": rules,
+                "recorded_at": int(r["recorded_at"]),
+            })
+        return out
 
 
 def _row_to_policy(row: sqlite3.Row) -> ProtectionPolicy:

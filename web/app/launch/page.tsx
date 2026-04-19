@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const API = (process.env.NEXT_PUBLIC_API_URL || "https://four-life.gudman.xyz").replace(/\/$/, "");
 
@@ -84,6 +93,29 @@ interface TokenPayload {
     buy_volume_bnb: number;
     sell_volume_bnb: number;
   };
+}
+
+interface HistorySnapshot {
+  id: number;
+  token_address: string;
+  tier: Tier;
+  risk_level: string | null;
+  metrics: {
+    curve_progress_pct: number;
+    health_score: number;
+    buy_sell_ratio: number;
+    holder_velocity: number;
+    top_holder_pct: number;
+    age_hours: number;
+    unique_buyers: number;
+  };
+  recorded_at: number;
+}
+
+interface HistoryResponse {
+  token_address: string;
+  count: number;
+  snapshots: HistorySnapshot[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -207,6 +239,83 @@ function Metric({ label, value, unit }: { label: string; value: string | number;
   );
 }
 
+// Encode tier as numeric so we can chart transitions over time.
+const TIER_RANK: Record<Tier, number> = {
+  at_risk: 1,
+  observed: 2,
+  healthy: 3,
+  graduation_watch: 4,
+  graduated: 5,
+};
+
+const TIER_RANK_LABEL = ["", "At Risk", "Observed", "Healthy", "Grad Watch", "Graduated"];
+
+function HistoryChart({ snapshots }: { snapshots: HistorySnapshot[] }) {
+  if (!snapshots || snapshots.length === 0) {
+    return (
+      <p className="text-sm text-white/50">
+        No history yet. FOUR-LIFE records a snapshot on every tier transition and every hour — come back soon.
+      </p>
+    );
+  }
+  // Oldest -> newest for the chart
+  const rows = [...snapshots]
+    .sort((a, b) => a.recorded_at - b.recorded_at)
+    .map((s) => ({
+      ts: s.recorded_at * 1000,
+      tierRank: TIER_RANK[s.tier] ?? 2,
+      tier: s.tier,
+      curve: s.metrics?.curve_progress_pct ?? 0,
+      health: s.metrics?.health_score ?? 0,
+    }));
+
+  const fmtTime = (t: number) => {
+    const d = new Date(t);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="h-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={rows} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+            <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis
+              dataKey="ts"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              tickFormatter={fmtTime}
+              tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
+              stroke="rgba(255,255,255,0.1)"
+            />
+            <YAxis
+              domain={[1, 5]}
+              ticks={[1, 2, 3, 4, 5]}
+              tickFormatter={(v) => TIER_RANK_LABEL[v] || ""}
+              tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 10 }}
+              stroke="rgba(255,255,255,0.1)"
+              width={90}
+            />
+            <Tooltip
+              contentStyle={{ background: "#0f1012", border: "1px solid rgba(255,255,255,0.1)", fontSize: 11 }}
+              labelFormatter={(v) => new Date(v as number).toLocaleString()}
+              formatter={(v, _, p) =>
+                p?.dataKey === "tierRank"
+                  ? [TIER_RANK_LABEL[v as number] || "", "Tier"]
+                  : [v as number, "Tier rank"]
+              }
+            />
+            <Line type="stepAfter" dataKey="tierRank" stroke="#6cff32" strokeWidth={2} dot={{ r: 3, fill: "#6cff32" }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="text-[10px] text-white/40 font-mono">
+        {rows.length} snapshot{rows.length === 1 ? "" : "s"} · oldest {fmtTime(rows[0].ts)} · newest {fmtTime(rows[rows.length - 1].ts)}
+      </div>
+    </div>
+  );
+}
+
 function RiskEvidence({ risk }: { risk: RiskSnapshot }) {
   if (!risk?.evidence?.length) {
     return (
@@ -237,6 +346,7 @@ export default function LaunchPage() {
   const [badge, setBadge] = useState<BadgeResponse | null>(null);
   const [risk, setRisk] = useState<RiskSnapshot | null>(null);
   const [info, setInfo] = useState<TokenPayload | null>(null);
+  const [history, setHistory] = useState<HistorySnapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -247,10 +357,11 @@ export default function LaunchPage() {
       setLoading(true);
       setError(null);
       try {
-        const [b, r, t] = await Promise.all([
+        const [b, r, t, h] = await Promise.all([
           fetch(`${API}/api/token/${token}/badge`).then((r) => (r.ok ? r.json() : null)),
           fetch(`${API}/api/token/${token}/risk-snapshot`).then((r) => (r.ok ? r.json() : null)),
           fetch(`${API}/api/tokens/${token}`).then((r) => (r.ok ? r.json() : null)),
+          fetch(`${API}/api/token/${token}/history?limit=100`).then((r) => (r.ok ? r.json() : null)),
         ]);
         if (cancelled) return;
         if (!b && !r && !t) {
@@ -259,6 +370,7 @@ export default function LaunchPage() {
         setBadge(b);
         setRisk(r);
         setInfo(t);
+        setHistory(((h as HistoryResponse | null)?.snapshots) || []);
       } catch (e) {
         if (!cancelled) setError(String(e));
       } finally {
@@ -362,6 +474,16 @@ export default function LaunchPage() {
               <RiskEvidence risk={risk} />
             </Card>
           )}
+
+          <Card>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="eyebrow">Tier history</div>
+              <div className="text-[11px] text-white/40">
+                Every tick the agent decides: should the tier change? Every transition is on this timeline.
+              </div>
+            </div>
+            <HistoryChart snapshots={history} />
+          </Card>
 
           <Card className="bg-gradient-to-r from-white/[0.02] to-white/[0.05]">
             <div className="flex items-center justify-between flex-wrap gap-4">
