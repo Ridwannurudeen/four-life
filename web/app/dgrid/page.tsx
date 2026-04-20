@@ -336,7 +336,11 @@ export default function DGridPage() {
         body: JSON.stringify({
           prompt: consensusInput,
           vote_key: "action",
-          max_tokens: 200,
+          // Gemini 2.5 Flash is a "thinking" model — it spends ~300+
+          // completion tokens reasoning before emitting visible output, so
+          // budgets < 500 risk truncating mid-JSON. 600 gives headroom
+          // without materially increasing cost.
+          max_tokens: 600,
         }),
       });
       const body: ConsensusResult = await res.json();

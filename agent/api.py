@@ -911,7 +911,9 @@ class _ConsensusBody(BaseModel):
     prompt: str
     vote_key: str = "action"
     models: list[str] | None = None
-    max_tokens: int = 400
+    # Default 600 so Gemini 2.5 Flash (a reasoning model — spends 300+ tokens
+    # thinking before emitting visible output) doesn't truncate mid-JSON.
+    max_tokens: int = 600
     temperature: float = 0.4
 
 

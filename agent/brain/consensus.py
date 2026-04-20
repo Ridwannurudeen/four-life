@@ -38,7 +38,11 @@ async def consensus_vote(
     *,
     models: list[str] | None = None,
     vote_key: str = "action",
-    max_tokens: int = 400,
+    # Budget accounts for Gemini 2.5 Flash "thinking" tokens — the model
+    # burns 300+ tokens on invisible reasoning before emitting the visible
+    # JSON answer. At <500 we risk truncating mid-output; 600 is the safe
+    # floor for mixed-model consensus.
+    max_tokens: int = 600,
     temperature: float = 0.4,
     json_mode: bool = True,
 ) -> dict:
