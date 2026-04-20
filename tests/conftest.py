@@ -15,17 +15,21 @@ os.environ.setdefault("BSC_RPC_URL", "https://bsc-dataseed.binance.org")
 # Keep the DGrid attestation chain in-memory only during tests so one test run
 # doesn't pollute another or write a stray file into the repo.
 os.environ["DGRID_ATTEST_PERSIST"] = "false"
+os.environ["MYX_PERSIST"] = "false"
 
 
 @pytest.fixture(autouse=True)
 def _reset_dgrid_singletons():
-    """Reset LLM + attestation singletons between tests so each test starts
+    """Reset LLM + attestation + MYX singletons between tests so each starts
     from a clean state (no carried-over counters, no prior chain tip)."""
     from agent.brain import attestation as _att
     from agent.brain import llm as _llm
+    from agent.myx import store as _myx
 
     _att.reset_chain_for_tests()
     _llm.reset_llm_for_tests()
+    _myx.reset_myx_for_tests()
     yield
     _att.reset_chain_for_tests()
     _llm.reset_llm_for_tests()
+    _myx.reset_myx_for_tests()

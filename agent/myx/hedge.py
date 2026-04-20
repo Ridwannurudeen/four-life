@@ -17,6 +17,12 @@ from dataclasses import dataclass, field
 from loguru import logger
 
 from agent.myx.client import MYXClient, MYXStrategy
+from agent.myx.store import (
+    MYXAttestationChain,
+    get_myx_chain,
+    get_position_log,
+    get_signal_log,
+)
 
 
 @dataclass
@@ -153,6 +159,24 @@ class HedgeManager:
                     signal.get("action", "unknown"),
                     signal.get("confidence", 0),
                 )
+                # Persist every signal so the dashboard can show unbounded
+                # history and judges can replay every decision the agent
+                # has made on MYX.
+                try:
+                    get_signal_log().append({
+                        "ts_ms": int(time.time() * 1000),
+                        "token_address": token_address.lower(),
+                        "phase": phase,
+                        "action": signal.get("action", "unknown"),
+                        "confidence": float(signal.get("confidence", 0) or 0),
+                        "size_pct": float(signal.get("size_pct", 0) or 0),
+                        "reasoning": str(signal.get("reasoning", ""))[:400],
+                        "execution_mode": self.execution_mode,
+                        "health_score": token_health.get("health_score"),
+                        "active_positions": len(state.active_positions),
+                    })
+                except Exception as persist_err:
+                    logger.warning("[HEDGE] Signal persist skipped: {}", persist_err)
             except Exception as e:
                 logger.error("[HEDGE] Signal generation failed: {}", e)
                 return None
@@ -266,6 +290,33 @@ class HedgeManager:
                 "[HEDGE] Opened {} for {} — tx: {}",
                 direction, token_address[:10], tx_hash,
             )
+            # Chain this trade into the MYX attestation. Each position open/
+            # close is hashed into a rolling Merkle tip that can be published
+            # on-chain as cryptographic proof of trading activity.
+            try:
+                ts_ms = int(time.time() * 1000)
+                digest = MYXAttestationChain.event_digest(
+                    kind="open", token_address=token_address,
+                    pair_index=pair_index, is_long=is_long,
+                    collateral_wei=collateral_wei, size_amount=size_amount,
+                    tx_hash=tx_hash, ts_ms=ts_ms,
+                )
+                chain_tip = get_myx_chain().append(digest)
+                get_position_log().append({
+                    "ts_ms": ts_ms,
+                    "kind": "open",
+                    "token_address": token_address.lower(),
+                    "pair_index": pair_index,
+                    "is_long": is_long,
+                    "collateral_wei": str(collateral_wei),
+                    "size_amount": str(size_amount),
+                    "tx_hash": tx_hash,
+                    "event_digest": digest,
+                    "chain_tip": chain_tip,
+                    "reason": signal.get("reasoning", "")[:200],
+                })
+            except Exception as chain_err:
+                logger.warning("[HEDGE] Attestation append skipped: {}", chain_err)
 
             return {
                 "action": f"open_{direction.lower()}",
@@ -304,6 +355,31 @@ class HedgeManager:
                 state.total_closed += 1
                 closed.append(tx_hash)
                 logger.info("[HEDGE] Closed position for {} — tx: {}", token_address[:10], tx_hash)
+                # Fold the close event into the attestation chain too.
+                try:
+                    ts_ms = int(time.time() * 1000)
+                    digest = MYXAttestationChain.event_digest(
+                        kind="close", token_address=token_address,
+                        pair_index=pos.pair_index, is_long=pos.is_long,
+                        collateral_wei=pos.collateral_wei, size_amount=pos.size_amount,
+                        tx_hash=tx_hash, ts_ms=ts_ms,
+                    )
+                    chain_tip = get_myx_chain().append(digest)
+                    get_position_log().append({
+                        "ts_ms": ts_ms,
+                        "kind": "close",
+                        "token_address": token_address.lower(),
+                        "pair_index": pos.pair_index,
+                        "is_long": pos.is_long,
+                        "collateral_wei": str(pos.collateral_wei),
+                        "size_amount": str(pos.size_amount),
+                        "tx_hash": tx_hash,
+                        "event_digest": digest,
+                        "chain_tip": chain_tip,
+                        "reason": reason[:200],
+                    })
+                except Exception as chain_err:
+                    logger.warning("[HEDGE] Close attestation skipped: {}", chain_err)
             except Exception as e:
                 logger.error("[HEDGE] Failed to close position: {}", e)
 

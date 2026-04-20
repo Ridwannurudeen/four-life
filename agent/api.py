@@ -1164,6 +1164,136 @@ async def myx_evaluate(token_address: str):
     return {"result": result}
 
 
+@app.get(
+    "/api/myx/signals",
+    tags=["myx"],
+    summary="Recent MYX signals — paginated, unbounded history (persisted to disk)",
+)
+async def myx_signals(
+    token_address: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Signal feed for the MYX dashboard. Returns the last ``limit`` signals,
+    optionally filtered by ``token_address``. Unlike the in-memory ring in
+    HedgeManager, this reads from the append-only JSONL log so every signal
+    the agent has ever produced is reconstructible.
+    """
+    from agent.myx.store import get_signal_log
+    log = get_signal_log()
+    limit = max(1, min(int(limit or 50), 500))
+    offset = max(0, int(offset))
+    if token_address:
+        # Filter by token — read a larger window then slice
+        rows = log.tail(n=limit + offset, token_address=token_address)
+        rows = rows[offset : offset + limit]
+    else:
+        total = log.count()
+        # tail = last N in insertion order then reverse
+        rows = log.tail(n=limit + offset)
+        rows = rows[offset : offset + limit]
+    return {
+        "count": len(rows),
+        "offset": offset,
+        "limit": limit,
+        "token_address": token_address,
+        "total_ever": log.count(),
+        "signals": rows,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/myx/audit",
+    tags=["myx"],
+    summary="MYX trade attestation — cryptographic proof of perp activity",
+)
+async def myx_audit():
+    """Current Merkle commitment to every position event (open + close) the
+    agent has executed on MYX.
+
+    Same pattern as /api/dgrid/audit. Every trade is hashed, chained, and the
+    tip can be published on BNB Chain via POST /api/myx/attest (admin)."""
+    from agent.myx.store import get_myx_chain, get_position_log
+    chain = get_myx_chain()
+    log = get_position_log()
+    snap = chain.snapshot()
+    snap["position_log_count"] = log.count()
+    snap["execution_enabled"] = bool(agent and agent.hedge_manager and agent.hedge_manager.execution_enabled)
+    snap["model_version"] = MODEL_VERSION
+    snap["last_updated_at"] = int(time.time())
+    return snap
+
+
+@app.get(
+    "/api/myx/audit/events",
+    tags=["myx"],
+    summary="Full MYX position event log for independent Merkle verification",
+)
+async def myx_audit_events(offset: int = 0, limit: int = 500):
+    """Paginated log of every open / close event the agent has executed on MYX.
+    Each entry includes ``event_digest`` + ``chain_tip`` so callers can fold
+    them locally and verify against ``/api/myx/audit.current_root``."""
+    from agent.myx.store import get_position_log, get_myx_chain
+    log = get_position_log()
+    chain = get_myx_chain()
+    offset = max(0, int(offset))
+    limit = max(1, min(int(limit or 500), 2000))
+    events = log.read_range(offset, limit)
+    snap = chain.snapshot()
+    return {
+        "offset": offset,
+        "limit": limit,
+        "count": len(events),
+        "total": log.count(),
+        "events": events,
+        "current_root": snap["current_root"],
+        "genesis": snap["genesis"],
+        "last_published_root": snap["last_published_root"],
+        "last_published_txhash": snap["last_published_txhash"],
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.post(
+    "/api/myx/attest",
+    tags=["myx"],
+    summary="Publish the MYX attestation Merkle root on BNB Chain",
+    dependencies=[Depends(require_auth)],
+)
+async def myx_attest():
+    """Opt-in. Publish the current MYX attestation tip on BNB Chain as a
+    self-tx with the root in the tx data field. Admin-protected because it
+    costs BNB. Returns the txhash + updated snapshot."""
+    from agent.myx.store import get_myx_chain
+    from agent.brain.attestation import publish_root_onchain  # reuse DGrid publisher
+    from agent.config import settings as _settings
+    if not getattr(_settings, "dgrid_attest_onchain", False):
+        raise HTTPException(status_code=403, detail="DGRID_ATTEST_ONCHAIN must be true (reused flag gates both publishers)")
+    chain = get_myx_chain()
+    snap = chain.snapshot()
+    root = snap["current_root"]
+    count = int(snap.get("num_events_chained", 0))
+    if count == 0:
+        raise HTTPException(status_code=400, detail="no MYX events to attest yet")
+    try:
+        txhash = await publish_root_onchain(root)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"MYX attestation publish failed: {e}") from e
+    chain.record_attestation(root, txhash, count)
+    return {
+        "published_root": root,
+        "txhash": txhash,
+        "bscscan_url": f"https://bscscan.com/tx/{txhash}",
+        "num_events_attested": count,
+        **chain.snapshot(),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
 # ── Public Integration APIs ──────────────────────────────────────────
 # These endpoints are designed for Four.meme to consume directly.
 # No auth required. Any token address works.

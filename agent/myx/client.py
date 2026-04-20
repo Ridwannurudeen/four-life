@@ -314,9 +314,10 @@ class MYXStrategy:
         """
         from agent.brain.llm import get_llm
 
-        return await get_llm().chat_json_task([{
-            "role": "user",
-            "content": f"""You are FOUR-LIFE's perp trading module on MYX V2.
+        return await get_llm().chat_json_task(
+            [{
+                "role": "user",
+                "content": f"""You are FOUR-LIFE's perp trading module on MYX V2.
 
 TOKEN HEALTH (Four.meme spot market):
 {json.dumps(token_health, indent=2, default=str)}
@@ -333,4 +334,12 @@ Respond in JSON: {{"action": "long"|"short"|"close"|"hold", "confidence": float,
 
 size_pct is what % of available capital to use (0.01 = 1%, max 0.1 = 10%).
 Be conservative. This is risk management, not gambling."""
-        }], task="risk")
+            }],
+            task="risk",
+            # Gemini 2.5 Flash (the default risk-task model) burns 300-1500
+            # tokens on invisible reasoning before emitting the visible JSON.
+            # 1500 gives the model room to think AND finish the answer; raising
+            # further has negligible cost impact (cheap model) but prevents the
+            # mid-JSON truncation that produced "Unterminated string" errors.
+            max_tokens=1500,
+        )
