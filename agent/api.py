@@ -248,13 +248,15 @@ _RL_WRITE_LIMIT = 30     # POST /api/agent/** (write)
 _RL_LLM_LIMIT = 10       # POST /api/dgrid/(compare|probe|consensus) — each call burns DGrid credits
 _rate_buckets: dict[tuple[str, str], list[float]] = _defaultdict(list)
 
-# Endpoints that fire real LLM traffic — stricter bucket so the public showcase
-# surface can't be weaponized to burn DGrid credits.
+# Endpoints that fire real LLM traffic OR flip global DGrid state — stricter
+# bucket so the public showcase surface can't be weaponized to burn credits or
+# grief the service via endless chaos toggling.
 _LLM_BURN_PREFIXES = (
     "/api/dgrid/compare",
     "/api/dgrid/probe",
     "/api/dgrid/consensus",
     "/api/dgrid/attest",
+    "/api/dgrid/chaos",
 )
 
 # ── Metrics (latency + status histogram, in-memory) ──────────────────
@@ -855,16 +857,16 @@ class _ChaosBody(BaseModel):
     "/api/dgrid/chaos",
     tags=["dgrid"],
     summary="Toggle chaos mode — force DGrid failures to demo fallback chain",
-    dependencies=[Depends(require_auth)],
 )
 async def dgrid_chaos(body: _ChaosBody):
-    """Admin-only. When ``enabled=true``, every subsequent DGrid call fails with
-    a simulated outage, exercising the full fallback chain (Anthropic → OpenAI).
-    Used for demo: judges press a button on the /dgrid page and see the agent
-    keep working through the fallback providers.
+    """Public demo endpoint. When ``enabled=true``, every subsequent DGrid call
+    fails with a simulated outage, exercising the full fallback chain
+    (Anthropic → OpenAI). Judges press a button on the /dgrid page and see the
+    agent keep working through the fallback providers.
 
-    The circuit breaker trips normally; flipping chaos off resets the breaker so
-    the next call tries DGrid again.
+    The circuit breaker trips normally; flipping chaos off resets the breaker
+    so the next call tries DGrid again. Rate-limited at 10/min per IP (LLM
+    burn bucket) so the toggle can't be abused to grief the service.
     """
     from agent.brain.llm import get_llm
     llm = get_llm()

@@ -861,7 +861,7 @@ export default function DGridPage() {
           <div><span className="text-[#ffd641]">POST</span> /api/dgrid/probe — force a DGrid-only call, verify live</div>
           <div><span className="text-[#ffd641]">POST</span> /api/dgrid/compare — N models, same prompt, side-by-side</div>
           <div><span className="text-[#ffd641]">POST</span> /api/dgrid/consensus — N models vote on a JSON field</div>
-          <div><span className="text-[#ff494a]">POST</span> /api/dgrid/chaos — (admin) toggle simulated DGrid outage</div>
+          <div><span className="text-[#ff494a]">POST</span> /api/dgrid/chaos — toggle simulated DGrid outage (rate-limited)</div>
           <div><span className="text-[#ff494a]">POST</span> /api/dgrid/attest — (admin) publish Merkle root on BNB Chain</div>
         </div>
         <div className="text-[11px] text-white/40 mt-4">
