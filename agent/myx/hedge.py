@@ -19,7 +19,9 @@ from loguru import logger
 from agent.myx.client import MYXClient, MYXStrategy
 from agent.myx.store import (
     MYXAttestationChain,
+    MYXSignalAttestationChain,
     get_myx_chain,
+    get_myx_signal_chain,
     get_position_log,
     get_signal_log,
 )
@@ -136,7 +138,11 @@ class HedgeManager:
         state = self._get_state(token_address)
         now = time.time()
 
-        # Generate a signal (rate-limited)
+        # Generate a signal (rate-limited). For DEFEND — the phase where the
+        # agent actually executes — we fan the decision across 3 DGrid models
+        # and take the majority vote. This is the cross-partner flex: the
+        # single-provider integration can't do this at all.
+        use_consensus = phase == "defend"
         signal = None
         if now - state.last_signal_at >= SIGNAL_COOLDOWN:
             try:
@@ -149,6 +155,7 @@ class HedgeManager:
                         "active_positions": len(state.active_positions),
                         "phase": phase,
                     },
+                    use_consensus=use_consensus,
                 )
                 state.last_signal = signal
                 state.last_signal_at = now
@@ -160,20 +167,49 @@ class HedgeManager:
                     signal.get("confidence", 0),
                 )
                 # Persist every signal so the dashboard can show unbounded
-                # history and judges can replay every decision the agent
-                # has made on MYX.
+                # history AND fold into the signal attestation chain so the
+                # agent's thinking is cryptographically committed even when
+                # no trade ever executes (MYX router verification pending).
                 try:
+                    import hashlib as _hashlib
+                    ts_ms = int(time.time() * 1000)
+                    action = str(signal.get("action", "unknown"))
+                    confidence = float(signal.get("confidence", 0) or 0)
+                    size_pct = float(signal.get("size_pct", 0) or 0)
+                    reasoning_text = str(signal.get("reasoning", ""))[:400]
+                    reasoning_hash = _hashlib.sha256(reasoning_text.encode()).hexdigest()
+                    consensus_meta = signal.get("consensus") or {}
+                    consensus_method = consensus_meta.get("method") if isinstance(consensus_meta, dict) else None
+                    consensus_conf = consensus_meta.get("confidence") if isinstance(consensus_meta, dict) else None
+
+                    digest = MYXSignalAttestationChain.signal_digest(
+                        token_address=token_address,
+                        phase=phase,
+                        action=action,
+                        confidence=confidence,
+                        size_pct=size_pct,
+                        reasoning_hash=reasoning_hash,
+                        ts_ms=ts_ms,
+                        consensus_method=consensus_method,
+                        consensus_confidence=consensus_conf,
+                    )
+                    chain_tip = get_myx_signal_chain().append(digest)
+
                     get_signal_log().append({
-                        "ts_ms": int(time.time() * 1000),
+                        "ts_ms": ts_ms,
                         "token_address": token_address.lower(),
                         "phase": phase,
-                        "action": signal.get("action", "unknown"),
-                        "confidence": float(signal.get("confidence", 0) or 0),
-                        "size_pct": float(signal.get("size_pct", 0) or 0),
-                        "reasoning": str(signal.get("reasoning", ""))[:400],
+                        "action": action,
+                        "confidence": confidence,
+                        "size_pct": size_pct,
+                        "reasoning": reasoning_text,
+                        "reasoning_hash": reasoning_hash,
                         "execution_mode": self.execution_mode,
                         "health_score": token_health.get("health_score"),
                         "active_positions": len(state.active_positions),
+                        "consensus": consensus_meta if isinstance(consensus_meta, dict) else None,
+                        "signal_digest": digest,
+                        "chain_tip": chain_tip,
                     })
                 except Exception as persist_err:
                     logger.warning("[HEDGE] Signal persist skipped: {}", persist_err)

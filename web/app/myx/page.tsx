@@ -26,6 +26,14 @@ interface MYXStatus {
   reason?: string;
 }
 
+interface ConsensusMeta {
+  method?: string;
+  confidence?: number;
+  tally?: Record<string, number>;
+  models_queried?: string[];
+  models_succeeded?: number;
+}
+
 interface MYXSignal {
   ts_ms: number;
   token_address: string;
@@ -37,6 +45,20 @@ interface MYXSignal {
   execution_mode: string;
   health_score?: number;
   active_positions: number;
+  consensus?: ConsensusMeta | null;
+  signal_digest?: string;
+  chain_tip?: string;
+}
+
+interface SignalAttestation {
+  current_root: string;
+  num_signals_chained: number;
+  last_published_root: string | null;
+  last_published_txhash: string | null;
+  last_published_at: number;
+  unpublished_signals: number;
+  genesis: string;
+  signal_log_count: number;
 }
 
 interface MYXSignalsResponse {
@@ -135,28 +157,53 @@ export default function MYXPage() {
   const [status, setStatus] = useState<MYXStatus | null>(null);
   const [signals, setSignals] = useState<MYXSignal[]>([]);
   const [audit, setAudit] = useState<MYXAudit | null>(null);
+  const [signalAttest, setSignalAttest] = useState<SignalAttestation | null>(null);
   const [portfolio, setPortfolio] = useState<MYXPortfolio | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const [filterToken, setFilterToken] = useState<string>("");
+  const [consensusBusy, setConsensusBusy] = useState(false);
+  const [consensusResult, setConsensusResult] = useState<MYXSignal | null>(null);
 
   const reload = useCallback(async () => {
     try {
       const tokenQ = filterToken ? `&token_address=${filterToken}` : "";
-      const [st, sg, au, pf] = await Promise.all([
+      const [st, sg, au, sa, pf] = await Promise.all([
         fetch(`${API}/api/myx/status`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${API}/api/myx/signals?limit=30${tokenQ}`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${API}/api/myx/audit`).then((r) => (r.ok ? r.json() : null)),
+        fetch(`${API}/api/myx/signal-attestation`).then((r) => (r.ok ? r.json() : null)),
         fetch(`${API}/api/myx/portfolio`).then((r) => (r.ok ? r.json() : null)),
       ]);
       setStatus(st);
       setSignals((sg as MYXSignalsResponse)?.signals || []);
       setAudit(au);
+      setSignalAttest(sa);
       setPortfolio(pf);
       setNowMs(Date.now());
     } catch {
       /* ignore */
     }
   }, [filterToken]);
+
+  const runConsensus = async (tokenAddress: string) => {
+    setConsensusBusy(true);
+    setConsensusResult(null);
+    try {
+      const res = await fetch(`${API}/api/myx/consensus/${tokenAddress}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }),
+      });
+      const body = await res.json();
+      const sig = body?.signal || null;
+      setConsensusResult(sig);
+      reload();
+    } catch {
+      /* surface via busy=false */
+    } finally {
+      setConsensusBusy(false);
+    }
+  };
 
   useEffect(() => {
     const initial = setTimeout(reload, 0);
@@ -285,6 +332,100 @@ export default function MYXPage() {
         </div>
       </Card>
 
+      {/* Signal attestation (decisions chain — independent of trades) */}
+      <Card className="mb-6 bg-gradient-to-br from-white/[0.02] to-[#00d4ff]/[0.03]">
+        <div className="mb-3">
+          <div className="eyebrow mb-1">Signal attestation · cryptographic proof of every hedge decision</div>
+          <div className="text-xs text-white/60 max-w-2xl">
+            Every signal the agent generates is hashed (with consensus metadata when applicable)
+            into a separate Merkle chain from trades. This anchors the agent&apos;s thinking on-chain
+            even before any position executes — the thinking is always provable.
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Signal chain tip</div>
+            <div className="font-mono text-xs text-[#00d4ff] break-all">
+              {signalAttest ? shortAddr(signalAttest.current_root, 24, 20) : "—"}
+            </div>
+            <div className="text-[10px] text-white/40 font-mono mt-1">
+              {signalAttest?.num_signals_chained ?? 0} signals chained · {signalAttest?.unpublished_signals ?? 0} unpublished
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+            <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Last published</div>
+            {signalAttest?.last_published_txhash ? (
+              <a
+                href={`https://bscscan.com/tx/${signalAttest.last_published_txhash}`}
+                target="_blank"
+                rel="noopener"
+                className="font-mono text-xs text-[#00d4ff] hover:text-[#6cff32] break-all"
+              >
+                {shortAddr(signalAttest.last_published_txhash, 16, 10)} ↗
+              </a>
+            ) : (
+              <div className="font-mono text-xs text-white/40">not yet published</div>
+            )}
+            <div className="text-[10px] text-white/40 font-mono mt-1">
+              {signalAttest?.last_published_at ? `${ago(signalAttest.last_published_at * 1000, nowMs)} · ` : ""}
+              root {shortAddr(signalAttest?.last_published_root, 12, 8)}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Live consensus demo — fan hedge decision across 3 DGrid models */}
+      <Card className="mb-6">
+        <div className="eyebrow mb-3">Live consensus demo · DGrid × MYX synergy</div>
+        <p className="text-xs text-white/50 mb-4 max-w-2xl">
+          Click any tracked token to fan the current hedge prompt across 3 DGrid models in parallel.
+          Majority vote decides the action. This is the cross-partner flex: single-provider integrations
+          literally can&apos;t run this — MYX execution uses DGrid consensus for high-stakes DEFEND-phase moves.
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          {(portfolio?.token_summaries || []).map((t) => (
+            <button
+              key={t.token_address}
+              onClick={() => runConsensus(t.token_address)}
+              disabled={consensusBusy}
+              className="btn-pill text-xs bg-[#6cff32]/10 text-[#6cff32] border border-[#6cff32]/30 hover:bg-[#6cff32]/20 disabled:opacity-40 font-mono"
+            >
+              {consensusBusy ? "voting…" : `consensus for ${shortAddr(t.token_address)} →`}
+            </button>
+          ))}
+          {(portfolio?.token_summaries || []).length === 0 && (
+            <div className="text-xs text-white/40">No tracked tokens yet.</div>
+          )}
+        </div>
+        {consensusResult && (
+          <div className="mt-4 rounded-xl border border-[#6cff32]/30 bg-[#6cff32]/[0.04] p-4">
+            <div className="flex items-baseline gap-3 flex-wrap mb-2">
+              <ActionPill action={String(consensusResult.action)} />
+              <span className="text-xl font-bold text-white">{consensusResult.action}</span>
+              <span className="text-xs text-white/60 font-mono">
+                confidence {Math.round((consensusResult.confidence || 0) * 100)}%
+                {consensusResult.consensus?.method && ` · ${consensusResult.consensus.method}`}
+                {typeof consensusResult.consensus?.confidence === "number" &&
+                  ` · vote agreement ${Math.round(consensusResult.consensus.confidence * 100)}%`}
+              </span>
+            </div>
+            {consensusResult.consensus?.tally && (
+              <div className="flex gap-2 flex-wrap text-[11px] font-mono mb-2">
+                {Object.entries(consensusResult.consensus.tally).map(([v, c]) => (
+                  <span key={v} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5">
+                    <span className="text-white/60">{v}</span>
+                    <span className="text-[#6cff32] ml-1">×{c}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {consensusResult.reasoning && (
+              <div className="text-xs text-white/70 italic">&ldquo;{consensusResult.reasoning}&rdquo;</div>
+            )}
+          </div>
+        )}
+      </Card>
+
       {/* On-chain attestation */}
       <Card className="mb-6 bg-gradient-to-br from-white/[0.02] to-[#6cff32]/[0.03]">
         <div className="mb-3">
@@ -384,6 +525,16 @@ export default function MYXPage() {
                 <span className={`${PHASE_STYLE[s.phase] || "text-white/50"} uppercase text-[10px]`}>{s.phase}</span>
                 <span className="text-white/30">·</span>
                 <span className="text-white/60">{Math.round((s.confidence || 0) * 100)}% conf</span>
+                {s.consensus && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#6cff32]/30 bg-[#6cff32]/10 text-[#6cff32] px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide">
+                    consensus ×{s.consensus.models_succeeded ?? "?"}
+                  </span>
+                )}
+                {s.chain_tip && (
+                  <span className="text-[#00d4ff]/60 text-[10px] font-mono" title={`signal chain tip: ${s.chain_tip}`}>
+                    ⛓{s.chain_tip.slice(0, 6)}
+                  </span>
+                )}
                 {s.reasoning && <span className="text-white/40 truncate hidden md:inline">· {s.reasoning.slice(0, 80)}</span>}
               </div>
               <div className="text-white/40 text-[10px] font-mono shrink-0">{ago(s.ts_ms, nowMs)}</div>
@@ -458,9 +609,13 @@ export default function MYXPage() {
           <div><span className="text-[#00d4ff]">GET</span>  /api/myx/positions/&#123;token&#125; — position detail by token</div>
           <div><span className="text-[#00d4ff]">GET</span>  /api/myx/audit — Merkle chain tip + last published tx</div>
           <div><span className="text-[#00d4ff]">GET</span>  /api/myx/audit/events — full event log for independent verification</div>
+          <div><span className="text-[#00d4ff]">GET</span>  /api/myx/signal-attestation — Merkle commitment over every signal</div>
+          <div><span className="text-[#00d4ff]">GET</span>  /api/myx/calldata/&#123;token&#125; — exact unsigned tx we&apos;d submit (BscScan-verifiable)</div>
+          <div><span className="text-[#ffd641]">POST</span> /api/myx/consensus/&#123;token&#125; — fan hedge decision across 3 DGrid models</div>
           <div><span className="text-[#ffd641]">POST</span> /api/myx/evaluate/&#123;token&#125; — trigger a hedge eval now</div>
           <div><span className="text-[#ffd641]">GET</span>  /api/myx/signal/&#123;token&#125; — one-shot AI signal for a token</div>
           <div><span className="text-[#ff494a]">POST</span> /api/myx/attest — publish trade Merkle root on BNB Chain (admin)</div>
+          <div><span className="text-[#ff494a]">POST</span> /api/myx/attest-signals — publish signal Merkle root on BNB Chain (admin)</div>
         </div>
       </Card>
     </main>

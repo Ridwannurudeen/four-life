@@ -27,6 +27,7 @@ from typing import Optional
 
 
 MYX_GENESIS = hashlib.sha256(b"FOUR-LIFE MYX trade attestation genesis v1").hexdigest()
+MYX_SIGNAL_GENESIS = hashlib.sha256(b"FOUR-LIFE MYX signal attestation genesis v1").hexdigest()
 
 
 def _persist_enabled() -> bool:
@@ -225,6 +226,121 @@ class MYXAttestationChain:
             pass
 
 
+class MYXSignalAttestationChain:
+    """Parallel Merkle chain over every signal (not just executed trades).
+
+    Gives us cryptographic proof the agent made N decisions even before any
+    execution happens — critical when execution is gated on router verification
+    but we still want to anchor the agent's thinking on-chain.
+
+    Design mirrors MYXAttestationChain but uses a different genesis so the two
+    chains are distinguishable and publishable separately.
+    """
+
+    def __init__(self, persist_path: Optional[Path] = None) -> None:
+        self._tip: str = MYX_SIGNAL_GENESIS
+        self._count: int = 0
+        self._path = persist_path
+        self._last_root: str | None = None
+        self._last_txhash: str | None = None
+        self._last_at: int = 0
+        self._last_count: int = 0
+        self._load()
+
+    @staticmethod
+    def signal_digest(
+        *,
+        token_address: str,
+        phase: str,
+        action: str,
+        confidence: float,
+        size_pct: float,
+        reasoning_hash: str,
+        ts_ms: int,
+        consensus_method: str | None = None,
+        consensus_confidence: float | None = None,
+    ) -> str:
+        """Deterministic digest of one signal. Reasoning text is hashed (not
+        raw) so the digest stays bounded and the on-chain root doesn't leak
+        prompt content."""
+        payload = json.dumps(
+            {
+                "token_address": token_address.lower(),
+                "phase": phase,
+                "action": action,
+                "confidence": float(round(confidence, 4)),
+                "size_pct": float(round(size_pct, 4)),
+                "reasoning_hash": reasoning_hash,
+                "ts_ms": int(ts_ms),
+                "consensus_method": consensus_method or "",
+                "consensus_confidence": float(round(consensus_confidence or 0.0, 4)),
+            },
+            sort_keys=True, separators=(",", ":"),
+        ).encode()
+        return sha256_hex(payload)
+
+    def append(self, digest: str) -> str:
+        self._tip = sha256_hex((self._tip + digest).encode())
+        self._count += 1
+        self._save()
+        return self._tip
+
+    def record_attestation(self, root: str, txhash: str, count: int) -> None:
+        self._last_root = root
+        self._last_txhash = txhash
+        self._last_at = int(time.time())
+        self._last_count = int(count)
+        self._save()
+
+    @property
+    def tip(self) -> str:
+        return self._tip
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    def snapshot(self) -> dict:
+        return {
+            "current_root": self._tip,
+            "num_signals_chained": self._count,
+            "last_published_root": self._last_root,
+            "last_published_txhash": self._last_txhash,
+            "last_published_at": self._last_at,
+            "last_published_count": self._last_count,
+            "unpublished_signals": max(0, self._count - self._last_count),
+            "genesis": MYX_SIGNAL_GENESIS,
+        }
+
+    def _save(self) -> None:
+        if not self._path:
+            return
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "tip": self._tip, "count": self._count,
+                "last_root": self._last_root, "last_txhash": self._last_txhash,
+                "last_at": self._last_at, "last_count": self._last_count,
+            }
+            self._path.write_text(json.dumps(data))
+        except Exception:
+            pass
+
+    def _load(self) -> None:
+        if not self._path or not self._path.exists():
+            return
+        try:
+            data = json.loads(self._path.read_text())
+            self._tip = data.get("tip", MYX_SIGNAL_GENESIS)
+            self._count = int(data.get("count", 0))
+            self._last_root = data.get("last_root")
+            self._last_txhash = data.get("last_txhash")
+            self._last_at = int(data.get("last_at", 0))
+            self._last_count = int(data.get("last_count", 0))
+        except Exception:
+            pass
+
+
 def verify_myx_chain(events: list[dict], expected_root: str) -> bool:
     """Independent verifier for the MYX attestation chain.
 
@@ -250,10 +366,33 @@ def verify_myx_chain(events: list[dict], expected_root: str) -> bool:
     return tip == expected_root
 
 
+def verify_myx_signal_chain(signals: list[dict], expected_root: str) -> bool:
+    """Independent verifier for the MYX signal attestation chain. Same pattern
+    as verify_myx_chain but folds signal_digest-shaped inputs."""
+    tip = MYX_SIGNAL_GENESIS
+    for s in signals:
+        digest = s.get("signal_digest")
+        if not digest:
+            digest = MYXSignalAttestationChain.signal_digest(
+                token_address=str(s.get("token_address", "")),
+                phase=str(s.get("phase", "")),
+                action=str(s.get("action", "")),
+                confidence=float(s.get("confidence", 0) or 0),
+                size_pct=float(s.get("size_pct", 0) or 0),
+                reasoning_hash=str(s.get("reasoning_hash", "")),
+                ts_ms=int(s.get("ts_ms", 0) or 0),
+                consensus_method=s.get("consensus_method"),
+                consensus_confidence=s.get("consensus_confidence"),
+            )
+        tip = sha256_hex((tip + digest).encode())
+    return tip == expected_root
+
+
 # Singletons
 _signal_log: MYXSignalLog | None = None
 _position_log: MYXSignalLog | None = None
 _chain: MYXAttestationChain | None = None
+_signal_chain: MYXSignalAttestationChain | None = None
 
 
 def get_signal_log() -> MYXSignalLog:
@@ -277,8 +416,16 @@ def get_myx_chain() -> MYXAttestationChain:
     return _chain
 
 
+def get_myx_signal_chain() -> MYXSignalAttestationChain:
+    global _signal_chain
+    if _signal_chain is None:
+        _signal_chain = MYXSignalAttestationChain(persist_path=_default_path("myx_signal_attestation.json"))
+    return _signal_chain
+
+
 def reset_myx_for_tests() -> None:
-    global _signal_log, _position_log, _chain
+    global _signal_log, _position_log, _chain, _signal_chain
     _signal_log = None
     _position_log = None
     _chain = None
+    _signal_chain = None

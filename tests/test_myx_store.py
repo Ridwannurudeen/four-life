@@ -4,13 +4,17 @@ import pytest
 
 from agent.myx.store import (
     MYX_GENESIS,
+    MYX_SIGNAL_GENESIS,
     MYXAttestationChain,
+    MYXSignalAttestationChain,
     MYXSignalLog,
     get_myx_chain,
+    get_myx_signal_chain,
     get_signal_log,
     get_position_log,
     reset_myx_for_tests,
     verify_myx_chain,
+    verify_myx_signal_chain,
 )
 
 
@@ -132,6 +136,111 @@ class TestVerifier:
         chain.append(expected)
         # Pass the raw fields without call_digest — verifier recomputes.
         assert verify_myx_chain([ev], chain.tip) is True
+
+
+class TestSignalAttestationChain:
+    def test_starts_at_signal_genesis(self):
+        chain = MYXSignalAttestationChain()
+        assert chain.tip == MYX_SIGNAL_GENESIS
+        assert MYX_SIGNAL_GENESIS != MYX_GENESIS  # distinct from trade chain
+        assert chain.count == 0
+
+    def test_signal_digest_is_deterministic(self):
+        kwargs = dict(
+            token_address="0xAaA", phase="defend", action="short",
+            confidence=0.82, size_pct=0.05,
+            reasoning_hash="ab" * 32, ts_ms=1700000000000,
+        )
+        a = MYXSignalAttestationChain.signal_digest(**kwargs)
+        b = MYXSignalAttestationChain.signal_digest(**kwargs)
+        assert a == b and len(a) == 64
+
+    def test_signal_digest_changes_on_action(self):
+        base = dict(
+            token_address="0x1", phase="defend", size_pct=0.05,
+            reasoning_hash="", ts_ms=1, confidence=0.5,
+        )
+        short = MYXSignalAttestationChain.signal_digest(action="short", **base)
+        long_ = MYXSignalAttestationChain.signal_digest(action="long", **base)
+        assert short != long_
+
+    def test_signal_digest_includes_consensus_meta(self):
+        base = dict(
+            token_address="0x1", phase="defend", action="short",
+            confidence=0.82, size_pct=0.05, reasoning_hash="",
+            ts_ms=1700000000000,
+        )
+        without = MYXSignalAttestationChain.signal_digest(**base)
+        with_consensus = MYXSignalAttestationChain.signal_digest(
+            **base, consensus_method="majority", consensus_confidence=1.0,
+        )
+        assert without != with_consensus
+
+    def test_verifier_round_trip(self):
+        chain = MYXSignalAttestationChain()
+        signals = []
+        for i in range(4):
+            d = MYXSignalAttestationChain.signal_digest(
+                token_address=f"0x{i:040x}", phase="defend",
+                action="short" if i % 2 == 0 else "hold",
+                confidence=0.5 + i * 0.1,
+                size_pct=0.05, reasoning_hash=f"{i:064x}",
+                ts_ms=1700000000000 + i,
+            )
+            signals.append({"signal_digest": d})
+            chain.append(d)
+        assert verify_myx_signal_chain(signals, chain.tip) is True
+        # Tamper — must reject
+        signals[1] = {"signal_digest": "ff" * 32}
+        assert verify_myx_signal_chain(signals, chain.tip) is False
+
+    def test_verifier_rederives_from_fields(self):
+        chain = MYXSignalAttestationChain()
+        sig = {
+            "token_address": "0xAA", "phase": "nurture", "action": "hold",
+            "confidence": 0.9, "size_pct": 0.0, "reasoning_hash": "cd" * 32,
+            "ts_ms": 1700000000000,
+        }
+        expected = MYXSignalAttestationChain.signal_digest(**sig)
+        chain.append(expected)
+        # Pass raw fields without signal_digest — verifier recomputes
+        assert verify_myx_signal_chain([sig], chain.tip) is True
+
+    def test_independent_from_trade_chain(self):
+        """Signal + trade chains must evolve independently — appending to
+        one must not affect the other."""
+        signal_chain = MYXSignalAttestationChain()
+        trade_chain = MYXAttestationChain()
+        orig_s = signal_chain.tip
+        orig_t = trade_chain.tip
+        signal_chain.append("aa" * 32)
+        # Signal chain moves, trade chain doesn't
+        assert signal_chain.tip != orig_s
+        assert trade_chain.tip == orig_t
+
+
+class TestSignalChainEndpoint:
+    def test_signal_attestation_endpoint_starts_at_genesis(self):
+        from fastapi.testclient import TestClient
+        from agent.api import app
+        c = TestClient(app)
+        resp = c.get("/api/myx/signal-attestation")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["current_root"] == data["genesis"]
+        assert data["num_signals_chained"] == 0
+        assert "signal_log_count" in data
+
+
+class TestCalldataEndpoint:
+    def test_calldata_requires_agent(self):
+        from fastapi.testclient import TestClient
+        from agent.api import app
+        from unittest.mock import patch
+        with patch("agent.api.agent", None):
+            c = TestClient(app)
+            resp = c.get("/api/myx/calldata/0xdead")
+        assert resp.status_code == 503
 
 
 class TestAPIEndpoints:

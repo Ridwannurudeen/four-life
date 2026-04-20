@@ -305,19 +305,29 @@ class MYXStrategy:
     def __init__(self, myx: MYXClient) -> None:
         self.myx = myx
 
-    async def generate_signal(self, token_health: dict, market_data: dict) -> dict:
+    async def generate_signal(
+        self,
+        token_health: dict,
+        market_data: dict,
+        *,
+        use_consensus: bool = False,
+    ) -> dict:
         """Generate a trading signal based on token health + market conditions.
+
+        When ``use_consensus=True`` (e.g. for DEFEND-phase high-stakes decisions),
+        the same prompt fans out across multiple DGrid models in parallel and
+        votes on the action — reducing single-model bias on trades that move
+        real capital. On consensus failure we fall back to the single-model
+        path so signals keep flowing.
 
         Returns:
             dict with 'action' (long|short|close|hold), 'confidence', 'reasoning',
-            'size_pct' (of available capital)
+            'size_pct' (of available capital). Consensus path also attaches a
+            ``consensus`` sub-dict with per-model verdicts for auditability.
         """
         from agent.brain.llm import get_llm
 
-        return await get_llm().chat_json_task(
-            [{
-                "role": "user",
-                "content": f"""You are FOUR-LIFE's perp trading module on MYX V2.
+        prompt = f"""You are FOUR-LIFE's perp trading module on MYX V2.
 
 TOKEN HEALTH (Four.meme spot market):
 {json.dumps(token_health, indent=2, default=str)}
@@ -334,7 +344,45 @@ Respond in JSON: {{"action": "long"|"short"|"close"|"hold", "confidence": float,
 
 size_pct is what % of available capital to use (0.01 = 1%, max 0.1 = 10%).
 Be conservative. This is risk management, not gambling."""
-            }],
+
+        if use_consensus:
+            # Route DEFEND / high-stakes decisions through 3-model consensus.
+            # If consensus gives us a usable full_response we return it
+            # unchanged (with vote metadata); otherwise fall back to single
+            # model so signals never dry up.
+            from agent.brain.consensus import consensus_vote, DEFAULT_CONSENSUS_MODELS
+            result = await consensus_vote(
+                [{"role": "user", "content": prompt}],
+                models=DEFAULT_CONSENSUS_MODELS,
+                vote_key="action",
+                max_tokens=1500,
+                temperature=0.35,
+                json_mode=True,
+            )
+            verdict = result.get("final_verdict")
+            full: dict | None = None
+            if verdict is not None:
+                for r in result.get("results", []):
+                    if r.get("ok") and str(r.get("verdict")) == str(verdict):
+                        f = r.get("full_response") or {}
+                        if isinstance(f, dict) and f.get("action"):
+                            full = f
+                            break
+            if full is not None:
+                # Attach consensus metadata so the trace / endpoint can show it.
+                full["consensus"] = {
+                    "method": result.get("method"),
+                    "confidence": result.get("confidence"),
+                    "tally": result.get("tally"),
+                    "models_queried": result.get("models_queried"),
+                    "models_succeeded": result.get("models_succeeded"),
+                    "total_latency_ms": result.get("total_latency_ms"),
+                }
+                return full
+            # Consensus failed to produce a usable full response — fall back.
+
+        return await get_llm().chat_json_task(
+            [{"role": "user", "content": prompt}],
             task="risk",
             # Gemini 2.5 Flash (the default risk-task model) burns 300-1500
             # tokens on invisible reasoning before emitting the visible JSON.
