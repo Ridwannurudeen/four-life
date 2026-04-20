@@ -730,7 +730,7 @@ function WhoUses() {
               <div className="text-[10px] uppercase tracking-[0.15em] mb-3 text-white/40">{c.tag}</div>
               <h3 className="text-base font-bold mb-2">{c.title}</h3>
               <p className="text-xs text-white/55 mb-4 leading-relaxed">{c.body}</p>
-              <div className={`inline-flex items-center gap-1 text-xs font-semibold ${c.color} group-hover:gap-2 transition-all`}>{c.cta}</div>
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-white/70 group-hover:text-white group-hover:gap-2 transition-all">{c.cta}</div>
             </>
           );
           return c.external ? (
