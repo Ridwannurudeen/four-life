@@ -1,132 +1,135 @@
-# FOUR-LIFE — Demo Video Script (3:00, story-structured)
+# FOUR-LIFE Demo Video Script — 2 min 30 s
 
-**Target length:** 3 minutes flat (±5s)
-**Tool:** OBS Studio or Loom. 1920×1080, 30fps, mic on.
-**Voice:** Calm, confident. Short sentences. Pause between sections. No filler words.
-**Format:** Screen recording. No camera.
+Target: 2:30. Upload as **unlisted YouTube** so DoraHacks judges can watch without spam.
 
-The video is organized as a **story with stakes**, not a feature tour. Every section advances a narrative:
-*Four.meme has a problem → FOUR-LIFE grades it deterministically → the agent acts on-chain → anyone can verify and integrate.*
+**Recording setup**
+- Screen: OBS or Loom at 1920×1080. Cursor highlight on.
+- Audio: any decent USB mic. Quiet room. No music.
+- Tabs pre-loaded (in order): `/` → `/dgrid` → BscScan attestation tx → `/myx` → BscScan $AUNT tx → `four.meme/token/0x568bf…`
+- Keep BscScan in a second tab so you can click the attestation link live.
 
----
-
-## Before you hit record
-
-Open tabs left-to-right in this order (all must load cleanly first):
-
-1. `https://four.meme` — the homepage, briefly shown as the cold open
-2. `https://four-life.gudman.xyz/radar?min_confidence=high` — the Radar
-3. `https://four-life.gudman.xyz/launch/0xd8c1c7b065ec8548093fe237157088b984dc4444` — a live token Certified page
-4. `https://four-life.gudman.xyz/evidence` — the evidence panel
-5. `https://four-life.gudman.xyz/docs` — OpenAPI
-6. `https://four-life.gudman.xyz/dashboard` — the operator view
-7. `https://bscscan.com/tx/0x62a1a43d9e782686b833ed44eee7ea95a9ee3370f2f372334dc7bbf85cc14762` — the ERC-8004 registration tx (Agent ID 20)
-8. Terminal pre-loaded with (do **not** run yet):
-   ```bash
-   curl -s https://four-life.gudman.xyz/api/token/0xd8c1c7b065ec8548093fe237157088b984dc4444/badge | jq '.badge | {tier, label, why: [.why[] | {rule, value, threshold, passed}]}'
-   ```
-
-**Before recording:** close Slack/Discord/iMessage. Turn off OS notifications. Full-screen the browser.
+**Tone:** direct, confident, "here's what we shipped". No apologies, no hedging. Assume the judge is smart and skimming.
 
 ---
 
-## Section 1 — The 98.6% problem (0:00 → 0:20)
+## Segment 1 — Hook (0:00 – 0:15)
 
-**On screen:** Fast pan across the Four.meme homepage. Don't linger.
-
-> "Four dot meme launches thousands of tokens every week.
-> Ninety-eight point six percent of them are dead within seventy-two hours.
-> Creation is a solved problem. Everything after launch is not."
-
-**Beat. Pause one second.**
+**On-screen:** Homepage `/`.
+**Voice:**
+> "98.6% of Four.meme tokens die within 72 hours. That's because creation is solved — nothing manages them after launch. We built FOUR-LIFE: an autonomous agent that launches meme tokens and manages their full lifecycle, with every decision cryptographically anchored on BNB Chain."
 
 ---
 
-## Section 2 — FOUR-LIFE Certified (0:20 → 0:50)
+## Segment 2 — The live token (0:15 – 0:35)
 
-**On screen:** Switch to `/radar?min_confidence=high`. Let the live tokens render. Brief hover on the tier count bar at the top.
+**On-screen:** Switch to Four.meme tab → https://four.meme/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444 (AUNT page).
+**Voice:**
+> "This is AUNT — AuntieCoin — a real Four.meme token launched end-to-end by the agent. The agent generated the concept via DGrid narrative analysis, generated the art via DALL-E through DGrid, signed the create-token transaction, and is now managing AUNT's lifecycle autonomously."
 
-> "FOUR-LIFE Certified grades every Four dot meme token on-chain.
-> Graduated. Graduation Watch. Healthy. At Risk. Observed.
-> Computed from raw on-chain metrics. Zero LLM in the trust path."
-
-**Action:** Scroll slowly past three or four rows so the tier pills and confidence chips read.
-
-> "Graduation targets come from Four dot meme's own config — eighteen BNB, twelve thousand USD1. If they change, FOUR-LIFE updates within ten minutes."
+**On-screen:** Switch to BscScan → https://bscscan.com/tx/0x80ff903ca947448ec50927b866067b67e5bdd69a667f9d0f1b3af8f0c74869d2
+**Voice:**
+> "Here's the on-chain launch transaction from the agent's wallet. Not a mockup."
 
 ---
 
-## Section 3 — Deterministic proof (0:50 → 1:35)
+## Segment 3 — DGrid bounty (0:35 – 1:20)
 
-**On screen:** Click the top row — opens `/launch/0xd8c1...` in the same tab (or switch to pre-loaded tab).
+**On-screen:** Open `/dgrid`. Scroll slowly so judges see: health rail, stats (94% share, cost, transient retries), chaos panel, fallback chain diagram, attestation card, cost breakdown, leaderboard, consensus demo, recent calls.
+**Voice:**
+> "DGrid is the agent's brain. 94% of all LLM traffic routes through DGrid. We built four capabilities single-provider agents can't replicate."
 
-> "Every grade comes with a why-table. The exact rule that fired. The metric that triggered it. The threshold it cleared."
+**On-screen:** Click **"probe DGrid now →"** button. Green toast appears with latency.
+**Voice:**
+> "One — live provability. Any judge can click this button and get a DGrid-served response on demand."
 
-**Action:** Scroll slowly through the why-table, letting judges read one or two rows.
+**On-screen:** Scroll to chaos panel. Click **"kill DGrid"**.
+**Voice:**
+> "Two — live resilience. I'm forcing DGrid to fail right now. Watch the breaker trip."
 
-> "This is the part that matters for agents that need to *trust* a signal. Vibes don't grade trust. Math does."
+**On-screen:** Health rail flips red, breaker shows "open". Wait 5 seconds so viewers see it.
 
-**Action:** Switch to terminal. Run the pre-loaded curl command.
+**On-screen:** Click **"restore"**. Breaker goes back to closed.
+**Voice:**
+> "And back. DGrid recovers on the next call. The fallback chain kept the agent alive the entire time."
 
-> "Anyone can hit the API and recompute. The response matches byte-for-byte. Auditable, reproducible, versioned."
+**On-screen:** Scroll to **Multi-model consensus**. Type a prompt (or use default) and click **"run consensus →"**. Wait for the 3-model card.
+**Voice:**
+> "Three — consensus. Same prompt, three DGrid models vote in parallel. Majority wins. This is wired into every token's DEFEND phase — high-stakes decisions never trust a single model. Single-provider integrations literally cannot write this code."
 
----
-
-## Section 4 — The agent acts (1:35 → 2:15)
-
-**On screen:** Go to `/dashboard` (unlocked with API_SECRET), Overview tab.
-
-> "FOUR-LIFE doesn't just grade. It *acts*."
-
-**Action:** Show the status bar — `LIVE`, ERC-8004 Agent ID 20, active tokens count.
-
-> "The agent runs a continuous lifecycle loop — track, monitor, defend, attest.
-> Protection Mode fires signed HMAC webhooks on critical transitions.
-> Graduations trigger on-chain reputation attestations through ERC-8004."
-
-**Action:** Switch to the BscScan tab showing the Agent ID 20 registration tx.
-
-> "The agent is registered on BNB Chain as Agent ID twenty. Every action it takes — every reputation attestation it submits — is verifiable, on-chain, permanent."
+**On-screen:** Scroll to **On-chain attestation** card. Click the bscscan link.
+**Voice:**
+> "Four — cryptographic accountability. Every DGrid call is folded into a Merkle chain. The tip is published on BNB Chain. Here's the transaction — the root sits in the tx data field. Anyone can download our call log, re-derive the chain locally, and verify the root matches. Zero server trust required."
 
 ---
 
-## Section 5 — Distribution surface (2:15 → 2:40)
+## Segment 4 — MYX V2 (1:20 – 1:50)
 
-**On screen:** Quick cuts — 3-4 seconds each — no narration, just label overlays.
+**On-screen:** Open `/myx`.
+**Voice:**
+> "MYX V2 perps. The agent generates phase-aware hedge signals — short when a token shows weakness, long on momentum, close on graduation. Every signal is cryptographically committed in a separate Merkle chain from trades."
 
-- `/evidence` — *"Five live tokens, graded deterministically. Anyone can audit."*
-- `/launch/<addr>` — *"One shareable page per token. Creators integrate with zero friction."*
-- Embed docs page (`/embed`) — *"One script tag. Live badge anywhere."*
-- `/docs` OpenAPI — *"46 endpoints. TypeScript + Python SDKs."*
+**On-screen:** Point at live signal feed (AUNT + KICAU signals scrolling).
+**Voice:**
+> "Real signals, firing every five minutes. The DEFEND-phase signals fan across three DGrid models and vote — the DGrid × MYX synergy we just showed, wired into real decisions."
 
-> "FOUR-LIFE is infrastructure, not a dashboard. SDKs, webhooks, badges, extension — every Four dot meme project can integrate in under ten minutes."
+**On-screen:** Scroll to **Live consensus demo** section. Click the AUNT button. Wait for verdict.
+**Voice:**
+> "Click — three models vote on whether to hedge AUNT right now. There's the verdict with per-model breakdown."
+
+**On-screen:** Scroll to **Signal attestation** card. Click the bscscan link.
+**Voice:**
+> "And here's the signal attestation published on BNB Chain. The agent's thinking — not just its trades — committed on-chain."
 
 ---
 
-## Section 6 — Close (2:40 → 3:00)
+## Segment 5 — Why this wins (1:50 – 2:20)
 
-**On screen:** Return to the home page at `four-life.gudman.xyz`.
+**On-screen:** Back to `/` homepage, hover over the feature cards.
+**Voice:**
+> "What we shipped: a production-deployed autonomous agent with a real Four.meme token under management, three on-chain attestation transactions anyone can verify, 365 passing tests, and a cross-partner capability — DGrid consensus on MYX decisions — that can only exist because DGrid unifies every model behind one API."
 
-> "FOUR-LIFE Certified.
-> The trust layer for every Four dot meme launch.
-> Deterministic. On-chain. Auditable.
-> Live now at four-life dot gudman dot xyz."
+> "FOUR-LIFE is the first Four.meme agent where 'autonomous' isn't marketing. It's cryptographically provable, anchored on-chain, and every claim traces back to a BscScan URL."
 
-**Last frame:** Hold on the landing page for two full seconds. Fade.
+---
+
+## Segment 6 — CTA (2:20 – 2:30)
+
+**On-screen:** Homepage with URL visible in address bar.
+**Voice:**
+> "Live at four-life.gudman.xyz. Code on GitHub. Everything you just saw is live right now."
 
 ---
 
 ## Recording checklist
 
-- [ ] Test audio level — speak at regular volume, peak no higher than -6 dB
-- [ ] Unlock `/dashboard` with API_SECRET in localStorage before recording
-- [ ] Verify the Certified page at `/launch/0xd8c1...` actually loads with the badge + why-table (agent needs to have processed at least one tick on that token)
-- [ ] Verify `/evidence` shows at least 3 cases with grades (not "loading…")
-- [ ] Do a timed dry run before the real take. If you're under 2:45 or over 3:10, adjust narration speed.
+- [ ] **Clear the browser cache** and hard-reload each tab before recording (Ctrl+Shift+R) so the latest build renders
+- [ ] **Dry-run once** before recording. Time it. If over 2:45, cut the chaos recovery wait from 5s to 3s
+- [ ] **Click everything in advance** to warm up DGrid / MYX caches so live API calls return fast
+- [ ] **Turn off notifications** on your machine before recording
+- [ ] **Record at 1920×1080** minimum — judges watch on laptops, text needs to be legible
+- [ ] **Upload unlisted** to YouTube or as a Loom with public link
+- [ ] **Add timestamps in description:**
+  - 0:00 The problem
+  - 0:15 $AUNT — agent launched this on Four.meme
+  - 0:35 DGrid: probe, chaos, consensus, on-chain attestation
+  - 1:20 MYX V2: consensus-backed signals + signal attestation
+  - 1:50 Why this wins
+  - 2:20 CTA
 
-## Post-recording
+## Post-record
 
-- [ ] Export as MP4, 1080p, H.264. File size target: < 80 MB for YouTube upload.
-- [ ] Upload **unlisted** to YouTube (not public — the hackathon submission is the first reveal).
-- [ ] Paste the YouTube URL into `SUBMISSION.md` → Video URL field, and into the DoraHacks form.
-- [ ] Save the `.mp4` to Google Drive as a backup (DoraHacks URLs occasionally break).
+1. Paste video URL into `SUBMISSION.md` (replace `[PASTE_VIDEO_URL_BEFORE_SUBMITTING]`)
+2. Paste video URL into DoraHacks form Video field
+3. Run the live smoke test one last time: `python scripts/live_smoke_test.py`
+4. Submit — **only after I've reviewed the form draft with you**.
+
+## Emergency fallback (if something misbehaves mid-record)
+
+- **Chaos doesn't trip visibly in 5s:** stop recording, hard-reload, try again. Usually trips in ~3s.
+- **Consensus returns an error:** pick a different token or retry. Gemini occasionally truncates even with our 1500-token budget (rare).
+- **`/api/dgrid/probe` 503s:** DGrid is down or out of credit. Check balance at dgrid.ai. If low, top up $5 and retry.
+- **Breaker stuck open:** POST `/api/dgrid/chaos {enabled: false}` via curl to reset, or just click restore twice.
+
+## One-liner to anchor the pitch
+
+> "The first Four.meme agent where autonomous isn't marketing — it's cryptographically provable."
