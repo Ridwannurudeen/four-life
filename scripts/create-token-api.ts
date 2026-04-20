@@ -43,7 +43,7 @@ async function apiPost(path: string, body: unknown, token?: string): Promise<unk
   });
   if (!resp.ok) throw new Error(`API ${path}: ${resp.status} ${resp.statusText}`);
   const data = await resp.json() as { code: string; data: unknown; msg?: string };
-  if (data.code !== '0' && data.code !== '000000') {
+  if (String(data.code) !== "0" && String(data.code) !== "000000") {
     throw new Error(`API ${path}: ${data.msg || JSON.stringify(data)}`);
   }
   return data.data;
@@ -58,7 +58,7 @@ async function apiGet(path: string): Promise<unknown> {
   });
   if (!resp.ok) throw new Error(`API ${path}: ${resp.status}`);
   const data = await resp.json() as { code: string; data: unknown };
-  if (data.code !== '0' && data.code !== '000000') {
+  if (String(data.code) !== "0" && String(data.code) !== "000000") {
     throw new Error(`API ${path}: ${JSON.stringify(data)}`);
   }
   return data.data;
@@ -83,7 +83,7 @@ async function uploadImage(imagePath: string, token: string): Promise<string> {
   });
   if (!resp.ok) throw new Error(`Upload failed: ${resp.status}`);
   const data = await resp.json() as { code: string; data: string };
-  if (data.code !== '0' && data.code !== '000000') {
+  if (String(data.code) !== "0" && String(data.code) !== "000000") {
     throw new Error(`Upload failed: ${JSON.stringify(data)}`);
   }
   return data.data;
@@ -152,7 +152,7 @@ async function main() {
   }
 
   // Step 5: Get BNB config
-  const configs = await apiGet('/public/token/config') as Array<{
+  const configs = await apiGet('/public/config') as Array<{
     symbol: string; totalAmount: number; totalBAmount: number; saleRate: number;
   }>;
   const bnbConfig = configs.find((c) => c.symbol === 'BNB') || configs[0];
@@ -162,9 +162,9 @@ async function main() {
     name,
     shortName,
     desc: desc || name,
-    totalSupply: bnbConfig.totalAmount || 1_000_000_000,
-    raisedAmount: bnbConfig.totalBAmount || 24,
-    saleRate: bnbConfig.saleRate || 0.8,
+    totalSupply: Number(bnbConfig.totalAmount) || 1_000_000_000,
+    raisedAmount: Number(bnbConfig.totalBAmount) || 24,
+    saleRate: Number(bnbConfig.saleRate) || 0.8,
     reserveRate: 0,
     imgUrl,
     raisedToken: bnbConfig,
