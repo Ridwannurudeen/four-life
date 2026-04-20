@@ -267,11 +267,20 @@ class LifecycleEngine:
                 timestamp=time.time(),
             )
         else:
-            # Ask strategy engine for the best action
+            # Ask strategy engine for the best action. In the DEFEND phase the
+            # decision is high-stakes (sell pressure / whale dump / panic) so
+            # we fan the same prompt across multiple DGrid models and vote —
+            # a capability DGrid's unified gateway makes trivial. Other phases
+            # keep the single-model path for cost.
             memory_ctx = self.memory.get_context_for_ai()
-            decision = await self.strategy.get_lifecycle_action(
-                health, concept, memory_ctx
-            )
+            if health.phase == "defend":
+                decision = await self.strategy.get_defend_action_consensus(
+                    health, concept, memory_ctx,
+                )
+            else:
+                decision = await self.strategy.get_lifecycle_action(
+                    health, concept, memory_ctx,
+                )
 
             if decision["action_type"] == "nothing":
                 return None

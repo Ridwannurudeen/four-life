@@ -516,3 +516,129 @@ class TestDGridStatsEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert "primary_order" in data
+
+    def test_stats_includes_cost_and_breaker_surface(self, client):
+        resp = client.get("/api/dgrid/stats")
+        assert resp.status_code == 200
+        data = resp.json()
+        # Cost dashboard surface
+        assert "cost_usd" in data
+        assert "total" in data["cost_usd"]
+        assert "by_provider" in data["cost_usd"]
+        assert "by_task" in data["cost_usd"]
+        assert "by_model" in data["cost_usd"]
+        # Circuit breaker state
+        assert "breaker" in data
+        assert data["breaker"]["state"] in ("closed", "open", "half_open")
+        assert "failure_threshold" in data["breaker"]
+        # Chaos + counters
+        assert "chaos_enabled" in data
+        assert "breaker_skips" in data
+        assert "transient_retries" in data
+        assert "trace_count" in data
+
+
+class TestDGridTraceEndpoint:
+    def test_trace_shape(self, client):
+        resp = client.get("/api/dgrid/trace?limit=5")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "count" in data
+        assert "limit" in data
+        assert "trace" in data
+        assert data["limit"] == 5
+
+    def test_limit_is_capped(self, client):
+        # Hard cap at 200 — passing 99999 should not explode.
+        resp = client.get("/api/dgrid/trace?limit=99999")
+        assert resp.status_code == 200
+        assert resp.json()["limit"] == 200
+
+
+class TestDGridHealthEndpoint:
+    def test_health_shape(self, client):
+        resp = client.get("/api/dgrid/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] in ("green", "amber", "red")
+        assert "dgrid_configured" in data
+        assert "primary_model" in data
+
+
+class TestDGridLeaderboard:
+    def test_leaderboard_shape(self, client):
+        resp = client.get("/api/dgrid/leaderboard")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "rows" in data
+        assert "auto_tune_enabled" in data
+        assert "current_task_map" in data
+        # Empty rows are fine for a fresh client
+        assert isinstance(data["rows"], list)
+
+
+class TestDGridAudit:
+    def test_audit_starts_at_genesis(self, client):
+        resp = client.get("/api/dgrid/audit")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "current_root" in data
+        assert "num_calls_chained" in data
+        assert "genesis" in data
+        # On a fresh client, current_root should equal genesis.
+        assert data["current_root"] == data["genesis"]
+
+    def test_attest_requires_flag_enabled(self, client):
+        # DGRID_ATTEST_ONCHAIN defaults to False — endpoint must refuse.
+        resp = client.post(
+            "/api/dgrid/attest",
+            headers={"Authorization": "Bearer test-secret"},
+        )
+        # Either 401 (no API_SECRET set → require_auth lets it through) or 403
+        # (attest disabled). We accept either as "did not publish".
+        assert resp.status_code in (401, 403)
+
+    def test_audit_calls_endpoint_shape(self, client):
+        resp = client.get("/api/dgrid/audit/calls?limit=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "offset" in data
+        assert "limit" in data
+        assert "count" in data
+        assert "total" in data
+        assert "calls" in data
+        assert "current_root" in data
+        assert "genesis" in data
+        assert isinstance(data["calls"], list)
+
+    def test_audit_calls_limit_is_capped(self, client):
+        resp = client.get("/api/dgrid/audit/calls?limit=99999")
+        assert resp.status_code == 200
+        assert resp.json()["limit"] == 2000
+
+
+class TestDGridChaos:
+    def test_chaos_toggle_updates_state(self, client):
+        # With API_SECRET unset in test env, require_auth is a no-op.
+        resp = client.post(
+            "/api/dgrid/chaos",
+            json={"enabled": True, "reason": "unit test"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["chaos_enabled"] is True
+        assert data["reason"] == "unit test"
+        # Disable
+        resp = client.post("/api/dgrid/chaos", json={"enabled": False})
+        assert resp.status_code == 200
+        assert resp.json()["chaos_enabled"] is False
+
+    def test_chaos_requires_enabled_field(self, client):
+        resp = client.post("/api/dgrid/chaos", json={})
+        assert resp.status_code == 422  # pydantic validation
+
+
+class TestDGridConsensus:
+    def test_consensus_rejects_empty_prompt(self, client):
+        resp = client.post("/api/dgrid/consensus", json={"prompt": "   "})
+        assert resp.status_code == 400

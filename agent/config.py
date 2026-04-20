@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # credits allow. Format: "content=anthropic/claude-sonnet-4.5,risk=openai/gpt-4o".
     # Default empty — every task uses dgrid_model (cheap + fast).
     dgrid_task_overrides: str = Field(default="", alias="DGRID_TASK_OVERRIDES")
+    # Opt-in: publish the DGrid attestation Merkle root on BNB Chain as a
+    # self-transaction. Costs ~0.0001 BNB per publish. Off by default.
+    dgrid_attest_onchain: bool = Field(default=False, alias="DGRID_ATTEST_ONCHAIN")
+    # Opt-in: let the router auto-rotate TASK_MODEL_MAP based on per-(task,
+    # model) performance (success rate, latency, cost). Off by default so the
+    # demo routing stays deterministic.
+    dgrid_auto_tune: bool = Field(default=False, alias="DGRID_AUTO_TUNE")
 
     # Twitter
     twitter_bearer_token: str = Field(default="", alias="TWITTER_BEARER_TOKEN")

@@ -2,7 +2,6 @@
 
 import json
 
-import httpx
 from loguru import logger
 
 from agent.config import settings
@@ -14,25 +13,13 @@ class ContentEngine:
     """Generates token artwork and social content."""
 
     async def generate_image(self, prompt: str) -> bytes:
-        """Generate token artwork via OpenAI DALL-E 3."""
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                json={
-                    "model": "dall-e-3",
-                    "prompt": prompt,
-                    "size": "1024x1024",
-                    "quality": "standard",
-                    "n": 1,
-                },
-            )
-            resp.raise_for_status()
-            image_url = resp.json()["data"][0]["url"]
+        """Generate token artwork via DGrid's image proxy (DALL-E 3).
 
-            img_resp = await client.get(image_url)
-            img_resp.raise_for_status()
-            return img_resp.content
+        Routes through the unified LLM client so image gen counts toward the
+        DGrid share and appears in the trace. Falls back to raw OpenAI only if
+        DGrid is unreachable — the client handles classification and tracing.
+        """
+        return await get_llm().generate_image(prompt)
 
     async def generate_launch_thread(self, concept: dict) -> list[str]:
         """Generate a Twitter launch thread (3-5 tweets)."""

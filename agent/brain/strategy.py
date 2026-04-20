@@ -7,6 +7,7 @@ from loguru import logger
 
 from agent.config import settings
 from agent.brain.llm import get_llm
+from agent.brain.consensus import consensus_vote, DEFAULT_CONSENSUS_MODELS
 from agent.fourmeme.monitor import TokenHealth
 
 
@@ -70,9 +71,71 @@ Respond in JSON: {{"should_launch": bool, "reason": str, "optimal_delay_minutes"
             dict with 'action_type' (post_content|transparency|alert|celebrate|defend|nothing),
             'content' (the actual post/message), 'urgency' (low|medium|high), 'reasoning'
         """
-        return await get_llm().chat_json_task([{
-            "role": "user",
-            "content": f"""You are FOUR-LIFE, managing the token {health.name} ({health.symbol}) on Four.meme.
+        prompt = self._lifecycle_prompt(health, concept, memory_context)
+        return await get_llm().chat_json_task([{"role": "user", "content": prompt}], task="risk")
+
+    async def get_defend_action_consensus(
+        self,
+        health: TokenHealth,
+        concept: dict,
+        memory_context: str = "",
+    ) -> dict:
+        """Consensus path for DEFEND phase — the highest-stakes agent decision.
+
+        Runs the lifecycle prompt across multiple DGrid models in parallel and
+        votes on the action. This is only possible because DGrid gives us one
+        API and one auth for every model. Returns the same shape as
+        get_lifecycle_action, with a ``consensus`` field describing the vote.
+
+        If the vote is inconclusive (no model succeeded) we fall back to a
+        deterministic "nothing" decision so the lifecycle keeps moving.
+        """
+        prompt = self._lifecycle_prompt(health, concept, memory_context)
+        messages = [{"role": "user", "content": prompt}]
+        result = await consensus_vote(
+            messages,
+            models=DEFAULT_CONSENSUS_MODELS,
+            vote_key="action_type",
+            max_tokens=600,
+            temperature=0.4,
+            json_mode=True,
+        )
+
+        # Pick the full response from whichever succeeding model's verdict
+        # matched the final one — preserves content/urgency/reasoning fields.
+        verdict = result.get("final_verdict")
+        chosen_response: dict | None = None
+        if verdict is not None:
+            for r in result.get("results", []):
+                if r.get("ok") and str(r.get("verdict")) == str(verdict):
+                    full = r.get("full_response") or {}
+                    if isinstance(full, dict) and full.get("action_type"):
+                        chosen_response = full
+                        break
+
+        if chosen_response is None:
+            # Graceful degradation — no model answered usably. Don't post.
+            chosen_response = {
+                "action_type": "nothing",
+                "content": "",
+                "urgency": "low",
+                "reasoning": "consensus inconclusive — deferring to next tick",
+            }
+
+        chosen_response["consensus"] = {
+            "models_queried": result.get("models_queried"),
+            "models_succeeded": result.get("models_succeeded"),
+            "confidence": result.get("confidence"),
+            "tally": result.get("tally"),
+            "method": result.get("method"),
+        }
+        return chosen_response
+
+    @staticmethod
+    def _lifecycle_prompt(health: TokenHealth, concept: dict, memory_context: str) -> str:
+        """Shared prompt body for the lifecycle action — used by both single-model
+        and consensus paths so the two always see the same context."""
+        return f"""You are FOUR-LIFE, managing the token {health.name} ({health.symbol}) on Four.meme.
 
 TOKEN HEALTH:
 - Phase: {health.phase}
@@ -109,4 +172,3 @@ Respond in JSON: {{"action_type": str, "content": str, "urgency": str, "reasonin
 
 The content should be in the token's personality voice. Max 280 chars for Twitter.
 Make it genuinely engaging — not corporate, not cringe."""
-        }], task="risk")

@@ -245,7 +245,17 @@ from collections import defaultdict as _defaultdict, deque as _deque
 _RL_WINDOW_SECONDS = 60
 _RL_PUBLIC_LIMIT = 120   # GET /api/** (public read)
 _RL_WRITE_LIMIT = 30     # POST /api/agent/** (write)
+_RL_LLM_LIMIT = 10       # POST /api/dgrid/(compare|probe|consensus) — each call burns DGrid credits
 _rate_buckets: dict[tuple[str, str], list[float]] = _defaultdict(list)
+
+# Endpoints that fire real LLM traffic — stricter bucket so the public showcase
+# surface can't be weaponized to burn DGrid credits.
+_LLM_BURN_PREFIXES = (
+    "/api/dgrid/compare",
+    "/api/dgrid/probe",
+    "/api/dgrid/consensus",
+    "/api/dgrid/attest",
+)
 
 # ── Metrics (latency + status histogram, in-memory) ──────────────────
 # Ring-buffer of per-request latency samples so the /metrics page can report
@@ -320,9 +330,17 @@ async def rate_limit_middleware(request, call_next):
 
     # Bucket key: (client IP, bucket class). Write endpoints get a stricter bucket.
     client_ip = request.client.host if request.client else "unknown"
+    is_llm_burn = request.method == "POST" and any(path.startswith(p) for p in _LLM_BURN_PREFIXES)
     is_write = request.method == "POST" and path.startswith("/api/agent/")
-    bucket_class = "write" if is_write else "public"
-    limit = _RL_WRITE_LIMIT if is_write else _RL_PUBLIC_LIMIT
+    if is_llm_burn:
+        bucket_class = "llm"
+        limit = _RL_LLM_LIMIT
+    elif is_write:
+        bucket_class = "write"
+        limit = _RL_WRITE_LIMIT
+    else:
+        bucket_class = "public"
+        limit = _RL_PUBLIC_LIMIT
     key = (client_ip, bucket_class)
 
     now = _time_rl.time()
@@ -669,7 +687,7 @@ async def dgrid_trace(limit: int = 50):
     llm = get_llm()
     limit = max(1, min(int(limit or 50), 200))
     return {
-        "count": len(llm._trace),
+        "count": llm.trace_count,
         "limit": limit,
         "trace": llm.get_trace(limit=limit),
         "model_version": MODEL_VERSION,
@@ -803,21 +821,243 @@ async def dgrid_compare(body: _CompareBody):
     }
 
 
+class _ProbeBody(BaseModel):
+    model: str | None = None
+
+
 @app.post("/api/dgrid/probe", tags=["dgrid"], summary="Force a DGrid-only call — no fallback — to prove the gateway is live")
-async def dgrid_probe():
+async def dgrid_probe(body: _ProbeBody | None = None):
     """Fire a single call that MUST land on DGrid (no fallback chain).
     Returns provider/model/latency + DGrid's raw response. If DGrid is down
     or out of credits, returns the exact error — no silent fallback, because
     this endpoint exists specifically so judges can verify DGrid on demand.
+    Optional ``model`` lets judges probe any specific DGrid model.
     """
     from agent.brain.llm import get_llm
     llm = get_llm()
-    result = await llm.probe_dgrid()
+    target = None
+    if body and body.model:
+        target = body.model[:120]  # defensive cap
+    result = await llm.probe_dgrid(model=target)
     status_code = 200 if result.get("ok") else 503
     return JSONResponse(
         {**result, "model_version": MODEL_VERSION, "last_updated_at": int(time.time())},
         status_code=status_code,
     )
+
+
+class _ChaosBody(BaseModel):
+    enabled: bool
+    reason: str | None = None
+
+
+@app.post(
+    "/api/dgrid/chaos",
+    tags=["dgrid"],
+    summary="Toggle chaos mode — force DGrid failures to demo fallback chain",
+    dependencies=[Depends(require_auth)],
+)
+async def dgrid_chaos(body: _ChaosBody):
+    """Admin-only. When ``enabled=true``, every subsequent DGrid call fails with
+    a simulated outage, exercising the full fallback chain (Anthropic → OpenAI).
+    Used for demo: judges press a button on the /dgrid page and see the agent
+    keep working through the fallback providers.
+
+    The circuit breaker trips normally; flipping chaos off resets the breaker so
+    the next call tries DGrid again.
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    if body.enabled:
+        llm.enable_chaos(body.reason or "admin toggle")
+    else:
+        llm.disable_chaos()
+    return {
+        "chaos_enabled": llm.chaos_enabled,
+        "breaker": llm.breaker.snapshot(),
+        "reason": body.reason,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/dgrid/leaderboard",
+    tags=["dgrid"],
+    summary="Per-(task, model) rolling stats — success rate, avg latency, cost/call",
+)
+async def dgrid_leaderboard():
+    """Live leaderboard of how each DGrid model is performing per task.
+
+    This is what the self-optimizing router uses to pick winners. Rows are
+    sorted by task then success rate then latency — the top of each task group
+    is the current best model for that workload.
+    """
+    from agent.brain.llm import get_llm, TASK_MODEL_MAP
+    from agent.config import settings as _settings
+    llm = get_llm()
+    return {
+        "rows": llm.get_leaderboard(),
+        "auto_tune_enabled": bool(getattr(_settings, "dgrid_auto_tune", False)),
+        "current_task_map": dict(TASK_MODEL_MAP),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+class _ConsensusBody(BaseModel):
+    prompt: str
+    vote_key: str = "action"
+    models: list[str] | None = None
+    max_tokens: int = 400
+    temperature: float = 0.4
+
+
+@app.post(
+    "/api/dgrid/consensus",
+    tags=["dgrid"],
+    summary="Multi-model consensus — N DGrid models vote on a JSON field",
+)
+async def dgrid_consensus(body: _ConsensusBody):
+    """Fan out to several DGrid models in parallel and vote on a JSON field.
+
+    This is the flagship DGrid-only capability: the same call under any
+    single-provider integration would require per-provider auth, three
+    different SDKs, and three different error envelopes. With DGrid it is one
+    async function.
+
+    Example:
+      POST /api/dgrid/consensus
+      {"prompt": "Is ETH bullish in 24h? Respond {\"action\": \"bullish|bearish|neutral\"}",
+       "vote_key": "action", "models": [...]}
+    """
+    from agent.brain.consensus import consensus_vote
+    prompt = (body.prompt or "")[:1500]
+    if not prompt.strip():
+        return JSONResponse({"error": "prompt required"}, status_code=400)
+    vote_key = (body.vote_key or "action").strip()[:80]
+    models = body.models[:5] if body.models else None
+    max_tokens = max(1, min(int(body.max_tokens or 400), 800))
+    temperature = max(0.0, min(float(body.temperature or 0.4), 1.0))
+    messages = [{"role": "user", "content": prompt}]
+    result = await consensus_vote(
+        messages,
+        models=models,
+        vote_key=vote_key,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        json_mode=True,
+    )
+    return {
+        **result,
+        "prompt": prompt,
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/dgrid/audit",
+    tags=["dgrid"],
+    summary="Merkle attestation of DGrid calls — cryptographic proof of usage",
+)
+async def dgrid_audit():
+    """Current Merkle commitment to every DGrid call the agent has made.
+
+    Each successful DGrid call is folded into a SHA-256 hash chain. The tip of
+    the chain (``current_root``) is the commitment; it can be published on BNB
+    Chain via POST /api/dgrid/attest (admin). Once published, the txhash is
+    returned here so anyone can verify independently.
+
+    Judges who want to prove FOUR-LIFE really used DGrid can:
+      1. Read the published txhash from ``last_published_txhash``.
+      2. Reconstruct the chain from /api/dgrid/trace and verify the root matches.
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    return {
+        **llm.get_attestation(),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.get(
+    "/api/dgrid/audit/calls",
+    tags=["dgrid"],
+    summary="Full append-only call log — every DGrid call that contributes to the Merkle chain",
+)
+async def dgrid_audit_calls(offset: int = 0, limit: int = 500):
+    """Paginated slice of the full DGrid call log, for independent Merkle
+    verification. Each entry includes the ``call_digest`` and the
+    ``chain_tip`` after folding it in.
+
+    Reconstruct the chain: start with ``genesis`` (from /api/dgrid/audit),
+    fold each ``call_digest`` in ``seq`` order, expect the final hash to equal
+    ``/api/dgrid/audit.current_root``.
+
+    Pagination: ``offset`` defaults to 0, ``limit`` capped at 2000.
+    """
+    from agent.brain.llm import get_llm
+    llm = get_llm()
+    offset = max(0, int(offset))
+    limit = max(1, min(int(limit or 500), 2000))
+    entries = llm.get_audit_calls(offset=offset, limit=limit)
+    total = llm._attestation_log.count()
+    snap = llm.get_attestation()
+    return {
+        "offset": offset,
+        "limit": limit,
+        "count": len(entries),
+        "total": total,
+        "calls": entries,
+        "genesis": snap.get("genesis"),
+        "current_root": snap.get("current_root"),
+        "last_published_root": snap.get("last_published_root"),
+        "last_published_txhash": snap.get("last_published_txhash"),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
+
+
+@app.post(
+    "/api/dgrid/attest",
+    tags=["dgrid"],
+    summary="Publish the current DGrid attestation root on BNB Chain",
+    dependencies=[Depends(require_auth)],
+)
+async def dgrid_attest():
+    """Opt-in. Publishes the current attestation tip on BNB Chain as a
+    self-transaction with the root in the tx data field. Costs ~0.0001 BNB.
+
+    Requires DGRID_ATTEST_ONCHAIN=true and a wallet with BNB. Returns the new
+    txhash plus the updated attestation snapshot.
+    """
+    from agent.brain.llm import get_llm
+    from agent.brain.attestation import publish_root_onchain
+    from agent.config import settings as _settings
+    if not getattr(_settings, "dgrid_attest_onchain", False):
+        raise HTTPException(status_code=403, detail="DGRID_ATTEST_ONCHAIN is disabled")
+    llm = get_llm()
+    snap = llm.get_attestation()
+    root = snap["current_root"]
+    count = int(snap.get("num_calls_chained", 0))
+    if count == 0:
+        raise HTTPException(status_code=400, detail="no DGrid calls to attest yet")
+    try:
+        txhash = await publish_root_onchain(root)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"attestation publish failed: {e}") from e
+    llm._attestation.record_attestation(root, txhash, count)
+    return {
+        "published_root": root,
+        "txhash": txhash,
+        "bscscan_url": f"https://bscscan.com/tx/{txhash}",
+        "num_calls_attested": count,
+        **llm.get_attestation(),
+        "model_version": MODEL_VERSION,
+        "last_updated_at": int(time.time()),
+    }
 
 
 # ── MYX V2 Perps ─────────────────────────────────────────────────────
