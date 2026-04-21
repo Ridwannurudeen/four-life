@@ -60,9 +60,46 @@ class Settings(BaseSettings):
     # BscScan (contract verification + ABI lookup)
     bscscan_api_key: str = Field(default="", alias="BSCSCAN_API_KEY")
 
-    # MYX V2
-    myx_router_address: str = Field(default="", alias="MYX_ROUTER_ADDRESS")
-    myx_pool_address: str = Field(default="", alias="MYX_POOL_ADDRESS")
+    # MYX V2 — BSC mainnet production addresses (reverse-engineered from the
+    # myx-trade SDK at src/config/address/BSC_MAINET_NET.ts)
+    myx_router_address: str = Field(
+        default="0xb0c56a233535971b8903497f98b90Cf53aE77A13",  # TRADING_ROUTER
+        alias="MYX_ROUTER_ADDRESS",
+    )
+    myx_pool_address: str = Field(
+        default="0x22cEc08111BBae24D0b80BDA2a6503EaB9BA704b",  # market+pair registry
+        alias="MYX_POOL_ADDRESS",
+    )
+    myx_order_manager: str = Field(
+        default="0x8d38a857390E1586481cF8994F4feBc315D0249b",
+        alias="MYX_ORDER_MANAGER",
+    )
+    myx_position_manager: str = Field(
+        default="0x04218C23f89cAA2E4395a7Bd94410057705D1184",
+        alias="MYX_POSITION_MANAGER",
+    )
+    myx_base_pool: str = Field(
+        default="0x6a775E908629eFC6357b3d89E5528524a6f378Dd",
+        alias="MYX_BASE_POOL",
+    )
+    myx_quote_pool: str = Field(
+        default="0x73b2dcfdc7dC78a7A51B778E93c09FC173923BcE",
+        alias="MYX_QUOTE_POOL",
+    )
+    myx_oracle: str = Field(
+        default="0xAdD60e47D2C5e7d57B1e5a3F9d24dE43933b8A7A",
+        alias="MYX_ORACLE",
+    )
+    myx_forwarder: str = Field(
+        default="0xD0894e09317F455dd698A706bb62D783e95aA7Ad",
+        alias="MYX_FORWARDER",
+    )
+    # MYX V2 is a permissioned broker architecture: orders flow through a
+    # BrokerSigner contract issued per-integrator by the MYX team (see SDK
+    # guide: "brokerAddress: Get from MYX team"). Without this, our
+    # placeOrderWithSalt call has no target. Empty by default; populate
+    # once MYX onboards us.
+    myx_broker_address: str = Field(default="", alias="MYX_BROKER_ADDRESS")
     # Execution requires real oracle pricing + production-sized collateral. Default OFF so
     # the hackathon demo surface stays in "signal_only" mode until deliberately enabled.
     myx_execution_enabled: bool = Field(default=False, alias="MYX_EXECUTION_ENABLED")

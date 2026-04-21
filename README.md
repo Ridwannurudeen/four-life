@@ -295,7 +295,8 @@ The agent generates phase-aware hedge signals on MYX V2 and commits every decisi
 - **DGrid consensus on DEFEND** — the highest-stakes decision (opening a short when a token shows weakness) fans across 3 DGrid models and takes a majority vote. Consensus metadata (method, tally, per-model verdict) preserved in every signal.
 - **Two independent Merkle chains** — (a) **trade attestation** chains every open/close position event; (b) **signal attestation** chains every decision the agent makes. Both publishable on-chain. **1 MYX signal root already on-chain.**
 - **Calldata viewer** — `GET /api/myx/calldata/{token}` returns the exact unsigned `createIncreaseOrder((address,uint256,uint8,int256,uint256,bool,uint256,uint256,uint8,uint256))` transaction the agent would submit right now. Paste into BscScan's ABI decoder to verify shape-correctness without executing.
-- **Signal-only by default** — execution gated by `MYX_EXECUTION_ENABLED`. We ship the pipeline ready; we don't broadcast to an unverified router. See the MYX showcase page at [/myx](https://four-life.gudman.xyz/myx).
+- **Every production BSC mainnet address wired** — TRADING_ROUTER, ORDER_MANAGER, POSITION_MANAGER, BASE_POOL, QUOTE_POOL, ORACLE, FORWARDER. Sourced from the official MYX SDK (`myx-trade/src/config/address/BSC_MAINET_NET.ts`), hardcoded into our config with full call-flow comments in `agent/myx/client.py`.
+- **Signal-only by default — execution pending broker onboarding.** MYX V2 is a permissioned broker architecture: orders flow through a **BrokerSigner** contract issued per integrator by the MYX team. We shipped the complete infrastructure wired to the correct addresses; flipping `MYX_EXECUTION_ENABLED=true` + setting `MYX_BROKER_ADDRESS` is the single change needed to go live. See the MYX showcase at [/myx](https://four-life.gudman.xyz/myx).
 
 ---
 

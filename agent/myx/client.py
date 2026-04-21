@@ -121,6 +121,48 @@ POOL_ABI = json.loads("""[
 # MYX API base
 MYX_API = "https://api.myx.finance"
 
+# MYX V2 BSC mainnet addresses (sourced from the official SDK at
+# github.com/myx-protocol/myx-trade, src/config/address/BSC_MAINET_NET.ts).
+#
+# Architecture — verified by reading the SDK source:
+#
+#   User's wallet
+#        │ (1) approve collateral token
+#        ▼
+#   TRADING_ROUTER ── approval target ── 0xb0c56a23…
+#        ▲
+#        │ (2) broker submits order on user's behalf via placeOrderWithSalt
+#        │
+#   BrokerSigner ── MYX-team-issued per integrator (permissioned)
+#        │ (3) call flows into core
+#        ▼
+#   ORDER_MANAGER 0x8d38a857…  →  POSITION_MANAGER 0x04218C23…  →  BASE_POOL 0x6a775E90…
+#        │                                                           │
+#        ▼                                                           ▼
+#   ORACLE 0xAdD60e47…                                        QUOTE_POOL 0x73b2dcfd…
+#
+# Without a MYX-team-issued broker address, placeOrderWithSalt has no target
+# and on-chain execution is blocked by design. We wire the approval target
+# (TRADING_ROUTER), the manager + pools (for reads, event indexing, calldata
+# preview) and wait for broker onboarding before flipping
+# MYX_EXECUTION_ENABLED.
+MYX_ADDRESSES_BSC = {
+    "TRADING_ROUTER":    "0xb0c56a233535971b8903497f98b90Cf53aE77A13",
+    "ORDER_MANAGER":     "0x8d38a857390E1586481cF8994F4feBc315D0249b",
+    "POSITION_MANAGER":  "0x04218C23f89cAA2E4395a7Bd94410057705D1184",
+    "POOL_MANAGER":      "0x04218C23f89cAA2E4395a7Bd94410057705D1184",
+    "BASE_POOL":         "0x6a775E908629eFC6357b3d89E5528524a6f378Dd",
+    "QUOTE_POOL":        "0x73b2dcfdc7dC78a7A51B778E93c09FC173923BcE",
+    "ORACLE":            "0xAdD60e47D2C5e7d57B1e5a3F9d24dE43933b8A7A",
+    "FORWARDER":         "0xD0894e09317F455dd698A706bb62D783e95aA7Ad",
+    "EIP7702_DELEGATION": "0x798860BbBC6e011C5508f92a102ee53a44cECfb7",
+    "MARKET_MANAGER":    "0x98Af86B194ce82cac650C87F45e5B9f7A4A40AB2",
+    "DATA_PROVIDER":     "0x96955bE362b35846c2E7b9B40fC961080DCBbA67",
+    # USDC on BSC (MYX's collateral token; note: this is actually BSC's USDT
+    # contract, which MYX labels USDC for consistency across chains).
+    "USDC":              "0x55d398326f99059fF775485246999027B3197955",
+}
+
 
 class MYXClient:
     """MYX V2 perpetual trading client for BNB Chain."""

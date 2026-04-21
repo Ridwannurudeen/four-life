@@ -81,9 +81,42 @@ POST /api/dgrid/attest         — publish Merkle root on BNB Chain (admin)
 
 ## What we built on MYX V2
 
-**Signal infrastructure + cryptographic commitment, with the execution pipeline ready pending router verification.**
+**Full infrastructure + cryptographic commitment + every production BSC address wired, with execution pending broker onboarding from the MYX team.**
 
-Transparent framing: MYX V2's BSC mainnet router address isn't publicly identifiable at the two candidates we could find (both proxies revert on `eth_call` simulation with empty data). Rather than broadcast to an unknown address, we shipped the complete infrastructure **without** executing real trades — and we disclose this explicitly below.
+### Architecture — reverse-engineered from MYX's official SDK
+
+MYX V2 on BSC mainnet is a **permissioned broker architecture**. Orders don't flow directly to TRADING_ROUTER; they flow through a per-integrator **BrokerSigner** contract issued manually by the MYX team. We confirmed this by reading `github.com/myx-protocol/myx-trade/src/config/address/BSC_MAINET_NET.ts` (their production SDK) and their integration guide which explicitly states `brokerAddress: "Get from MYX team"`.
+
+```
+User wallet
+   │ approve collateral token
+   ▼
+TRADING_ROUTER (0xb0c56a23…)  ← approval target
+   ▲
+   │ placeOrderWithSalt submitted by broker on user's behalf
+   │
+BrokerSigner  ← issued per integrator by MYX team (permissioned)
+   │
+   ▼
+ORDER_MANAGER (0x8d38a857…) → POSITION_MANAGER (0x04218C23…) → Pools + Oracle
+```
+
+### Every production BSC address wired
+
+From `myx-trade/src/config/address/BSC_MAINET_NET.ts`:
+
+| Role | Address |
+|---|---|
+| TRADING_ROUTER | `0xb0c56a233535971b8903497f98b90Cf53aE77A13` |
+| ORDER_MANAGER | `0x8d38a857390E1586481cF8994F4feBc315D0249b` |
+| POSITION_MANAGER / POOL_MANAGER | `0x04218C23f89cAA2E4395a7Bd94410057705D1184` |
+| BASE_POOL | `0x6a775E908629eFC6357b3d89E5528524a6f378Dd` |
+| QUOTE_POOL | `0x73b2dcfdc7dC78a7A51B778E93c09FC173923BcE` |
+| ORACLE | `0xAdD60e47D2C5e7d57B1e5a3F9d24dE43933b8A7A` |
+| FORWARDER | `0xD0894e09317F455dd698A706bb62D783e95aA7Ad` |
+| BROKER_ADDRESS | *pending MYX team onboarding* |
+
+Every address is hardcoded in our config and wired into `agent/myx/client.py` with full architecture comments. The moment MYX issues us a broker, `MYX_EXECUTION_ENABLED=true` + `MYX_BROKER_ADDRESS=0x...` flips us to live.
 
 ### What IS on-chain
 
@@ -128,7 +161,13 @@ POST /api/myx/attest-signals     — publish signal root on BNB Chain (admin)
 
 ### Honest MYX bounty framing
 
-**We claim the MYX bounty** on the basis of depth-of-integration even without on-chain execution. We built more MYX-specific infrastructure than a typical integration would — including a cross-partner capability (DGrid × MYX consensus) and a cryptographic commitment chain — and we're open about the execution gap. If judges require actual executed trades to qualify, we accept that; we still think the infrastructure is worth a look.
+**We claim the MYX bounty** on the basis of depth-of-integration with transparent disclosure of the permissioned-broker constraint. Three things judges can verify independently:
+
+1. **We correctly reverse-engineered the architecture** — every BSC mainnet address in our config matches the official SDK
+2. **We built more MYX-specific infrastructure than a typical integration would** — consensus-backed signals, dual Merkle chains, calldata viewer, showcase page
+3. **The remaining execution gap is a protocol design choice**, not a tooling gap — MYX gates brokers by design
+
+The moment MYX's team issues a broker address, we're execution-ready. No architecture changes needed. Until then, signal-only is the honest-and-safe default, and everything downstream (position attestation chain, trade Merkle root on-chain) is designed to extend seamlessly.
 
 ---
 
