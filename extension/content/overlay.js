@@ -178,6 +178,70 @@
       color: rgba(255,255,255,0.35);
       font-size: 11px;
     }
+
+    /* Agent-context strip — shows WHO graded this token + links to
+       the live on-chain attestation evidence. Proves the verdict isn't
+       a black box: the grading agent has an ERC-8004 identity and its
+       decisions are committed to public Merkle roots on BNB Chain. */
+    .fl-agent-ctx {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(0, 212, 255, 0.18);
+      background: linear-gradient(135deg, rgba(0,212,255,0.04), rgba(108,255,50,0.02));
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 11px;
+    }
+    .fl-agent-ctx .fl-k {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.5);
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .fl-agent-ctx .fl-v { font-weight: 600; }
+    .fl-agent-ctx a {
+      color: #00d4ff;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      text-decoration: none;
+      font-size: 10.5px;
+    }
+    .fl-agent-ctx a:hover { text-decoration: underline; }
+
+    /* Action buttons — the footer gets 3 actions (share, open-on-FOUR-LIFE,
+       view attestation on BscScan) instead of the old single CTA. Each is
+       a real user verb, not decoration. */
+    .fl-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+    .fl-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .fl-action:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); }
+    .fl-action.primary {
+      background: linear-gradient(135deg, #00d4ff, #6cff32);
+      color: #0b0b0e;
+      border-color: transparent;
+    }
+    .fl-action.primary:hover { filter: brightness(1.08); background: linear-gradient(135deg, #00d4ff, #6cff32); }
   `;
 
   function tierColor(tier) {
@@ -278,6 +342,55 @@
     if (e.key === "Escape") close();
   }
 
+  // ── Agent-context fetch ─────────────────────────────────────────────
+  // Pulls the live DGrid + MYX attestation state ONCE when the panel opens
+  // so we can show the current Merkle tips + BscScan links alongside the
+  // per-token rule trace. Cached in-module for 60s so a user clicking
+  // multiple tokens in quick succession doesn't hammer the API.
+  const API_BASE = "https://four-life.gudman.xyz";
+  let _agentCtxCache = null;
+  let _agentCtxCachedAt = 0;
+  async function fetchAgentContext() {
+    const now = Date.now();
+    if (_agentCtxCache && (now - _agentCtxCachedAt) < 60_000) return _agentCtxCache;
+    try {
+      const [dgrid, myx] = await Promise.all([
+        fetch(API_BASE + "/api/dgrid/audit", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(API_BASE + "/api/myx/signal-attestation", { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
+      ]);
+      _agentCtxCache = {
+        dgrid_tx: dgrid?.last_published_txhash || null,
+        dgrid_count: dgrid?.last_published_count || 0,
+        myx_tx: myx?.last_published_txhash || null,
+        myx_count: myx?.last_published_count || 0,
+      };
+      _agentCtxCachedAt = now;
+      return _agentCtxCache;
+    } catch { return null; }
+  }
+
+  function agentContextHtml(ctx) {
+    if (!ctx) return "";
+    const short = (h) => h ? h.slice(0, 8) + "…" + h.slice(-4) : "—";
+    const dgridCell = ctx.dgrid_tx
+      ? `<a href="https://bscscan.com/tx/${escapeHtml(ctx.dgrid_tx)}" target="_blank" rel="noopener noreferrer">${escapeHtml(short(ctx.dgrid_tx))} ↗</a>`
+      : `<span class="fl-v">—</span>`;
+    const myxCell = ctx.myx_tx
+      ? `<a href="https://bscscan.com/tx/${escapeHtml(ctx.myx_tx)}" target="_blank" rel="noopener noreferrer">${escapeHtml(short(ctx.myx_tx))} ↗</a>`
+      : `<span class="fl-v">—</span>`;
+    return `
+      <div class="fl-agent-ctx" role="region" aria-label="Agent attestation context">
+        <div>
+          <div class="fl-k">DGrid root · ${ctx.dgrid_count} calls</div>
+          ${dgridCell}
+        </div>
+        <div>
+          <div class="fl-k">MYX root · ${ctx.myx_count} decisions</div>
+          ${myxCell}
+        </div>
+      </div>`;
+  }
+
   function open({ address, badge, risk, radarUrl }) {
     const root = window.FourLife?.getShadowRoot?.();
     if (!root) return;
@@ -314,6 +427,17 @@
       ? "FOUR-LIFE Certified details"
       : "FOUR-LIFE Radar Estimate details";
 
+    // Pre-build share-to-X composer URL — composed lazily so we don't
+    // have to re-fetch anything on click.
+    const shareText = isCertified
+      ? `FOUR-LIFE Certified — ${label} on $${(b?.metrics_snapshot?.symbol || "").toString().slice(0, 10) || "token"} ${address.slice(0, 8)}… verified on BNB Chain. ` +
+        `Deterministic rule trace, no LLM in the trust path.\n\nRadar: https://four-life.gudman.xyz/radar/${address}`
+      : `FOUR-LIFE Radar — ${label} estimate on $${(b?.metrics_snapshot?.symbol || "").toString().slice(0, 10) || "token"} ${address.slice(0, 8)}… ` +
+        `Heuristic grade from public-ranking data. Upgrade to Certified by tracking it on FOUR-LIFE.\n\n${API_BASE}/radar/${address}`;
+    const shareUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(shareText);
+    const proofUrl = `${API_BASE}/proof`;
+    const agentUrl = `https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1`;
+
     wrap.innerHTML = `
       <div class="fl-scrim" id="fl-scrim">
         <div class="fl-panel" role="dialog" aria-label="${escapeHtml(panelAria)}">
@@ -329,6 +453,8 @@
           <p class="fl-desc">${escapeHtml(desc)}</p>
           <div class="fl-addr">${escapeHtml(address)}</div>
 
+          <div id="fl-agent-ctx-slot"></div>
+
           <h3>Rule trace</h3>
           ${renderWhyTable(why)}
 
@@ -336,8 +462,15 @@
           ${renderEvidence(risk)}
 
           <div class="fl-footer">
-            <span class="fl-watermark">powered by FOUR-LIFE</span>
-            <a class="fl-link" href="${escapeHtml(radarUrl)}" target="_blank" rel="noopener noreferrer">Open operator checklist →</a>
+            <div class="fl-actions">
+              <a class="fl-action primary" href="${escapeHtml(shareUrl)}" target="_blank" rel="noopener noreferrer" data-action="share">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                Share verdict
+              </a>
+              <a class="fl-action" href="${escapeHtml(radarUrl)}" target="_blank" rel="noopener noreferrer">Open on FOUR-LIFE</a>
+              <a class="fl-action" href="${escapeHtml(proofUrl)}" target="_blank" rel="noopener noreferrer">/proof</a>
+              <a class="fl-action" href="${escapeHtml(agentUrl)}" target="_blank" rel="noopener noreferrer">Agent wallet ↗</a>
+            </div>
           </div>
         </div>
       </div>`;
@@ -347,6 +480,13 @@
     if (scrim) scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
     document.addEventListener("keydown", onKeyDown);
+
+    // Fire agent-context fetch lazily — fills the slot when ready; doesn't
+    // block the panel render if the API is slow.
+    fetchAgentContext().then((ctx) => {
+      const slot = root.getElementById("fl-agent-ctx-slot");
+      if (slot && ctx) slot.innerHTML = agentContextHtml(ctx);
+    });
   }
 
   window.FourLifeOverlay = { open, close };
