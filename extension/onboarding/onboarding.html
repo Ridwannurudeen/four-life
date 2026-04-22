@@ -21,21 +21,29 @@
     </header>
 
     <section class="hero">
-      <div class="hero-tag">Installed · v1.2.0 · 3-minute tour</div>
+      <div class="hero-tag">Installed · v1.5.2 · 4-minute tour</div>
       <h2>Deterministic trust grading, wherever you browse BNB Chain tokens.</h2>
       <p class="lede">
         The extension injects a <strong>FOUR-LIFE Certified</strong> badge onto every
-        <span class="tag">four.meme</span>, <span class="tag">BscScan</span>, and
-        <span class="tag">PancakeSwap</span> token page. Every tier comes with a full
-        rule trace and live on-chain attestation evidence — no black-box verdicts.
+        <span class="tag">four.meme</span>, <span class="tag">BscScan</span>,
+        <span class="tag">PancakeSwap</span>, and
+        <span class="tag">DEXScreener</span> token page. Every tier ships with a
+        full rule trace, contract-safety audit, creator reputation, history
+        sparkline, and live on-chain attestation evidence — no black-box
+        verdicts.
       </p>
     </section>
 
     <section class="steps">
       <article class="step">
         <div class="step-num">1</div>
-        <h3>Click the toolbar icon → see live agent state</h3>
-        <p>Agent ID, active tokens, latest on-chain attestation roots, top radar entries — auto-refreshed every 20 seconds.</p>
+        <h3>Click the toolbar icon → live agent dashboard</h3>
+        <p>
+          Agent ID, active tokens, latest on-chain attestation roots, top radar
+          entries with visual curve-progress bars, and a live feed of the last
+          5 agent actions (alerts, posts, tracking events, hedge decisions).
+          Auto-refreshes every 20 seconds.
+        </p>
         <div class="step-art art-popup" aria-hidden="true">
           <div class="fake-popup">
             <div class="fake-hdr">
@@ -45,9 +53,9 @@
             </div>
             <div class="fake-grid">
               <div class="fake-stat"><span class="k">Agent ID</span><span class="v">#20</span></div>
-              <div class="fake-stat"><span class="k">Active</span><span class="v">11</span></div>
-              <div class="fake-stat"><span class="k">DGrid</span><span class="v">1,866</span></div>
-              <div class="fake-stat"><span class="k">MYX</span><span class="v">574</span></div>
+              <div class="fake-stat"><span class="k">Active</span><span class="v">8</span></div>
+              <div class="fake-stat"><span class="k">DGrid</span><span class="v">1,573</span></div>
+              <div class="fake-stat"><span class="k">MYX</span><span class="v">518</span></div>
             </div>
           </div>
         </div>
@@ -55,8 +63,14 @@
 
       <article class="step">
         <div class="step-num">2</div>
-        <h3>Visit any BNB Chain token page</h3>
-        <p>A pill appears in the top-right. Click it for the full rule trace, risk evidence, and links to the agent's on-chain Merkle roots.</p>
+        <h3>Visit any BNB Chain token page → the pill appears</h3>
+        <p>
+          A tier-colored pill lands in the top-right. <strong>At-risk pills
+          pulse red</strong> so a honeypot reads structurally different from a
+          safe token at a glance — matches the Pocket Universe / Rabby
+          red-yellow-green hazard convention. Pair URLs on DEXScreener are
+          auto-resolved to their base token before grading.
+        </p>
         <div class="supported">
           <a href="https://four.meme/en/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
             <span class="dot green"></span> four.meme / $AUNT
@@ -64,28 +78,106 @@
           <a href="https://bscscan.com/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
             <span class="dot cyan"></span> BscScan / $AUNT
           </a>
-          <a href="https://pancakeswap.finance/info/tokens/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
-            <span class="dot yellow"></span> PancakeSwap info
+          <a href="https://pancakeswap.finance/swap?outputCurrency=0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
+            <span class="dot yellow"></span> PancakeSwap / $AUNT
+          </a>
+          <a href="https://dexscreener.com/bsc/" target="_blank" rel="noopener noreferrer" class="supported-link">
+            <span class="dot purple"></span> DEXScreener / any BSC pair
           </a>
         </div>
         <p class="note">
-          <strong>Certified vs Radar Estimate:</strong> a Certified tier is only issued when the agent has full on-chain measurement (buy/sell events, whale distribution, holder velocity). Tokens visible only via public ranking get a <em>Radar Estimate</em> with a distinct version string and explicit "heuristic only" banner. The pill, the modal, and the Chrome notifications all discriminate — no heuristic gets labeled as Certified.
+          <strong>Certified vs Radar Estimate:</strong> a Certified tier is only
+          issued when the agent has full on-chain measurement (buy/sell events,
+          whale distribution, holder velocity). Tokens visible only via public
+          ranking get a <em>Radar Estimate</em> with a distinct version string
+          and explicit "heuristic only" banner. The pill, modal, and Chrome
+          notifications all discriminate — no heuristic gets labeled as
+          Certified.
         </p>
       </article>
 
       <article class="step">
         <div class="step-num">3</div>
-        <h3>Star tokens → Chrome alerts on tier changes</h3>
-        <p>Click <span class="star">★</span> <strong>Watch</strong> on any token's panel. When its tier transitions (healthy → at_risk, or radar_estimate → certified upgrade), a native Chrome notification fires. Click it to open the token's full evidence page.</p>
-        <div class="perms">
-          <strong>Permissions we ask for:</strong>
-          <span class="pill">activeTab</span>
-          <span class="pill">storage</span>
-          <span class="pill">alarms</span>
-          <span class="pill">notifications</span>
-          <span class="muted">— no tracking, no analytics, no auth. Watchlist syncs across devices via <code>chrome.storage.sync</code>.</span>
-        </div>
+        <h3>Click the pill → a deep inspection panel slides in</h3>
+        <p>Every tier verdict is backed by eight live-fetched sections:</p>
+        <ul class="feature-list">
+          <li><strong>Animated health-score ring</strong> (0–100, tier-coloured arc)</li>
+          <li><strong>Rule trace cards</strong> — hover the ℹ icon for plain-english explanation of each threshold</li>
+          <li><strong>Contract-safety checklist</strong> — BscScan verified / mint / blacklist / pause / proxy / ownership renounced</li>
+          <li><strong>Deployer reputation</strong> — launches tracked, graduations, grad-rate, trust tier</li>
+          <li><strong>Snapshot-history sparkline</strong> — curve progress over time + tier-transition dot strip</li>
+          <li><strong>On-chain attestation</strong> — live DGrid + MYX Merkle-root transactions, linked to BscScan</li>
+          <li><strong>Freshness indicator</strong> — "Grade updated 23s ago" ticker, turns yellow past 60s</li>
+          <li><strong>Severity-coded risk evidence</strong> with SVG warning icons</li>
+        </ul>
+        <p class="note">
+          Two ways to go bigger: click <strong>Full page ↗</strong> in the
+          header to open the token's analysis as a real browser tab
+          (bookmarkable, shareable), or <strong>Expand</strong> to widen the
+          drawer to 1100px.
+        </p>
       </article>
+
+      <article class="step">
+        <div class="step-num">4</div>
+        <h3>Firewall mode on at-risk tokens</h3>
+        <p>
+          Click <strong>Swap ↗</strong> on an at-risk token and FOUR-LIFE
+          blocks the route. A red block modal surfaces the top 2–3 critical
+          evidence lines with a <strong>Cancel — stay safe</strong> primary
+          button and a muted <strong>Override anyway</strong> secondary. The
+          destructive navigation only happens if you explicitly override.
+          This is the single feature that turns FOUR-LIFE from a dashboard
+          into a safety product.
+        </p>
+        <p class="note">
+          Separately, click <strong>★ Watch</strong> on any panel to subscribe
+          for Chrome notifications on tier transitions. When the token moves
+          (healthy → at_risk, or radar_estimate → certified upgrade), a native
+          alert fires. Click it to land on the token's full evidence page.
+        </p>
+      </article>
+
+      <article class="step">
+        <div class="step-num">5</div>
+        <h3>Right-click any address anywhere → grade it</h3>
+        <p>
+          Highlight a <code>0x…</code> address on any webpage (Twitter,
+          Telegram, Discord web, email), right-click → <strong>Grade "0x…" with
+          FOUR-LIFE</strong>. The full rule trace opens in a new tab. Works on
+          every site, not just the four we inject into.
+        </p>
+      </article>
+
+      <article class="step">
+        <div class="step-num">6</div>
+        <h3>Keyboard shortcuts — no mouse needed</h3>
+        <div class="keys">
+          <div><kbd>F</kbd> expand / shrink panel</div>
+          <div><kbd>W</kbd> toggle Watch for this token</div>
+          <div><kbd>C</kbd> copy token address</div>
+          <div><kbd>S</kbd> share verdict to X</div>
+          <div><kbd>P</kbd> open full page in new tab</div>
+          <div><kbd>Esc</kbd> close panel</div>
+        </div>
+        <p class="note">
+          The extension honours <code>prefers-reduced-motion</code> — ambient
+          pulses and the at_risk alert animation disable themselves when the
+          OS setting is on.
+        </p>
+      </article>
+    </section>
+
+    <section class="perms-section">
+      <div class="perms">
+        <strong>Permissions we ask for:</strong>
+        <span class="pill">activeTab</span>
+        <span class="pill">storage</span>
+        <span class="pill">alarms</span>
+        <span class="pill">notifications</span>
+        <span class="pill">contextMenus</span>
+        <span class="muted">— no tracking, no analytics, no auth. Watchlist syncs across devices via <code>chrome.storage.sync</code>. All API calls go directly to four-life.gudman.xyz.</span>
+      </div>
     </section>
 
     <section class="cta-row">
@@ -94,6 +186,9 @@
       </a>
       <a class="cta" href="https://four-life.gudman.xyz/proof" target="_blank" rel="noopener noreferrer">
         See the live proof surface
+      </a>
+      <a class="cta" href="https://four-life.gudman.xyz/radar" target="_blank" rel="noopener noreferrer">
+        Open the Radar
       </a>
       <a class="cta ghost" href="https://github.com/Ridwannurudeen/four-life" target="_blank" rel="noopener noreferrer">
         GitHub

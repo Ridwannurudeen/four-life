@@ -350,6 +350,72 @@ html, body {
 }
 .btn-close:hover { color: var(--text); border-color: var(--line-strong); }
 
+/* Feature list used in step 3 — 8 bullet features of the deep panel */
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+}
+.feature-list li {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 6px 10px 6px 22px;
+  position: relative;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  line-height: 1.4;
+}
+.feature-list li::before {
+  content: "✓";
+  position: absolute;
+  left: 8px; top: 6px;
+  color: var(--green);
+  font-weight: 700;
+  font-size: 12px;
+}
+.feature-list strong { color: var(--text); font-weight: 600; }
+
+/* Keyboard shortcut grid for step 6 */
+.keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px 14px;
+  margin: 12px 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.keys kbd {
+  display: inline-block;
+  min-width: 28px;
+  padding: 3px 8px;
+  margin-right: 8px;
+  border-radius: 5px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4), inset 0 -1px 0 rgba(0,0,0,0.35);
+}
+
+/* Permissions section — separated from step 4 because the list now
+   reflects v1.5.2 including contextMenus. */
+.perms-section {
+  margin: 18px 0 22px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.015);
+}
+
+.dot.purple { background: #a855f7; box-shadow: 0 0 8px rgba(168,85,247,0.55); }
+
 /* Narrow viewport */
 @media (max-width: 640px) {
   .wrap { padding: 24px 16px 40px; }
@@ -359,4 +425,6 @@ html, body {
   .step-num { left: 16px; top: 20px; }
   .fake-popup { width: 100%; }
   .ftr { flex-direction: column; align-items: flex-start; }
+  .feature-list { grid-template-columns: 1fr; }
+  .keys { grid-template-columns: 1fr 1fr; }
 }
