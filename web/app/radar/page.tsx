@@ -727,7 +727,7 @@ export default function RadarPage() {
             The <span className="gradient-text">trust layer</span> for Four.meme launches.
           </h1>
           <p className="text-white/60 text-base md:text-lg leading-relaxed">
-            Every active Four.meme token, graded deterministically. FOUR-LIFE Certified tiers are computed from raw on-chain metrics with a full rule trace — no LLM in the trust path. Pair-aware graduation targets sourced live from Four.meme&apos;s config.
+            Every active Four.meme token, graded deterministically. Tokens we&apos;re already monitoring on-chain receive a <span className="text-purple-300">FOUR-LIFE Certified</span> tier (full rule trace, no LLM). Tokens visible only via public ranking get a <span className="text-[#ffd641]">Radar Estimate</span> with a distinct version string — never confused with Certified. Pair-aware graduation targets sourced live from Four.meme&apos;s config.
           </p>
         </div>
       </section>
@@ -826,7 +826,7 @@ export default function RadarPage() {
       <footer className="border-t border-white/5 py-10 px-5 text-center">
         <div className="max-w-3xl mx-auto text-sm text-white/40 space-y-2">
           <div>
-            FOUR-LIFE Certified is deterministic, auditable, and open-source. Every badge includes the exact rules that fired.
+            FOUR-LIFE grades are deterministic, auditable, and open-source. Certified tiers are backed by full on-chain measurement; Radar Estimates are explicitly labelled as heuristic. Every badge carries the exact rules that fired.
           </div>
           <div className="flex items-center justify-center gap-3 pt-2 text-[11px]">
             <a href="https://github.com/Ridwannurudeen/four-life" target="_blank" rel="noopener noreferrer" className="hover:text-white">GitHub</a>

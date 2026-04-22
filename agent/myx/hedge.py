@@ -140,8 +140,8 @@ class HedgeManager:
 
         # Generate a signal (rate-limited). For DEFEND — the phase where the
         # agent actually executes — we fan the decision across 3 DGrid models
-        # and take the majority vote. This is the cross-partner flex: the
-        # single-provider integration can't do this at all.
+        # in parallel and take the majority vote. Using DGrid's unified gateway
+        # makes this a single fan-out call instead of per-provider plumbing.
         use_consensus = phase == "defend"
         signal = None
         if now - state.last_signal_at >= SIGNAL_COOLDOWN:

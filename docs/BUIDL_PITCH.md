@@ -51,12 +51,11 @@ What's live on `four-life.gudman.xyz`:
 
 ## Rationale (not submission copy — internal notes)
 
-**Why this beats the closest competitors' hooks:**
+**The positioning that anchors every version of the pitch:**
 
-- **vs. Go Hatch "97% die in stall zone"** — ours is the same problem shape but we ship the Phase-4 solution, not the observation. Go Hatch analyses; FOUR-LIFE acts.
-- **vs. MEMIND / Meme Lifecycle Oracle** — ours is production-deployed with a real on-chain token + 5 verifiable attestation transactions. Theirs are concept posts.
-- **vs. Curve Whisperer (open GitHub)** — ours is deployed + end-to-end, and the cryptographic commitment is novel in the pool.
-- **vs. every single-provider agent** — the DGrid consensus-on-DEFEND flex requires a unified multi-model gateway. This is provably something they cannot build with their stack.
+- Four.meme solved creation (Agentic Mode). FOUR-LIFE is the lifecycle layer — Phase 4: Agent Lifecycle Operations.
+- The differentiator isn't "AI agent for meme tokens" (generic) — it's **on-chain cryptographic attestation of every decision in a token's life**, from insider-phase launch through public-phase graduation.
+- The concrete proof: 1,573 LLM calls + 452 MYX signals committed to Merkle chains published on BNB Chain. 5 BscScan tx hashes anyone can click.
 
 **One-liner to use in spoken judging:**
 

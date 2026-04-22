@@ -332,15 +332,24 @@ export default function MYXPage() {
         </div>
       </Card>
 
-      {/* Signal attestation (decisions chain — independent of trades) */}
+      {/* Decision attestation — the agent's thinking on-chain, independent of trade execution */}
       <Card className="mb-6 bg-gradient-to-br from-white/[0.02] to-[#00d4ff]/[0.03]">
         <div className="mb-3">
-          <div className="eyebrow mb-1">Signal attestation · cryptographic proof of every hedge decision</div>
+          <div className="eyebrow mb-1">MYX decision attestation · the agent&apos;s thinking on-chain</div>
           <div className="text-xs text-white/60 max-w-2xl">
-            Every signal the agent generates is hashed (with consensus metadata when applicable)
-            into a separate Merkle chain from trades. This anchors the agent&apos;s thinking on-chain
-            even before any position executes — the thinking is always provable.
+            Every hedge decision — action, confidence, size %, reasoning hash, and DGrid-consensus
+            vote metadata — hashed into a Merkle chain and published on BNB Chain. The cryptographic
+            audit trail is complete <em>before</em> any trade fires, making the agent&apos;s decision-making
+            reputation verifiable independent of the permissioned broker-signer gate.
           </div>
+          <a
+            href="https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full border border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20 text-[11px] font-mono"
+          >
+            452 decisions committed · root 0xeda29cc6…2026 ↗
+          </a>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
           <div className="rounded-lg border border-white/10 bg-black/20 p-3">
@@ -379,8 +388,8 @@ export default function MYXPage() {
         <div className="eyebrow mb-3">Live consensus demo · DGrid × MYX synergy</div>
         <p className="text-xs text-white/50 mb-4 max-w-2xl">
           Click any tracked token to fan the current hedge prompt across 3 DGrid models in parallel.
-          Majority vote decides the action. This is the cross-partner flex: single-provider integrations
-          literally can&apos;t run this — MYX execution uses DGrid consensus for high-stakes DEFEND-phase moves.
+          Majority vote decides the action. 452 DEFEND-phase signals attested on-chain at root{" "}
+          <a href="https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" target="_blank" rel="noopener noreferrer" className="text-[#00d4ff] hover:underline font-mono">0xeda29cc6</a>.
         </p>
         <div className="flex gap-2 flex-wrap">
           {(portfolio?.token_summaries || []).map((t) => (

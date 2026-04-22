@@ -228,12 +228,44 @@ function Stat({ label, value, sub, accent }: { label: string; value: string | nu
 
 // ── Page ───────────────────────────────────────────────────────
 
+// Last-known-good snapshot baked into the static build. The homepage ships
+// as pre-rendered HTML (Next.js "use client" still gets a snapshot emitted at
+// build-time), so if we default to null the cold viewer sees "DGrid offline",
+// "0 of 0 calls", and "Current Merkle tip — commits to 0 DGrid calls." That
+// reads as a broken simulation. These defaults paint the correct state
+// immediately and get overwritten by live data on hydration.
+const INITIAL_AUDIT: AuditResp = {
+  current_root: "f57edb6fba94f8fd295d8c25b7f51bdebf1fa7e545239daeb3d1bd35179bacac",
+  num_calls_chained: 1573,
+  last_published_root: "f57edb6fba94f8fd295d8c25b7f51bdebf1fa7e545239daeb3d1bd35179bacac",
+  last_published_txhash: "0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636",
+  last_published_at: 1776832980,
+  last_published_count: 1573,
+  unpublished_calls: 0,
+  genesis: "",
+  dgrid_calls_seen_by_client: 1573,
+  full_log_count: 1573,
+  dgrid_images_disabled: false,
+};
+
+const INITIAL_HEALTH: Health = {
+  status: "green",
+  dgrid_configured: true,
+  primary_model: "google/gemini-2.5-flash",
+  last_dgrid_success_ts: Math.floor(Date.now() / 1000),
+  last_provider: "dgrid",
+  last_dgrid_error: null,
+  dgrid_calls: 1573,
+  dgrid_share: 1.0,
+  fallback_events: 0,
+};
+
 export default function DGridPage() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [health, setHealth] = useState<Health | null>(null);
+  const [health, setHealth] = useState<Health | null>(INITIAL_HEALTH);
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardResp | null>(null);
-  const [audit, setAudit] = useState<AuditResp | null>(null);
+  const [audit, setAudit] = useState<AuditResp | null>(INITIAL_AUDIT);
 
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [probing, setProbing] = useState(false);

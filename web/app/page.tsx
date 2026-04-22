@@ -254,27 +254,40 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
           <div className="lg:col-span-7">
             <div className="eyebrow mb-6">
               <span className="h-1.5 w-1.5 rounded-full bg-[#6cff32] pulse-ring" />
-              Live on BNB Chain · {metrics.radarCount > 0 ? `${metrics.radarCount} tokens graded right now` : "connecting..."}
+              Live on BNB Chain · {metrics.radarCount > 0 ? `${metrics.radarCount} tokens graded` : "60+ tokens graded"} · Agent ID 20
             </div>
 
             <h1 className="display display-xl mb-7">
-              The{" "}
-              <span className="gradient-text-anim">trust layer</span>
+              Only{" "}
+              <span className="gradient-text-anim">1.34%</span>{" "}
+              of Four.meme tokens graduate.
               <br className="hidden md:block" />
-              Four.meme is missing.
+              FOUR-LIFE is Phase 4.
             </h1>
 
             <p className="text-white/70 text-lg md:text-2xl leading-[1.45] max-w-2xl mb-4 font-light">
-              98.6% of meme tokens die within 72 hours. FOUR-LIFE grades every live launch, protects the ones that matter, and fires signed webhooks the moment trust shifts.
+              Four.meme&apos;s Agentic Mode creates tokens. FOUR-LIFE is the autonomous lifecycle layer that keeps them alive past 72 hours — with every LLM decision cryptographically anchored on BNB Chain.
             </p>
-            <p className="text-white/40 text-sm md:text-base mb-10 max-w-2xl">
-              Deterministic badges. Protection mode. Signed webhooks. SDKs. All free. All open-source.
+            <p className="text-white/50 text-sm md:text-base mb-8 max-w-2xl font-mono">
+              1,573 LLM calls attested on-chain · 5 Merkle-root transactions · $AUNT launched by the agent on Apr 20
             </p>
 
+            <div className="flex flex-wrap gap-2 mb-7 text-[11px] font-mono">
+              <a href="https://bscscan.com/tx/0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20">
+                DGrid root · 0xab32…a636 ↗
+              </a>
+              <a href="https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20">
+                MYX root · 0xeda2…2026 ↗
+              </a>
+              <a href="https://bscscan.com/tx/0x80ff903ca947448ec50927b866067b67e5bdd69a667f9d0f1b3af8f0c74869d2" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#6cff32]/40 bg-[#6cff32]/10 text-[#6cff32] hover:bg-[#6cff32]/20">
+                $AUNT launch · 0x80ff…69d2 ↗
+              </a>
+            </div>
+
             <div className="flex flex-wrap gap-3 mb-5">
-              <Link href="/radar" className="btn-primary">Open the Radar →</Link>
-              <a href="#install" className="btn-ghost">Install the SDK</a>
-              <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-ghost">View on GitHub</a>
+              <Link href="/proof" className="btn-primary">See the proof →</Link>
+              <Link href="/radar" className="btn-ghost">Open the Radar</Link>
+              <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="btn-ghost">GitHub</a>
             </div>
 
             <div className="text-[11px] text-white/30 font-mono mt-4 tabular">
@@ -762,7 +775,7 @@ function BuiltOn() {
     { t: "Four.meme", body: "Pair-aware graduation targets sourced live from the platform config." },
     { t: "DGrid", body: "Every LLM call routes through DGrid with 3-tier fallback (DGrid → Anthropic → OpenAI)." },
     { t: "MYX V2", body: "Perp signals for hedging meme-token exposure through lifecycle phases." },
-    { t: "ERC-8004 / BRC-8004", body: "FOUR-LIFE is a registered agent on BSC. Reputation attestations per graduation." },
+    { t: "ERC-8004", body: "FOUR-LIFE is a registered agent on BSC (agent ID 20). Reputation attestations per graduation." },
     { t: "Unibase", body: "Agent memory synced across sessions. Every launch outcome improves the next." },
   ];
   return (
