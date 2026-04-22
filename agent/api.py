@@ -624,13 +624,34 @@ async def token_detail(address: str, authorized: bool = Depends(is_authorized)):
         launch_record["what_worked"] = launch.what_worked if launch else []
         launch_record["what_failed"] = launch.what_failed if launch else []
 
+    # Compute the deterministic Certified badge here so every surface
+    # (badge endpoint, radar, dashboard detail) returns the same tier for
+    # the same token. Previous versions of this endpoint left consumers to
+    # call /badge separately — easy vector for drift.
+    try:
+        contract_risk = await _get_contract_risk(address)
+        crs = contract_risk.risk_score if contract_risk else 0
+        live_badge = badge_from_health(
+            health,
+            contract_risk_score=crs,
+            observation_status=getattr(health, "observation_status", "full_history"),
+        )
+    except Exception:
+        live_badge = None
+
     return {
         "health": {
             "address": address,
             "name": health.name,
             "symbol": health.symbol,
-            "creator": health.creator,
+            # Lowercase the creator wallet to match /badge and /creator/
+            # endpoints. Checksum-cased output earlier made the same wallet
+            # render two different strings in neighbouring cards.
+            "creator": (health.creator or "").lower() or None,
             "phase": health.phase,
+            "tier": live_badge.tier if live_badge else None,
+            "tier_source": live_badge.tier_source if live_badge else None,
+            "observation_status": getattr(health, "observation_status", "full_history"),
             "age_hours": round(health.age_hours, 1),
             "health_score": health.health_score,
             "graduation_probability": round(health.graduation_probability * 100, 1),
