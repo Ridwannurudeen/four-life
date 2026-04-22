@@ -136,12 +136,16 @@ class FourLifeAgent:
                 continue
             if not launch.token_address:
                 continue
-            if launch.launch_block and launch.launch_block < min_block:
-                continue
             if launch.token_address in self.monitor.state.tokens:
                 continue
             try:
-                created_block = launch.launch_block or current_block
+                # Block-scan start must be within the 50k eth_getLogs window.
+                # But older launches should STILL be tracked — we just lose
+                # the ability to backfill trades older than ~37h. The token's
+                # real launched_at is preserved so age_hours stays honest;
+                # only the created_block scan cursor is clamped.
+                real_launch_block = launch.launch_block or current_block
+                created_block = max(real_launch_block, min_block)
                 await self.monitor.track_token(
                     launch.token_address,
                     name=launch.name,
