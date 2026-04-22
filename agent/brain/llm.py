@@ -181,6 +181,15 @@ class CircuitBreaker:
         self._open_until = 0.0
         self._last_open_reason = None
 
+    def reset(self, reason: str = "manual reset") -> None:
+        """Reset the breaker to CLOSED without claiming a successful call.
+        Used when an operator flips a flag (e.g. turning off chaos mode) and
+        we want the primary path re-enabled — but we must NOT lie about a
+        live DGrid call succeeding, since no such call has been observed."""
+        self._consecutive_failures = 0
+        self._open_until = 0.0
+        self._last_open_reason = f"reset: {reason}"
+
     def record_failure(self, reason: str | None = None) -> None:
         self._consecutive_failures += 1
         if self._consecutive_failures >= self.failure_threshold:
@@ -345,8 +354,10 @@ class LLMClient:
 
     def disable_chaos(self) -> None:
         self.chaos_enabled = False
-        # Give DGrid a clean slate so the next call tries the primary path.
-        self.breaker.record_success()
+        # Reset the breaker to CLOSED without fabricating a "successful call"
+        # — we're flipping an operator flag, not observing a live DGrid
+        # response. The next real call will confirm actual health.
+        self.breaker.reset(reason="chaos disabled")
         self._last_dgrid_error = None
         logger.info("DGrid chaos mode DISABLED — breaker reset")
 
@@ -494,6 +505,11 @@ class LLMClient:
         # Attest successful DGrid calls (only). Every call is also written to
         # the append-only log so the full Merkle history remains verifiable
         # after older entries scroll out of the in-memory trace ring.
+        #
+        # Ordering matters: we write the log entry FIRST, then advance the
+        # chain only if the log write was durable. If we advanced the chain
+        # first and the log write failed, verify_chain could never reconstruct
+        # the current_root because one of the digests would be missing.
         if success and provider == "dgrid":
             digest = AttestationChain.call_digest(
                 provider=provider,
@@ -505,9 +521,8 @@ class LLMClient:
                 completion_tokens=completion_tokens,
                 ts_ms=entry["ts_ms"],
             )
-            entry["call_digest"] = digest
-            entry["chain_tip"] = self._attestation.append(digest)
-            self._attestation_log.append({
+            next_tip = self._attestation.peek_next_tip(digest)
+            log_entry = {
                 "seq": entry["seq"],
                 "ts_ms": entry["ts_ms"],
                 "provider": provider,
@@ -518,8 +533,19 @@ class LLMClient:
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "call_digest": digest,
-                "chain_tip": entry["chain_tip"],
-            })
+                "chain_tip": next_tip,
+            }
+            if self._attestation_log.append(log_entry):
+                # Log is durable — safe to advance the chain.
+                self._attestation.commit_tip(next_tip)
+                entry["call_digest"] = digest
+                entry["chain_tip"] = next_tip
+            else:
+                # Log write failed (e.g. disk full). Do NOT advance the chain,
+                # or the published current_root will not be reconstructible
+                # from the audit log. The trace entry records no call_digest /
+                # chain_tip so integrators see the gap.
+                entry["attestation_skipped"] = "log_write_failed"
 
         self._trace.append(entry)
         return entry
@@ -847,7 +873,13 @@ class LLMClient:
                 logger.warning("OpenAI failed ({}).", redacted[:120])
 
         if last_error:
-            raise last_error
+            # Re-raise as a redacted RuntimeError. Raising last_error verbatim
+            # could leak a secret embedded in the provider's error string (some
+            # SDKs echo the Authorization header back into error messages). The
+            # `from last_error` chain preserves the original traceback for
+            # server-side debugging; the message seen by callers is scrubbed.
+            redacted_msg = self._redact(str(last_error))[:500]
+            raise RuntimeError(f"All LLM providers failed: {redacted_msg}") from last_error
         raise RuntimeError("No LLM provider available")
 
     # ── Compare + probe + images ─────────────────────────────────
@@ -1068,18 +1100,45 @@ class LLMClient:
 
     @staticmethod
     def _redact(msg: str | None) -> str:
-        """Strip anything that looks like an API key from an error string."""
+        """Strip anything that looks like an API key from an error string.
+
+        Covers common prefixes across providers (OpenAI sk-, Anthropic sk-ant-,
+        DGrid dgrid_, GitHub gh[a-z]_, Slack xox[a-z]-, Google AIza, AWS AKIA,
+        plus bearer tokens and inline api_key=/apiKey=). Case-insensitive for
+        'Bearer' so 'bearer xyz' is also caught."""
         if not msg:
             return ""
+        # Case-insensitive prefixes for ASCII-keyword matches
+        ci_prefixes = ("bearer ", "basic ")
+        # Exact-case prefixes — these are format-specific and mixed-case would
+        # typically just be text, not an actual secret.
+        cs_prefixes = (
+            "sk-", "sk-ant-", "api_key=", "apiKey=", "apikey=",
+            "dgrid_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_",
+            "xoxb-", "xoxp-", "xoxa-", "xoxr-",
+            "AIza", "AKIA",
+        )
         out = msg
-        for needle in ("sk-", "Bearer ", "api_key=", "apiKey=", "dgrid_"):
+
+        def _redact_at(buf: str, idx: int, needle_len: int) -> str:
+            end = idx + needle_len
+            while end < len(buf) and buf[end] not in " \t\n\"'),}":
+                end += 1
+            return buf[: idx + needle_len] + "***" + buf[end:]
+
+        for needle in cs_prefixes:
             idx = out.find(needle)
             while idx != -1:
-                end = idx + len(needle)
-                while end < len(out) and out[end] not in " \t\n\"'),}":
-                    end += 1
-                out = out[: idx + len(needle)] + "***" + out[end:]
+                out = _redact_at(out, idx, len(needle))
                 idx = out.find(needle, idx + len(needle) + 3)
+
+        for needle in ci_prefixes:
+            lower = out.lower()
+            idx = lower.find(needle)
+            while idx != -1:
+                out = _redact_at(out, idx, len(needle))
+                lower = out.lower()
+                idx = lower.find(needle, idx + len(needle) + 3)
         return out
 
     def get_usage_stats(self) -> dict:

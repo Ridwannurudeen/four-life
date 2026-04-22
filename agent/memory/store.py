@@ -60,6 +60,11 @@ class AgentMemory:
     best_narratives: list[str] = field(default_factory=list)
     worst_narratives: list[str] = field(default_factory=list)
     avg_peak_holders: float = 0.0
+    # Number of launches that have actually been tracked on-chain (peak_holders > 0).
+    # `avg_peak_holders` is the mean across THIS subset only — launches we've
+    # recorded but never monitored on-chain (e.g. historical imports, test
+    # fixtures) are excluded so the metric reflects real observed data.
+    tracked_launches: int = 0
     last_updated: float = 0.0
 
 
@@ -180,9 +185,16 @@ class MemoryStore:
         mem = self.memory
         if mem.total_launches > 0:
             mem.graduation_rate = mem.total_graduations / mem.total_launches
-            mem.avg_peak_holders = sum(
-                lr.peak_holders for lr in mem.launches
-            ) / len(mem.launches)
+            # avg_peak_holders only meaningful over launches actually tracked on-chain.
+            # Launches whose lifecycle engine never ran keep peak_holders=0 and would
+            # pull the average to zero — signalling "broken metric" rather than
+            # "zero holders." Exclude them here.
+            tracked = [lr for lr in mem.launches if lr.peak_holders > 0]
+            mem.tracked_launches = len(tracked)
+            if tracked:
+                mem.avg_peak_holders = sum(lr.peak_holders for lr in tracked) / len(tracked)
+            else:
+                mem.avg_peak_holders = 0.0
 
         # Identify best/worst narratives
         graduated = [lr for lr in mem.launches if lr.graduated]

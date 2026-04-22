@@ -250,13 +250,21 @@ _rate_buckets: dict[tuple[str, str], list[float]] = _defaultdict(list)
 
 # Endpoints that fire real LLM traffic OR flip global DGrid state — stricter
 # bucket so the public showcase surface can't be weaponized to burn credits or
-# grief the service via endless chaos toggling.
+# grief the service via endless chaos toggling. Includes MYX endpoints that
+# route through DGrid consensus (consensus/evaluate fan out to 3 models each)
+# and the raise-plan endpoint which runs unbounded LLM calls.
 _LLM_BURN_PREFIXES = (
     "/api/dgrid/compare",
     "/api/dgrid/probe",
     "/api/dgrid/consensus",
     "/api/dgrid/attest",
     "/api/dgrid/chaos",
+    "/api/myx/consensus",
+    "/api/myx/evaluate",
+    "/api/myx/signal",
+    "/api/myx/attest-signals",
+    "/api/myx/attest",
+    "/api/raise-plan",
 )
 
 # ── Metrics (latency + status histogram, in-memory) ──────────────────
@@ -493,11 +501,16 @@ async def status(authorized: bool = Depends(is_authorized)):
             "total_launches": 0,
             "total_graduations": 0,
             "graduation_rate": 0,
-            "avg_peak_holders": 0,
+            "avg_peak_holders": None,
+            "tracked_launches": 0,
             "active_tokens": 0,
             "message": "Agent not configured — add keys to .env",
         }
     mem = agent.memory.memory
+    # avg_peak_holders is computed over tracked_launches only (see _update_stats).
+    # Expose it as null when no launches have been tracked so the UI renders
+    # "n/a" instead of a misleading "0" that could be read as "zero holders."
+    avg_peak = round(mem.avg_peak_holders, 0) if mem.tracked_launches > 0 else None
     body = {
         "agent_name": "FOUR-LIFE",
         "running": agent.running,
@@ -505,7 +518,8 @@ async def status(authorized: bool = Depends(is_authorized)):
         "total_launches": mem.total_launches,
         "total_graduations": mem.total_graduations,
         "graduation_rate": round(mem.graduation_rate * 100, 1),
-        "avg_peak_holders": round(mem.avg_peak_holders, 0),
+        "avg_peak_holders": avg_peak,
+        "tracked_launches": mem.tracked_launches,
         "active_tokens": len(agent.active_concepts),
         "learnings_count": len(mem.global_learnings),
     }
@@ -602,13 +616,15 @@ async def token_detail(address: str, authorized: bool = Depends(is_authorized)):
 )
 async def memory():
     if not agent:
-        return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
+        return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": None, "tracked_launches": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
     mem = agent.memory.memory
+    avg_peak = round(mem.avg_peak_holders, 0) if mem.tracked_launches > 0 else None
     return {
         "total_launches": mem.total_launches,
         "total_graduations": mem.total_graduations,
         "graduation_rate": round(mem.graduation_rate * 100, 1),
-        "avg_peak_holders": round(mem.avg_peak_holders, 0),
+        "avg_peak_holders": avg_peak,
+        "tracked_launches": mem.tracked_launches,
         "best_narratives": mem.best_narratives,
         "worst_narratives": mem.worst_narratives,
         "global_learnings": mem.global_learnings,
@@ -991,7 +1007,7 @@ async def dgrid_audit():
     tags=["dgrid"],
     summary="Full append-only call log — every DGrid call that contributes to the Merkle chain",
 )
-async def dgrid_audit_calls(offset: int = 0, limit: int = 500):
+async def dgrid_audit_calls(offset: int = 0, limit: int = 1000):
     """Paginated slice of the full DGrid call log, for independent Merkle
     verification. Each entry includes the ``call_digest`` and the
     ``chain_tip`` after folding it in.
@@ -1000,20 +1016,27 @@ async def dgrid_audit_calls(offset: int = 0, limit: int = 500):
     fold each ``call_digest`` in ``seq`` order, expect the final hash to equal
     ``/api/dgrid/audit.current_root``.
 
-    Pagination: ``offset`` defaults to 0, ``limit`` capped at 2000.
+    Pagination: ``offset`` defaults to 0, ``limit`` defaults to 1000 and is
+    capped at 10000. The response also returns ``next_offset`` and
+    ``has_more`` so integrators can iterate the full chain deterministically
+    without hitting either bound.
     """
     from agent.brain.llm import get_llm
     llm = get_llm()
     offset = max(0, int(offset))
-    limit = max(1, min(int(limit or 500), 2000))
+    limit = max(1, min(int(limit or 1000), 10000))
     entries = llm.get_audit_calls(offset=offset, limit=limit)
     total = llm._attestation_log.count()
+    next_offset = offset + len(entries)
+    has_more = next_offset < total
     snap = llm.get_attestation()
     return {
         "offset": offset,
         "limit": limit,
         "count": len(entries),
         "total": total,
+        "next_offset": next_offset if has_more else None,
+        "has_more": has_more,
         "calls": entries,
         "genesis": snap.get("genesis"),
         "current_root": snap.get("current_root"),
@@ -1320,13 +1343,19 @@ async def myx_attest_signals():
     summary="Unsigned createIncreaseOrder calldata the agent would submit now",
 )
 async def myx_calldata(token_address: str):
-    """Return the exact unsigned transaction the agent would submit to MYX's
-    router right now for this token, derived from the latest signal.
+    """Return a shape-preview unsigned transaction the agent would submit for
+    this token, derived from the latest signal.
 
-    This is proof-without-execution: a judge can paste the calldata into
-    BscScan's ABI decoder and verify the shape matches MYX V2's expected
-    createIncreaseOrder((address,uint256,uint8,int256,uint256,bool,uint256,uint256,uint8,uint256)).
-    We never broadcast — this endpoint is pure read-only simulation input.
+    Proof-without-execution artifact: the calldata is ABI-encoded against
+    MYX V2's ``createIncreaseOrder((address,uint256,uint8,int256,uint256,bool,uint256,uint256,uint8,uint256))``
+    struct so a reviewer can decode locally (e.g., with web3.py's
+    ``contract.decode_function_input``) and verify struct packing is correct.
+
+    Note on execution: production orders route through MYX's broker-signer
+    pattern (``placeOrderWithSalt``) — a permissioned contract issued per
+    integrator by the MYX team (see SDK guide). This calldata shows the
+    *direct-router-call* shape; the broker layer wraps it at execution time.
+    We never broadcast this output.
     """
     if not agent or not agent.hedge_manager:
         raise HTTPException(status_code=503, detail="MYX not configured")
@@ -1393,7 +1422,7 @@ async def myx_calldata(token_address: str):
         "calldata_hex": data,
         "selector": data[:10] if data else None,
         "signal": last_signal,
-        "note": "Exact unsigned tx — paste calldata into BscScan input decoder to verify createIncreaseOrder shape. Not broadcast.",
+        "note": "Shape-preview calldata against MYX V2 createIncreaseOrder struct — decode locally with web3.py `contract.decode_function_input()`. Production orders route through broker-signer `placeOrderWithSalt` (pending MYX onboarding). Not broadcast.",
         "model_version": MODEL_VERSION,
         "last_updated_at": int(time.time()),
     }
@@ -1511,17 +1540,22 @@ from agent.security.risk_cache import (
 _contract_risk_cache = _risk_cache_module._cache
 
 
-def _shallow_radar_tier(
+def _radar_estimate_tier(
     *,
     curve_progress_pct: float,
     increase_pct: float,
     confidence: str,
 ) -> str:
-    """Tier for radar entries where we don't yet have full on-chain health.
+    """Heuristic tier estimate for radar entries we don't yet track on-chain.
 
-    Mirrors the frontend's former ``tierFromEntry`` so the radar view is always
-    driven by a server-computed label, not UI-side math. For tracked tokens the
-    caller upgrades this to the full deterministic badge.
+    IMPORTANT: this is NOT a Certified tier. It is a RADAR ESTIMATE computed
+    from public-ranking inputs only (curve progress, price-increase, confidence
+    on the quote-asset graduation target). The radar endpoint stamps
+    ``tier_source="radar_estimate"`` on entries produced by this helper so no
+    consumer (UI, SDK, webhook) can mistake it for Certified.
+
+    For tokens we already track on-chain the caller upgrades to the full
+    deterministic badge via ``badge_from_health`` (tier_source="certified").
     """
     from agent.badge import (
         TIER_GRADUATED,
@@ -1536,6 +1570,12 @@ def _shallow_radar_tier(
     if increase_pct < -50:
         return TIER_AT_RISK
     return TIER_OBSERVED
+
+
+# Back-compat alias — previously named helper. Keep the old symbol importable
+# for any external code that may reference it (e.g. experimental notebooks).
+# New callers should use _radar_estimate_tier.
+_shallow_radar_tier = _radar_estimate_tier
 
 
 async def _get_contract_risk(token_address: str) -> ContractRisk | None:
@@ -1734,6 +1774,7 @@ async def public_health_score(token_address: str):
                 "risk_flags": risk_flags,
                 "risk_factors": [f["message"] for f in risk_flags],  # back-compat
                 "badge": badge.to_dict(),
+                "tier_source": badge.tier_source,
                 "suggested_action": "Track this token with FOUR-LIFE for detailed lifecycle management.",
                 "confidence_score": target.confidence,
                 "fallback_used": fallback_used,
@@ -1784,6 +1825,7 @@ async def public_health_score(token_address: str):
             "risk_flags": risk_flags,
             "risk_factors": [f["message"] for f in risk_flags],  # back-compat
             "badge": badge.to_dict(),
+            "tier_source": badge.tier_source,
             "suggested_action": _suggested_action(health),
             "confidence_score": health.graduation_confidence,
             "fallback_used": health.graduation_source in ("fallback", "cache"),
@@ -1978,20 +2020,24 @@ async def graduation_radar(
 
             # Server-computed tier so the UI never re-derives trust labels.
             # For tokens we already track on-chain, use the full deterministic
-            # badge (which factors in whale distribution, buy/sell ratio,
-            # holder velocity, contract risk). For untracked tokens we return
-            # a shallow tier computed from the same radar inputs.
-            badge_tier = _shallow_radar_tier(
+            # badge (tier_source="certified"). For untracked tokens we return
+            # a RADAR ESTIMATE (tier_source="radar_estimate") so consumers can
+            # tell measurement-based Certified tiers apart from heuristic ones.
+            from agent.badge import SOURCE_CERTIFIED, SOURCE_RADAR_ESTIMATE
+            badge_tier = _radar_estimate_tier(
                 curve_progress_pct=progress * 100,
                 increase_pct=increase * 100,
                 confidence=target.confidence,
             )
+            tier_source = SOURCE_RADAR_ESTIMATE
             if agent and addr in agent.monitor.state.tokens:
                 try:
                     tracked = agent.monitor.state.tokens[addr]
                     risk = _peek_contract_risk(addr)
                     crs = risk.risk_score if risk else 0
-                    badge_tier = badge_from_health(tracked, contract_risk_score=crs).tier
+                    certified = badge_from_health(tracked, contract_risk_score=crs)
+                    badge_tier = certified.tier
+                    tier_source = certified.tier_source
                 except Exception:
                     pass
 
@@ -2013,6 +2059,7 @@ async def graduation_radar(
                 "holder_velocity": holder_velocity,
                 "confidence_score": target.confidence,
                 "badge_tier": badge_tier,
+                "tier_source": tier_source,
                 "status": t.get("status", ""),
                 "fourmeme_url": f"https://four.meme/token/{addr}",
             })
@@ -2103,6 +2150,7 @@ async def token_badge(token_address: str):
         return {
             "token_address": token_address,
             "badge": badge.to_dict(),
+            "tier_source": badge.tier_source,
             "data_source": source,
             "model_version": MODEL_VERSION,
             "last_updated_at": int(time.time()),

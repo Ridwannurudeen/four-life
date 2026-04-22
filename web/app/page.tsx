@@ -23,6 +23,11 @@ interface RadarEntry {
   confidence_score: "high" | "medium" | "low";
   graduation_probability: number;
   health_score: number;
+  // Server-computed — the UI never re-derives trust labels. For tokens under
+  // live on-chain monitoring this is "certified"; for public-ranking-only
+  // tokens this is "radar_estimate" (heuristic, NOT on-chain measured).
+  badge_tier: Tier;
+  tier_source: "certified" | "radar_estimate";
 }
 
 interface LiveMetrics {
@@ -79,13 +84,14 @@ function useLiveMetrics() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
+// Trust labels are ALWAYS server-computed — the UI is a pure consumer.
+// `tierOf` is a thin typed accessor with a safe default for rows the server
+// hasn't graded yet. Do NOT reintroduce client-side derivation — that breaks
+// the "Certified from raw on-chain data" guarantee because the frontend
+// cannot distinguish radar_estimate inputs from certified ones.
 
-function deriveTier(e: RadarEntry): Tier {
-  if (e.curve_progress >= 100) return "graduated";
-  if (e.curve_progress >= 70 && e.confidence_score === "high" && e.increase_pct >= 0) return "graduation_watch";
-  if (e.increase_pct <= -50) return "at_risk";
-  if (e.curve_progress >= 25) return "healthy";
-  return "observed";
+function tierOf(e: RadarEntry): Tier {
+  return (e.badge_tier as Tier) ?? "observed";
 }
 
 const TIER_COLOR: Record<Tier, { bg: string; text: string; border: string; label: string }> = {
@@ -213,7 +219,7 @@ function LiveTicker({ sample }: { sample: RadarEntry[] }) {
     <div className="ticker overflow-hidden border-y border-white/5 bg-black/30 py-3">
       <div className="ticker-track">
         {doubled.map((e, i) => {
-          const tier = deriveTier(e);
+          const tier = tierOf(e);
           const c = TIER_COLOR[tier];
           return (
             <Link

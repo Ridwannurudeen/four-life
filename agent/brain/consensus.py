@@ -54,15 +54,23 @@ async def consensus_vote(
     fall back to your deterministic rule."
     """
     llm = get_llm()
+    chosen = models or DEFAULT_CONSENSUS_MODELS
     if not llm.dgrid_configured:
+        # Keep the response schema identical to the success path so clients
+        # never have to branch on whether DGrid is configured.
         return {
             "error": "DGrid not configured",
-            "models_queried": [], "models_succeeded": 0,
-            "final_verdict": None, "confidence": 0.0,
-            "tally": {}, "results": [],
+            "models_queried": chosen,
+            "models_succeeded": 0,
+            "vote_key": vote_key,
+            "method": "none",
+            "final_verdict": None,
+            "confidence": 0.0,
+            "tally": {},
+            "results": [],
+            "total_latency_ms": 0,
         }
 
-    chosen = models or DEFAULT_CONSENSUS_MODELS
     t0 = time.perf_counter()
     prompt_h = llm._prompt_hash(messages)
 

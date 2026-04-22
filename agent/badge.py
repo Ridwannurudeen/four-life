@@ -27,6 +27,18 @@ TIER_AT_RISK = "at_risk"
 TIER_HEALTHY = "healthy"
 TIER_OBSERVED = "observed"
 
+# Tier-source discriminator — whether the badge was computed from full on-chain
+# event data (Certified) or from public-ranking heuristics with estimated inputs
+# (Radar Estimate). The frontend and any integrators must NOT treat a
+# radar_estimate badge as "Certified from raw on-chain data" — the inputs
+# include approximations (top_holder_pct=0, holder_velocity=0, etc.) rather
+# than measured values.
+SOURCE_CERTIFIED = "certified"
+SOURCE_RADAR_ESTIMATE = "radar_estimate"
+
+VERSION_CERTIFIED = "four-life-certified-v1"
+VERSION_RADAR_ESTIMATE = "four-life-radar-v1"
+
 TIER_DESCRIPTIONS = {
     TIER_GRADUATED: "Reached the bonding-curve graduation threshold.",
     TIER_GRADUATION_WATCH: "On track to graduate — strong buy pressure, healthy distribution, curve past 70%.",
@@ -43,7 +55,8 @@ class Badge:
     description: str
     why: list[dict]      # list of {rule, metric, value, threshold, operator, passed}
     metrics_snapshot: dict
-    version: str = "four-life-certified-v1"
+    tier_source: str = SOURCE_CERTIFIED  # "certified" (full on-chain) or "radar_estimate" (heuristic)
+    version: str = VERSION_CERTIFIED
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -216,27 +229,59 @@ def badge_from_ranking(
     increase_pct: float,
     graduation_confidence: str,
 ) -> Badge:
-    """Compute a lower-fidelity badge from public ranking data only.
+    """Compute a lower-fidelity RADAR-ESTIMATE badge from public ranking data only.
 
-    Ranking tokens lack on-chain buy/sell detail, so only tiers that can be decided
-    from curve progress + holders are returned — everything else falls to OBSERVED.
+    Ranking tokens lack on-chain buy/sell detail, whale distribution, and holder
+    velocity, so we use approximated inputs (top_holder_pct=0, holder_velocity=0,
+    buy_sell_ratio ≈ 1 + increase). The returned badge is labelled
+    ``tier_source=radar_estimate`` and ``version=four-life-radar-v1`` so
+    integrators know this is NOT "Certified from raw on-chain data" — only
+    Certified badges (from ``badge_from_health``) carry that guarantee.
+
+    To avoid a radar_estimate posing as HEALTHY or AT_RISK (both of which
+    require real whale / velocity data), this function caps the tier at
+    GRADUATED | GRADUATION_WATCH | OBSERVED.
     """
-    # Approximate buy_sell_ratio from `increase` (positive means buy pressure)
-    approx_buy_sell = 1.0 + max(-0.5, min(1.0, increase_pct / 100))
-    # Approximate holder velocity: can't know without age, so set to 0
+    # Approximate buy_sell_ratio from `increase` (positive means buy pressure),
+    # but keep it in the narrow band 0.8–1.2 so it can't trigger either the
+    # HEALTHY (>=1.2) or the SELL_PRESSURE (<0.6) rule — those need on-chain data.
+    approx_buy_sell = 1.0 + max(-0.15, min(0.15, increase_pct / 1000))
+    # Approximate holder velocity: can't know without age, so set to 0. This
+    # intentionally keeps HEALTHY unreachable (needs velocity >= 5).
     approx_velocity = 0.0
-    # Approximate top_holder_pct: unknown — assume safe-ish so we don't false-positive at_risk
+    # Approximate top_holder_pct: unknown — assume 0 so we don't false-positive at_risk
     approx_top = 0.0
 
-    return compute_badge(
+    badge = compute_badge(
         curve_progress_pct=curve_progress_pct,
         phase="graduated" if curve_progress_pct >= 100 else "accelerate",
         health_score=0.0,
         buy_sell_ratio=approx_buy_sell,
         holder_velocity=approx_velocity,
         top_holder_pct=approx_top,
-        age_hours=2.0,  # assume past the 1h threshold for healthy eligibility
+        age_hours=2.0,  # past the 1h threshold but short of the 12h stall rule
         graduation_confidence=graduation_confidence,
         unique_buyers=holders,
         whale_count=0,
     )
+    # Belt-and-braces: even if compute_badge were to produce HEALTHY or AT_RISK,
+    # those require on-chain data we don't have — downgrade to OBSERVED.
+    if badge.tier in (TIER_HEALTHY, TIER_AT_RISK):
+        badge = Badge(
+            tier=TIER_OBSERVED,
+            label="Observed",
+            description=TIER_DESCRIPTIONS[TIER_OBSERVED],
+            why=[{
+                "rule": "radar_estimate_cap",
+                "metric": "tier_source",
+                "value": SOURCE_RADAR_ESTIMATE,
+                "threshold": SOURCE_CERTIFIED,
+                "operator": "requires",
+                "passed": False,
+            }],
+            metrics_snapshot=badge.metrics_snapshot,
+        )
+    # Stamp this badge as radar_estimate so integrators and UIs can discriminate.
+    badge.tier_source = SOURCE_RADAR_ESTIMATE
+    badge.version = VERSION_RADAR_ESTIMATE
+    return badge

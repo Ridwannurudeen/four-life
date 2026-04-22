@@ -27,6 +27,7 @@ def mock_agent():
     mem.total_graduations = 2
     mem.graduation_rate = 0.4
     mem.avg_peak_holders = 340
+    mem.tracked_launches = 2
     mem.global_learnings = ["Dog tokens work well", "Avoid weekend launches"]
     mem.launches = []
     mem.last_updated = 1712000000
@@ -614,7 +615,16 @@ class TestDGridAudit:
     def test_audit_calls_limit_is_capped(self, client):
         resp = client.get("/api/dgrid/audit/calls?limit=99999")
         assert resp.status_code == 200
-        assert resp.json()["limit"] == 2000
+        assert resp.json()["limit"] == 10000
+
+    def test_audit_calls_pagination_hint(self, client):
+        # Response must advertise next_offset + has_more so integrators can
+        # paginate deterministically without hitting either bound.
+        resp = client.get("/api/dgrid/audit/calls?limit=10")
+        data = resp.json()
+        assert "next_offset" in data
+        assert "has_more" in data
+        assert isinstance(data["has_more"], bool)
 
 
 class TestDGridChaos:

@@ -134,7 +134,7 @@ That tx proves the agent made real hedge decisions on MYX via a cryptographic ch
 | **Phase-aware hedge signals** | Per token, every 5 min: action (long/short/close/hold) + confidence + size_pct + reasoning |
 | **DGrid consensus on DEFEND** | Multi-model vote on high-stakes hedge decisions — **cross-partner flex, single-provider teams can't do this** |
 | **Signal attestation chain** (separate from trade chain) | Cryptographic commitment to every decision, publishable on-chain before execution |
-| **Calldata viewer** (`/api/myx/calldata/{token}`) | Exact unsigned createIncreaseOrder transaction — paste into BscScan ABI decoder to verify shape-correctness without execution |
+| **Shape-preview calldata** (`/api/myx/calldata/{token}`) | Unsigned createIncreaseOrder tx against MYX V2's struct — decode locally to verify struct packing. Production orders route through the broker-signer pattern. |
 | **Live consensus demo** (`/api/myx/consensus/{token}`) | Click-button fan-out across 3 DGrid models; returns per-model verdicts + majority vote |
 | **On-chain pool read** | `getPairIndex(WBNB, USDT)` resolves live from the verified MYX V2 pool `0x22cEc08111BBae24D0b80BDA2a6503EaB9BA704b` |
 | **Signal-only by default** | Execution gated by `MYX_EXECUTION_ENABLED`; safe until router is verified |

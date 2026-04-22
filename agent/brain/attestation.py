@@ -84,12 +84,30 @@ class AttestationChain:
         ).encode()
         return sha256_hex(payload)
 
-    def append(self, digest: str) -> str:
-        """Fold ``digest`` into the chain. Returns the new tip."""
-        self._tip = sha256_hex((self._tip + digest).encode())
+    def peek_next_tip(self, digest: str) -> str:
+        """Return the tip that *would* result from folding ``digest`` into the
+        chain — without actually advancing. Used by callers that must durably
+        persist the audit-log entry BEFORE committing the chain forward, so the
+        log and the chain can't diverge on a partial write."""
+        return sha256_hex((self._tip + digest).encode())
+
+    def commit_tip(self, new_tip: str) -> str:
+        """Advance the chain to ``new_tip`` (which the caller must have obtained
+        from ``peek_next_tip``). Increments count and persists. Returns the new tip."""
+        self._tip = new_tip
         self._count += 1
         self._save()
         return self._tip
+
+    def append(self, digest: str) -> str:
+        """Fold ``digest`` into the chain. Returns the new tip.
+
+        NOTE: direct append is convenient but does not coordinate with the
+        append-only audit log. Callers that maintain an audit log should use
+        ``peek_next_tip`` + ``commit_tip`` with a log-write in between, so the
+        chain only advances once the log entry is durably persisted."""
+        new_tip = self.peek_next_tip(digest)
+        return self.commit_tip(new_tip)
 
     def record_attestation(self, root: str, txhash: str, count: int) -> None:
         """Mark that ``root`` (committing to ``count`` calls) was published in ``txhash``."""
@@ -153,16 +171,29 @@ class AttestationChain:
             pass
 
 
-def verify_chain(calls: list[dict], expected_root: str) -> bool:
+def verify_chain(
+    calls: list[dict],
+    expected_root: str,
+    *,
+    expected_count: int | None = None,
+) -> bool:
     """Independent verifier — fold every ``call_digest`` in ``calls`` (in
     order) into the genesis-seeded chain and return True iff the final tip
     equals ``expected_root``.
 
-    Judges can call this with the output of ``/api/dgrid/audit/calls`` and the
-    ``current_root`` from ``/api/dgrid/audit`` to prove the server's claim.
-    No server-side trust required — the digests and the expected root are
-    the only inputs.
+    Pass ``expected_count`` (e.g. ``num_calls_chained`` from
+    ``/api/dgrid/audit``) to also assert the caller isn't silently truncating
+    the chain — e.g. fetching one page of ``/api/dgrid/audit/calls`` and
+    forgetting to paginate. Without the count check a short prefix would
+    produce a different tip and return False without saying why.
+
+    Judges can call this with the full output of ``/api/dgrid/audit/calls``
+    and the ``current_root`` + ``num_calls_chained`` from ``/api/dgrid/audit``
+    to prove the server's claim. No server-side trust required — the digests,
+    expected root, and expected count are the only inputs.
     """
+    if expected_count is not None and len(calls) != int(expected_count):
+        return False
     tip = GENESIS_HASH
     for call in calls:
         digest = call.get("call_digest")
@@ -247,18 +278,29 @@ class AttestationLog:
         # endpoint still returns real data.
         self._in_memory: list[dict] = []
 
-    def append(self, entry: dict) -> None:
+    def append(self, entry: dict) -> bool:
+        """Durably append ``entry``. Returns True iff the entry is persisted
+        where a restart-surviving reconstruction can find it.
+
+        When ``persist_path`` is set we try to write the JSONL line to disk.
+        On failure we still keep the entry in-memory (so the process doesn't
+        lose it for the remainder of its life), but we return False so the
+        caller knows the chain-tip corresponding to this entry is NOT durably
+        recoverable from disk. Callers that treat the log as a Merkle witness
+        must use that return value to decide whether to advance the chain."""
         if self._persist_path:
             try:
                 self._persist_path.parent.mkdir(parents=True, exist_ok=True)
                 with self._persist_path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, separators=(",", ":"), sort_keys=True) + "\n")
-                return
+                return True
             except Exception:
-                # Fall through to in-memory on any write failure so we don't
-                # lose the call entirely.
-                pass
+                # Keep in-memory copy for debugging / live dashboard, but signal
+                # the caller that this entry is not durably recoverable.
+                self._in_memory.append(entry)
+                return False
         self._in_memory.append(entry)
+        return True
 
     def read_range(self, offset: int, limit: int) -> list[dict]:
         """Return entries [offset, offset+limit) in insertion order."""

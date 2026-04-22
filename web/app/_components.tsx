@@ -41,16 +41,18 @@ interface MiniEntry {
   confidence_score: "high" | "medium" | "low";
   graduation_probability: number;
   increase_pct: number;
+  // Server-computed — UI never re-derives. "certified" = full on-chain data;
+  // "radar_estimate" = heuristic from public-ranking inputs only.
+  badge_tier?: Tier;
+  tier_source?: "certified" | "radar_estimate";
 }
 
 type Tier = "graduated" | "graduation_watch" | "healthy" | "at_risk" | "observed";
 
-function deriveTier(e: MiniEntry): Tier {
-  if (e.curve_progress >= 100) return "graduated";
-  if (e.curve_progress >= 70 && e.confidence_score === "high" && e.increase_pct >= 0) return "graduation_watch";
-  if (e.increase_pct <= -50) return "at_risk";
-  if (e.curve_progress >= 25) return "healthy";
-  return "observed";
+// Pure accessor — read the server's tier, default to "observed" only when the
+// server hasn't graded the row yet. Do NOT reintroduce UI-side derivation.
+function tierOf(e: MiniEntry): Tier {
+  return (e.badge_tier as Tier) ?? "observed";
 }
 
 const TIER_STYLE: Record<Tier, { label: string; text: string; border: string; bg: string; dot: string }> = {
@@ -100,7 +102,7 @@ export function HeroRadar({ entries }: { entries: MiniEntry[] }) {
           <div className="text-xs text-white/40 py-6 text-center">Connecting to the radar…</div>
         ) : (
           visible.map((e, i) => {
-            const tier = deriveTier(e);
+            const tier = tierOf(e);
             const s = TIER_STYLE[tier];
             return (
               <Link
