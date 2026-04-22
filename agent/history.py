@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     token_address TEXT NOT NULL,
     tier TEXT NOT NULL,
+    tier_source TEXT NOT NULL DEFAULT 'certified',
     risk_level TEXT,
     curve_progress_pct REAL,
     health_score REAL,
@@ -63,6 +64,7 @@ class Snapshot:
     why: list[dict]
     data_source: str | None
     recorded_at: int
+    tier_source: str = "certified"
     id: int | None = None
 
     def to_dict(self) -> dict:
@@ -70,6 +72,7 @@ class Snapshot:
             "id": self.id,
             "token_address": self.token_address,
             "tier": self.tier,
+            "tier_source": self.tier_source,
             "risk_level": self.risk_level,
             "metrics": self.metrics,
             "why": self.why,
@@ -109,6 +112,20 @@ class HistoryStore:
     def _init_db(self) -> None:
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            # Idempotent migrations for schema additions. `CREATE TABLE IF NOT
+            # EXISTS` doesn't add columns to an existing table, so we inspect
+            # PRAGMA table_info and ALTER when needed. Each migration is wrapped
+            # in try/except so a repeat run on an already-migrated DB is a no-op.
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(snapshots)").fetchall()}
+            if "tier_source" not in cols:
+                try:
+                    conn.execute(
+                        "ALTER TABLE snapshots ADD COLUMN tier_source TEXT NOT NULL DEFAULT 'certified'"
+                    )
+                    conn.commit()
+                except sqlite3.OperationalError:
+                    # Race between two boots; harmless.
+                    pass
 
     def record(
         self,
@@ -119,13 +136,18 @@ class HistoryStore:
         why: list[dict],
         risk_level: str | None = None,
         data_source: str | None = None,
+        tier_source: str = "certified",
         now: int | None = None,
     ) -> RecordResult:
-        """Insert a snapshot if the tier changed, or if MIN_KEEPALIVE_SECONDS has
-        elapsed since the last write for this token.
+        """Insert a snapshot if (tier, tier_source) changed, or if
+        MIN_KEEPALIVE_SECONDS has elapsed since the last write for this token.
 
         Returns a RecordResult describing whether a row was written and what the
         previous tier was (None if this was the first snapshot for the token).
+
+        Deduplication uses (tier, tier_source) — a radar_estimate observed
+        followed by a certified observed IS a write-worthy transition because
+        the source provenance has changed, even though the tier string matches.
         """
         ts = now if now is not None else int(time.time())
         token_key = (token_address or "").lower()
@@ -135,7 +157,7 @@ class HistoryStore:
         with self._write_lock:
             with self._connect() as conn:
                 last = conn.execute(
-                    "SELECT tier, recorded_at FROM snapshots "
+                    "SELECT tier, tier_source, recorded_at FROM snapshots "
                     "WHERE token_address = ? ORDER BY recorded_at DESC LIMIT 1",
                     (token_key,),
                 ).fetchone()
@@ -143,9 +165,10 @@ class HistoryStore:
                 prev_tier = last["tier"] if last is not None else None
 
                 if last is not None:
-                    tier_unchanged = last["tier"] == tier
+                    last_source = last["tier_source"] if "tier_source" in last.keys() else "certified"
+                    same_identity = last["tier"] == tier and last_source == tier_source
                     within_keepalive = (ts - int(last["recorded_at"])) < MIN_KEEPALIVE_SECONDS
-                    if tier_unchanged and within_keepalive:
+                    if same_identity and within_keepalive:
                         return RecordResult(
                             written=False, prev_tier=prev_tier, tier=tier, recorded_at=ts,
                         )
@@ -153,16 +176,17 @@ class HistoryStore:
                 conn.execute(
                     """
                     INSERT INTO snapshots (
-                        token_address, tier, risk_level,
+                        token_address, tier, tier_source, risk_level,
                         curve_progress_pct, health_score, buy_sell_ratio,
                         holder_velocity, top_holder_pct, age_hours,
                         unique_buyers, whale_count, contract_risk_score,
                         why_json, metrics_json, data_source, recorded_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         token_key,
                         tier,
+                        tier_source,
                         risk_level,
                         _num(metrics.get("curve_progress_pct")),
                         _num(metrics.get("health_score")),
@@ -279,20 +303,31 @@ class HistoryStore:
 
         tier_changes: list[dict] = []
         prev_tier: str | None = None
+        prev_source: str = "certified"
         for r in rows:
+            keys = r.keys()
+            row_source = r["tier_source"] if "tier_source" in keys else "certified"
+            row_source = row_source or "certified"
             if prev_tier is None:
                 prev_tier = r["tier"]
+                prev_source = row_source
                 continue
-            if r["tier"] != prev_tier:
+            # Treat (tier, tier_source) pairs as the identity so a certified
+            # observed following a radar_estimate observed appears as a real
+            # transition — the provenance upgrade is meaningful.
+            if r["tier"] != prev_tier or row_source != prev_source:
                 tier_changes.append(
                     {
                         "from": prev_tier,
+                        "from_source": prev_source,
                         "to": r["tier"],
+                        "to_source": row_source,
                         "at": int(r["recorded_at"]),
                         "why": json.loads(r["why_json"]) if r["why_json"] else [],
                     }
                 )
                 prev_tier = r["tier"]
+                prev_source = row_source
 
         return {
             "token_address": token_key,
@@ -355,10 +390,17 @@ class HistoryStore:
 
 
 def _row_to_snapshot(row: sqlite3.Row) -> Snapshot:
+    # tier_source was added in a post-v1 migration; rows written before the
+    # migration or in older DBs may lack the column key entirely. Default to
+    # "certified" to preserve historical semantics (pre-migration rows were
+    # only ever written from full on-chain data).
+    keys = row.keys()
+    tier_source = row["tier_source"] if "tier_source" in keys else "certified"
     return Snapshot(
         id=int(row["id"]),
         token_address=row["token_address"],
         tier=row["tier"],
+        tier_source=tier_source or "certified",
         risk_level=row["risk_level"],
         metrics=json.loads(row["metrics_json"]) if row["metrics_json"] else {},
         why=json.loads(row["why_json"]) if row["why_json"] else [],

@@ -1100,23 +1100,35 @@ class LLMClient:
 
     @staticmethod
     def _redact(msg: str | None) -> str:
-        """Strip anything that looks like an API key from an error string.
+        """Strip anything that looks like an API key or JWT from an error string.
 
-        Covers common prefixes across providers (OpenAI sk-, Anthropic sk-ant-,
-        DGrid dgrid_, GitHub gh[a-z]_, Slack xox[a-z]-, Google AIza, AWS AKIA,
-        plus bearer tokens and inline api_key=/apiKey=). Case-insensitive for
-        'Bearer' so 'bearer xyz' is also caught."""
+        Three passes:
+          1. Exact-case prefix match — fastest and precise. Covers known
+             provider tokens: OpenAI (``sk-``, ``sk-ant-``), DGrid (``dgrid_``),
+             GitHub (``gh[pous]_``), Slack (``xox[bpar]-``), Google (``AIza``),
+             AWS (``AKIA``, ``ASIA``), HuggingFace (``hf_``), Groq (``gsk_``),
+             Replicate (``r8_``), Pinecone (``pcsk_``), SendGrid (``SG.``),
+             Cloudflare (``CFPAT-``), DigitalOcean (``dop_v1_``), Stripe
+             (``sk_live_``, ``sk_test_``, ``rk_live_``, ``rk_test_``), plus
+             inline query keys (``api_key=`` / ``apiKey=``).
+          2. Case-insensitive prefix match — ``Bearer``, ``Basic`` auth schemes.
+          3. JWT pattern — ``eyJ<base64url>.<base64url>.<base64url>`` — these
+             are the single most common secret shape in modern provider errors
+             and none of the prefix checks above would catch them.
+        """
         if not msg:
             return ""
         # Case-insensitive prefixes for ASCII-keyword matches
         ci_prefixes = ("bearer ", "basic ")
-        # Exact-case prefixes — these are format-specific and mixed-case would
-        # typically just be text, not an actual secret.
+        # Exact-case prefixes — format-specific, mixed-case would be text.
         cs_prefixes = (
-            "sk-", "sk-ant-", "api_key=", "apiKey=", "apikey=",
+            "sk-", "sk-ant-", "sk_live_", "sk_test_", "rk_live_", "rk_test_",
+            "api_key=", "apiKey=", "apikey=", "authorization=",
             "dgrid_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_",
-            "xoxb-", "xoxp-", "xoxa-", "xoxr-",
-            "AIza", "AKIA",
+            "xoxb-", "xoxp-", "xoxa-", "xoxr-", "xoxe.xoxp-",
+            "AIza", "AKIA", "ASIA",
+            "hf_", "gsk_", "r8_", "pcsk_", "SG.", "CFPAT-", "dop_v1_",
+            "together_", "co_", "sk-or-v1-",
         )
         out = msg
 
@@ -1139,6 +1151,16 @@ class LLMClient:
                 out = _redact_at(out, idx, len(needle))
                 lower = out.lower()
                 idx = lower.find(needle, idx + len(needle) + 3)
+
+        # JWT pattern: three base64url segments separated by dots, first starts
+        # with eyJ. Replace the middle + signature segments so the prefix
+        # remains greppable in logs without the secret.
+        import re as _re
+        out = _re.sub(
+            r"eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+",
+            "eyJ***",
+            out,
+        )
         return out
 
     def get_usage_stats(self) -> dict:

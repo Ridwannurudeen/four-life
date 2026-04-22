@@ -1,6 +1,7 @@
 """FastAPI server — dashboard backend + agent-card endpoint."""
 
 import json
+import re
 import time
 from contextlib import asynccontextmanager
 
@@ -46,6 +47,11 @@ def _record_history(
     History is a side channel — write failures never affect the response. Webhook
     dispatch is also fire-and-forget on the running event loop.
     """
+    # tier_source is the discriminator between a Certified-from-raw-on-chain
+    # grade and a Radar-Estimate grade. Every downstream consumer (history
+    # store, webhook payload, Telegram/Discord message) must carry it so a
+    # radar_estimate transition is NEVER broadcast as "Certified."
+    tier_source = getattr(badge, "tier_source", "certified")
     try:
         result = _history_store().record(
             token_address=token_address,
@@ -54,6 +60,7 @@ def _record_history(
             why=badge.why,
             risk_level=risk_level,
             data_source=data_source,
+            tier_source=tier_source,
         )
     except Exception as e:
         logger.warning("history write failed for {}: {}", token_address, e)
@@ -70,6 +77,7 @@ def _record_history(
                 metrics=badge.metrics_snapshot,
                 data_source=data_source,
                 at=result.recorded_at,
+                tier_source=tier_source,
             )
             if ids:
                 schedule_deliveries(ids)
@@ -81,6 +89,7 @@ def _record_history(
                 "token_address": token_address,
                 "from_tier": result.prev_tier,
                 "to_tier": result.tier,
+                "tier_source": tier_source,
                 "at": result.recorded_at,
             })
         except Exception as e:
@@ -91,23 +100,32 @@ agent: FourLifeAgent | None = None
 
 
 async def require_auth(authorization: str = Header(default="")):
-    """Guard for control endpoints. Skip if API_SECRET is not set."""
+    """Guard for control endpoints.
+
+    If API_SECRET is unset AND AGENT_ENV == "dev", auth is skipped (convenient
+    for local development). In production (AGENT_ENV != "dev") the server
+    MUST have been booted with an API_SECRET; if it somehow isn't set here we
+    fail closed with 503 rather than allow unauthenticated admin access.
+    """
+    import os
     from agent.config import settings
     if not settings.api_secret:
-        return  # No auth configured — allow (dev mode)
+        if os.getenv("AGENT_ENV", "prod").lower() == "dev":
+            return  # dev-mode open access
+        raise HTTPException(status_code=503, detail="Server misconfigured: API_SECRET required")
     if authorization != f"Bearer {settings.api_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 async def is_authorized(authorization: str = Header(default="")) -> bool:
     """Optional auth check. Returns True if the caller presents a valid bearer
-    token (or if API_SECRET is unset, in which case there's no notion of auth).
-    Used on dashboard endpoints to decide whether to include operational
-    internals (wallet address, global_learnings, what_worked/what_failed).
-    """
+    token. When API_SECRET is unset, returns True only in dev mode; in
+    production the caller is treated as unauthenticated so public response
+    shapes are used (internal fields redacted)."""
+    import os
     from agent.config import settings
     if not settings.api_secret:
-        return True
+        return os.getenv("AGENT_ENV", "prod").lower() == "dev"
     return authorization == f"Bearer {settings.api_secret}"
 
 
@@ -120,9 +138,22 @@ async def lifespan(app: FastAPI):
     AGENT_AUTOSTART=false (useful for tests or maintenance).
     """
     global agent
+    import os
     from loguru import logger
     import asyncio as _asyncio
     from agent.config import settings
+
+    # Fail closed at boot if no API_SECRET is configured in a production env.
+    # Without this guard every admin route (agent start/stop/track, dgrid
+    # attest, history export, notifications test, webhook CRUD) becomes
+    # publicly callable because `require_auth` short-circuits when the secret
+    # is empty. We refuse to boot instead of running in a silently-open state.
+    env = os.getenv("AGENT_ENV", "prod").lower()
+    if not settings.api_secret and env != "dev":
+        raise RuntimeError(
+            "API_SECRET is required in production. Set it in .env or export "
+            "AGENT_ENV=dev for local development."
+        )
 
     loop_task: _asyncio.Task | None = None
     try:
@@ -226,10 +257,18 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    # "*" is safe here because we never send cookies (allow_credentials defaults to False).
-    # Write endpoints (POST/PUT/DELETE /api/agent/*, /api/protection/*) stay protected by
-    # the API_SECRET bearer check in require_auth() — widening origins does not bypass that.
-    allow_origins=["*"],
+    # Tight allow-list: only first-party frontends are permitted. Credentials
+    # are never sent, so "*" doesn't enable CSRF, but it WOULD let any site
+    # POST to /api/dgrid/compare / /api/raise-plan from a visitor's browser
+    # and burn our LLM credits under the victim's IP. Write endpoints that
+    # require bearer auth are already protected, but LLM-burn endpoints are
+    # not auth-gated for all callers — tighten the origin list instead.
+    allow_origins=[
+        "https://four-life.gudman.xyz",
+        "https://four.meme",
+        "https://www.four.meme",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",  # dev
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -816,6 +855,7 @@ class _CompareBody(BaseModel):
     "/api/dgrid/compare",
     tags=["dgrid"],
     summary="Run the same prompt on N models via DGrid — side-by-side comparison",
+    dependencies=[Depends(require_auth)],
 )
 async def dgrid_compare(body: _CompareBody):
     """Demonstrates DGrid's core value prop: one API, many models. Fires the
@@ -873,6 +913,7 @@ class _ChaosBody(BaseModel):
     "/api/dgrid/chaos",
     tags=["dgrid"],
     summary="Toggle chaos mode — force DGrid failures to demo fallback chain",
+    dependencies=[Depends(require_auth)],
 )
 async def dgrid_chaos(body: _ChaosBody):
     """Public demo endpoint. When ``enabled=true``, every subsequent DGrid call
@@ -937,6 +978,7 @@ class _ConsensusBody(BaseModel):
     "/api/dgrid/consensus",
     tags=["dgrid"],
     summary="Multi-model consensus — N DGrid models vote on a JSON field",
+    dependencies=[Depends(require_auth)],
 )
 async def dgrid_consensus(body: _ConsensusBody):
     """Fan out to several DGrid models in parallel and vote on a JSON field.
@@ -1007,7 +1049,7 @@ async def dgrid_audit():
     tags=["dgrid"],
     summary="Full append-only call log — every DGrid call that contributes to the Merkle chain",
 )
-async def dgrid_audit_calls(offset: int = 0, limit: int = 1000):
+async def dgrid_audit_calls(offset: int = 0, limit: int = 500):
     """Paginated slice of the full DGrid call log, for independent Merkle
     verification. Each entry includes the ``call_digest`` and the
     ``chain_tip`` after folding it in.
@@ -1016,15 +1058,16 @@ async def dgrid_audit_calls(offset: int = 0, limit: int = 1000):
     fold each ``call_digest`` in ``seq`` order, expect the final hash to equal
     ``/api/dgrid/audit.current_root``.
 
-    Pagination: ``offset`` defaults to 0, ``limit`` defaults to 1000 and is
-    capped at 10000. The response also returns ``next_offset`` and
-    ``has_more`` so integrators can iterate the full chain deterministically
-    without hitting either bound.
+    Pagination: ``offset`` defaults to 0, ``limit`` defaults to 500 and is
+    capped at 5000 (lowered from 10000 — judges rarely need a single page
+    that large and the smaller cap reduces response-size amplification from
+    anonymous callers). The response returns ``next_offset`` and ``has_more``
+    so integrators can iterate the full chain deterministically.
     """
     from agent.brain.llm import get_llm
     llm = get_llm()
     offset = max(0, int(offset))
-    limit = max(1, min(int(limit or 1000), 10000))
+    limit = max(1, min(int(limit or 500), 5000))
     entries = llm.get_audit_calls(offset=offset, limit=limit)
     total = llm._attestation_log.count()
     next_offset = offset + len(entries)
@@ -1526,6 +1569,20 @@ async def myx_attest():
 
 MODEL_VERSION = "four-life-v1.1"
 
+
+_ADDR_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+
+
+def _validate_address(token_address: str) -> str | None:
+    """Return the lowercased address if it's a well-formed 0x40-hex string,
+    otherwise raise HTTPException(400). Every public path-parameter endpoint
+    that accepts a token/wallet address should call this up front — an
+    unvalidated address turns into a free DB-bloat vector via history.record().
+    """
+    if not token_address or not _ADDR_RE.match(token_address):
+        raise HTTPException(status_code=400, detail="invalid address — must be 0x + 40 hex chars")
+    return token_address.lower()
+
 # ── Contract-risk cache ──────────────────────────────────────────────
 # Delegates to agent.security.risk_cache so the API and the lifecycle engine
 # share one cache and one risk score per token. The `_contract_risk_cache`
@@ -1690,6 +1747,7 @@ async def public_health_score(token_address: str):
     confidence metadata and deterministic risk flags so judges and the platform can trust
     the output.
     """
+    token_address = _validate_address(token_address)
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
 
@@ -2101,6 +2159,7 @@ async def token_badge(token_address: str):
     Every response includes the exact rules that triggered the tier so judges and
     Four.meme can reproduce the grade from raw metrics.
     """
+    token_address = _validate_address(token_address)
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
 
@@ -2164,6 +2223,7 @@ async def token_badge(token_address: str):
 async def token_risk_snapshot(token_address: str):
     """Risk snapshot for a tracked token. Evidence-backed — every risk-level assignment
     is traceable to the exact metric that produced it."""
+    token_address = _validate_address(token_address)
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
 
@@ -2256,6 +2316,7 @@ async def token_history(token_address: str, limit: int = 200, since: int | None 
     when the tier changes or 5 minutes elapse since the last write. Set
     `transitions_only=true` to return only rows where the tier actually changed.
     """
+    token_address = _validate_address(token_address)
     store = _history_store()
     try:
         rows = (
@@ -2287,6 +2348,7 @@ async def token_diff(token_address: str, since: int):
     `why[]` rule trace for each boundary. This is the read-model for alerts,
     change-summary emails, and the radar-bot status feed.
     """
+    token_address = _validate_address(token_address)
     store = _history_store()
     try:
         d = store.diff(token_address, since=int(since))
@@ -2301,27 +2363,50 @@ async def token_diff(token_address: str, since: int):
     }
 
 
+_HISTORY_EXPORT_ROW_CAP = 100_000
+
+
 @app.get(
     "/api/history/export.ndjson",
     tags=["platform"],
     summary="Stream the full history store as newline-delimited JSON for backfill",
+    dependencies=[Depends(require_auth)],
 )
 async def history_export(since: int | None = None, token_address: str | None = None):
-    """Stream every historical snapshot as newline-delimited JSON (NDJSON).
+    """Stream historical snapshots as newline-delimited JSON (NDJSON).
 
-    Optional filters:
-      - `since` — unix timestamp lower bound
-      - `token_address` — single-token export
+    Required:
+      - Bearer API_SECRET (auth-gated — unbounded streaming is an amplification
+        vector and must not be anonymously callable).
+      - `since` OR `token_address` — at least one must be set to bound the
+        response. Unbounded full-table dumps are rejected with 400.
 
-    Intended for integrators who need a full backfill of tier history without
-    paginating through `/api/token/{addr}/history` per token. The response streams
-    from the SQLite cursor — memory stays flat regardless of DB size.
+    A hard row cap of 100k is enforced regardless of filters to prevent a
+    single request from saturating the worker.
+
+    Intended for integrators who need a bulk backfill. For incremental sync,
+    prefer `/api/token/{addr}/history?since=<ts>` per token.
     """
+    if since is None and not token_address:
+        return JSONResponse(
+            {"error": "provide `since` (unix seconds) or `token_address` — unbounded exports are not permitted"},
+            status_code=400,
+        )
+    # Validate token_address if provided.
+    if token_address and not re.fullmatch(r"0x[a-fA-F0-9]{40}", token_address):
+        return JSONResponse({"error": "invalid token_address"}, status_code=400)
     store = _history_store()
 
     def _iter():
+        emitted = 0
+        cap = _HISTORY_EXPORT_ROW_CAP
         for snap in store.iter_export(since=since, token_address=token_address):
+            if emitted >= cap:
+                # Append a terminator row so clients know the stream was truncated.
+                yield (json.dumps({"_truncated": True, "cap": cap}, separators=(",", ":")) + "\n").encode("utf-8")
+                return
             yield (json.dumps(snap, separators=(",", ":")) + "\n").encode("utf-8")
+            emitted += 1
 
     return StreamingResponse(
         _iter(),
@@ -2649,6 +2734,7 @@ async def token_contract_risk(token_address: str):
     Scans bytecode + BscScan-verified ABI for mint, blacklist, pause, EIP-1967
     proxy, and ownership status. Cached for 10 minutes per token.
     """
+    token_address = _validate_address(token_address)
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
 

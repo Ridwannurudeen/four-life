@@ -20,7 +20,7 @@
  */
 
 export const DEFAULT_API_BASE = "https://four-life.gudman.xyz";
-export const SDK_VERSION = "0.1.0";
+export const SDK_VERSION = "0.2.0";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -39,18 +39,27 @@ export interface BadgeRule {
   passed: boolean;
 }
 
+/** Tier provenance. "certified" = badge computed from full on-chain
+ * measurement (buy/sell events, whale distribution, holder velocity).
+ * "radar_estimate" = badge derived from Four.meme public ranking with
+ * approximated inputs. Consumers rendering trust UI MUST inspect this — a
+ * radar_estimate badge is NOT "Certified from raw on-chain data." */
+export type TierSource = "certified" | "radar_estimate";
+
 export interface Badge {
   tier: Tier;
   label: string;
   description: string;
   why: BadgeRule[];
   metrics_snapshot: Record<string, unknown>;
+  tier_source: TierSource;
   version: string;
 }
 
 export interface BadgeResponse {
   token_address: string;
   badge: Badge;
+  tier_source: TierSource;
   data_source: "live_monitor" | "ranking_snapshot" | string;
   model_version: string;
   last_updated_at: number;
@@ -128,6 +137,10 @@ export interface RadarEntry {
   graduation_probability: number;
   holder_velocity: number;
   confidence_score: Confidence;
+  /** Server-computed tier. Always provided — UI MUST NOT re-derive trust labels. */
+  badge_tier: Tier;
+  /** Provenance of `badge_tier`. See {@link TierSource}. */
+  tier_source: TierSource;
   status: string;
   fourmeme_url: string;
 }

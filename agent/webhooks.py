@@ -718,11 +718,16 @@ def fire_tier_changed(
     data_source: str | None = None,
     at: int | None = None,
     store: WebhookStore | None = None,
+    tier_source: str | None = None,
 ) -> list[int]:
     """Enqueue `badge.tier_changed` deliveries for every matching active subscription.
 
     Returns the list of delivery IDs created. Callers schedule actual HTTP POSTs via
     `schedule_deliveries()` on the running event loop.
+
+    ``tier_source`` discriminates "certified" (full on-chain measurement) from
+    "radar_estimate" (public-ranking heuristic). Subscribers MUST inspect it —
+    a radar_estimate transition is NOT equivalent to a Certified transition.
     """
     s = store or default_store()
     ts = at if at is not None else int(time.time())
@@ -731,6 +736,7 @@ def fire_tier_changed(
         "token_address": token_key,
         "from_tier": from_tier,
         "to_tier": to_tier,
+        "tier_source": tier_source or "certified",
         "at": ts,
         "why": why,
         "metrics": metrics,

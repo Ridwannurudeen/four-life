@@ -153,7 +153,9 @@ class TestDiff:
         assert len(d["tier_changes"]) == 2
         assert d["tier_changes"][0] == {
             "from": "healthy",
+            "from_source": "certified",
             "to": "at_risk",
+            "to_source": "certified",
             "at": 2_000,
             "why": WHY,
         }

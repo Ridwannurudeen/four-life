@@ -7,6 +7,10 @@ import pytest
 # Set test env vars before any imports.
 os.environ.setdefault("PRIVATE_KEY", "0x" + "ab" * 32)
 os.environ.setdefault("WALLET_ADDRESS", "0x" + "00" * 20)
+# Tests run without API_SECRET set, so require_auth / is_authorized need to
+# treat the environment as dev. Otherwise every admin-route test gets 503 and
+# is_authorized returns False for dashboard fields, breaking assertions.
+os.environ.setdefault("AGENT_ENV", "dev")
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test")
 os.environ.setdefault("DGRID_API_KEY", "")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test")

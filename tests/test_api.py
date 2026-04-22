@@ -142,14 +142,14 @@ class TestBadgeEndpoint:
     def test_returns_badge_for_tracked_token(self, client, mock_agent):
         from agent.fourmeme.monitor import TokenHealth
         health = TokenHealth(
-            address="0xbadge", name="B", symbol="B",
+            address="0xbadbadbadbadbadbadbadbadbadbadbadbadbad1", name="B", symbol="B",
             health_score=70, phase="nurture",
             unique_buyers=200, buy_sell_ratio=1.5, holder_velocity=8,
             top_holder_pct=15, curve_progress_pct=30, age_hours=2,
             graduation_confidence="high", graduation_target=18.0,
         )
-        mock_agent.monitor.state.tokens = {"0xbadge": health}
-        resp = client.get("/api/token/0xbadge/badge")
+        mock_agent.monitor.state.tokens = {"0xbadbadbadbadbadbadbadbadbadbadbadbadbad1": health}
+        resp = client.get("/api/token/0xbadbadbadbadbadbadbadbadbadbadbadbadbad1/badge")
         assert resp.status_code == 200
         data = resp.json()
         assert data["badge"]["tier"] in {"graduated", "graduation_watch", "healthy", "at_risk", "observed"}
@@ -160,21 +160,22 @@ class TestBadgeEndpoint:
         mock_agent.api._client.post = AsyncMock(return_value=MagicMock(
             json=MagicMock(return_value={"data": []}),
         ))
-        resp = client.get("/api/token/0xmissing/badge")
+        resp = client.get("/api/token/0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead/badge")
         assert resp.status_code == 404
 
 
 class TestRiskSnapshotEndpoint:
     def test_returns_risk_snapshot(self, client, mock_agent):
         from agent.fourmeme.monitor import TokenHealth
+        addr = "0xabcabcabcabcabcabcabcabcabcabcabcabcabca"
         health = TokenHealth(
-            address="0xrs", name="RS", symbol="RS", phase="defend",
+            address=addr, name="RS", symbol="RS", phase="defend",
             top_holder_pct=45, buy_sell_ratio=0.4, holder_velocity=0.5, age_hours=5,
             curve_progress_pct=10, whale_count=4, unique_buyers=100,
             graduation_confidence="high", graduation_target=18.0,
         )
-        mock_agent.monitor.state.tokens = {"0xrs": health}
-        resp = client.get("/api/token/0xrs/risk-snapshot")
+        mock_agent.monitor.state.tokens = {addr: health}
+        resp = client.get(f"/api/token/{addr}/risk-snapshot")
         assert resp.status_code == 200
         data = resp.json()
         assert data["risk_level"] in {"critical", "high", "medium", "info", "low"}
@@ -182,8 +183,12 @@ class TestRiskSnapshotEndpoint:
         assert data["confidence_score"] == "high"
 
     def test_untracked_token_returns_404(self, client):
-        resp = client.get("/api/token/0xunknown/risk-snapshot")
+        resp = client.get("/api/token/0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead/risk-snapshot")
         assert resp.status_code == 404
+
+    def test_invalid_address_returns_400(self, client):
+        resp = client.get("/api/token/0xnotahexaddress/badge")
+        assert resp.status_code == 400
 
 
 class TestCreatorSurvivalScore:
@@ -340,7 +345,7 @@ class TestContractRiskEndpoint:
     def _stub_risk(self, mock_agent, score=25, flags=None, has_mint=False, has_blacklist=False):
         from agent.security.contract_analyzer import ContractRisk
         return ContractRisk(
-            token_address="0xcontract",
+            token_address="0xc0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ff",
             analyzed_at=1700000000.0,
             has_mint_function=has_mint,
             has_blacklist=has_blacklist,
@@ -366,7 +371,7 @@ class TestContractRiskEndpoint:
         with patch.object(
             api_module.ContractAnalyzer, "analyze", AsyncMock(return_value=risk)
         ):
-            resp = client.get("/api/token/0xcontract/contract-risk")
+            resp = client.get("/api/token/0xc0ffeec0ffeec0ffeec0ffeec0ffeec0ffeec0ff/contract-risk")
         assert resp.status_code == 200
         data = resp.json()
         assert data["risk_score"] == 40
@@ -381,8 +386,8 @@ class TestContractRiskEndpoint:
         risk = self._stub_risk(mock_agent, score=10)
         analyze_mock = AsyncMock(return_value=risk)
         with patch.object(api_module.ContractAnalyzer, "analyze", analyze_mock):
-            r1 = client.get("/api/token/0xcache/contract-risk")
-            r2 = client.get("/api/token/0xcache/contract-risk")
+            r1 = client.get("/api/token/0xcacecacecacecacecacecacecacecacecacecace/contract-risk")
+            r2 = client.get("/api/token/0xcacecacecacecacecacecacecacecacecacecace/contract-risk")
         assert r1.status_code == 200 and r2.status_code == 200
         assert analyze_mock.call_count == 1  # second call used cache
 
@@ -395,7 +400,7 @@ class TestContractRiskEndpoint:
             "analyze",
             AsyncMock(side_effect=RuntimeError("rpc down")),
         ):
-            resp = client.get("/api/token/0xfail/contract-risk")
+            resp = client.get("/api/token/0xfa11fa11fa11fa11fa11fa11fa11fa11fa11fa11/contract-risk")
         assert resp.status_code == 502
 
     def test_risk_snapshot_merges_contract_flags(self, client, mock_agent):
@@ -405,12 +410,12 @@ class TestContractRiskEndpoint:
         api_module._contract_risk_cache.clear()
 
         health = TokenHealth(
-            address="0xmerge", name="M", symbol="M", phase="defend",
+            address="0xae1aae1aae1aae1aae1aae1aae1aae1aae1aae1a", name="M", symbol="M", phase="defend",
             top_holder_pct=5, buy_sell_ratio=1.2, holder_velocity=2, age_hours=5,
             curve_progress_pct=10, whale_count=0, unique_buyers=100,
             graduation_confidence="high", graduation_target=18.0,
         )
-        mock_agent.monitor.state.tokens = {"0xmerge": health}
+        mock_agent.monitor.state.tokens = {"0xae1aae1aae1aae1aae1aae1aae1aae1aae1aae1a": health}
         risk = self._stub_risk(mock_agent, score=70, has_mint=True, has_blacklist=True, flags=[
             {"id": "mint_function", "severity": "critical", "evidence": "abi", "message": "mint"},
             {"id": "blacklist", "severity": "high", "evidence": "abi", "message": "bl"},
@@ -418,7 +423,7 @@ class TestContractRiskEndpoint:
         with patch.object(
             api_module.ContractAnalyzer, "analyze", AsyncMock(return_value=risk)
         ):
-            resp = client.get("/api/token/0xmerge/risk-snapshot")
+            resp = client.get("/api/token/0xae1aae1aae1aae1aae1aae1aae1aae1aae1aae1a/risk-snapshot")
         assert resp.status_code == 200
         data = resp.json()
         ids = {f["id"] for f in data["evidence"]}
@@ -435,18 +440,18 @@ class TestContractRiskEndpoint:
 
         # Otherwise this token would be 'healthy' — mint override must flip it to 'at_risk'.
         health = TokenHealth(
-            address="0xoverride", name="O", symbol="O", phase="nurture",
+            address="0x0ffdef0ffdef0ffdef0ffdef0ffdef0ffdef0f1e", name="O", symbol="O", phase="nurture",
             health_score=80, buy_sell_ratio=2.0, holder_velocity=10,
             top_holder_pct=5, curve_progress_pct=30, age_hours=3,
             unique_buyers=200, whale_count=0, graduation_confidence="high",
             graduation_target=18.0,
         )
-        mock_agent.monitor.state.tokens = {"0xoverride": health}
+        mock_agent.monitor.state.tokens = {"0x0ffdef0ffdef0ffdef0ffdef0ffdef0ffdef0f1e": health}
         risk = self._stub_risk(mock_agent, score=70, has_mint=True)
         with patch.object(
             api_module.ContractAnalyzer, "analyze", AsyncMock(return_value=risk)
         ):
-            resp = client.get("/api/token/0xoverride/badge")
+            resp = client.get("/api/token/0x0ffdef0ffdef0ffdef0ffdef0ffdef0ffdef0f1e/badge")
         assert resp.status_code == 200
         badge = resp.json()["badge"]
         assert badge["tier"] == "at_risk"
@@ -615,7 +620,7 @@ class TestDGridAudit:
     def test_audit_calls_limit_is_capped(self, client):
         resp = client.get("/api/dgrid/audit/calls?limit=99999")
         assert resp.status_code == 200
-        assert resp.json()["limit"] == 10000
+        assert resp.json()["limit"] == 5000
 
     def test_audit_calls_pagination_hint(self, client):
         # Response must advertise next_offset + has_more so integrators can

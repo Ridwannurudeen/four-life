@@ -71,21 +71,29 @@ class FormattedMessage:
 
 
 def format_tier_changed(event: dict) -> FormattedMessage:
-    """Format a `badge.tier_changed` event for human-readable channels."""
+    """Format a `badge.tier_changed` event for human-readable channels.
+
+    Brand differs by ``tier_source``: "certified" (full on-chain data) → the
+    headline reads "FOUR-LIFE Certified"; "radar_estimate" (public-ranking
+    heuristic) → the headline reads "FOUR-LIFE Radar Estimate" so channel
+    subscribers are never told a heuristic transition is Certified.
+    """
     token = event.get("token_address") or ""
     frm = event.get("from_tier") or "—"
     to = event.get("to_tier") or "—"
+    source = event.get("tier_source") or "certified"
     emoji = _TIER_EMOJI.get(to, "🔔")
     short = _short_addr(token)
     link = f"https://four-life.gudman.xyz/radar?token={token}"
+    brand = "FOUR-LIFE Certified" if source == "certified" else "FOUR-LIFE Radar Estimate"
 
     plain = (
-        f"{emoji} FOUR-LIFE Certified — {_tier_label(frm)} → {_tier_label(to)}\n"
+        f"{emoji} {brand} — {_tier_label(frm)} → {_tier_label(to)}\n"
         f"Token: {short}\n"
         f"{link}"
     )
     md = (
-        f"{emoji} *FOUR-LIFE Certified* — _{_tier_label(frm)}_ → *{_tier_label(to)}*\n"
+        f"{emoji} *{brand}* — _{_tier_label(frm)}_ → *{_tier_label(to)}*\n"
         f"Token: `{short}`\n"
         f"[Open on Radar]({link})"
     )

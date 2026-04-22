@@ -214,12 +214,35 @@ def verify_chain(
     return tip == expected_root
 
 
+# Module-level async lock to serialize wallet-signing calls within this process.
+# The attestation publisher, identity registrar, MYX client, and Four.meme
+# launcher all share one wallet. Without coordination, two simultaneous
+# publish/register/trade calls fetch the same `get_transaction_count` value
+# and broadcast competing transactions — BSC accepts one and drops the other,
+# and the dropped hash ends up recorded as "published" even though it never
+# mined. Callers to any signer path SHOULD acquire this lock before signing.
+import asyncio as _asyncio
+_WALLET_TX_LOCK = _asyncio.Lock()
+
+
+def get_wallet_tx_lock() -> _asyncio.Lock:
+    """Shared lock for wallet-signing paths. Acquire before reading nonce +
+    signing + broadcasting + awaiting receipt. Release after the receipt is in
+    hand so the next caller's nonce query sees the mined state."""
+    return _WALLET_TX_LOCK
+
+
 async def publish_root_onchain(root_hex: str) -> str:
     """Publish ``root_hex`` to BNB Chain as a self-transaction with the root in
-    the tx data field. Returns the txhash.
+    the tx data field. Returns the txhash only after the transaction has been
+    included in a block (receipt.status == 1).
 
     Opt-in: this function is only called when DGRID_ATTEST_ONCHAIN=true and a
     wallet private key is configured. Costs ~0.0001 BNB per attestation.
+
+    Serialization: the whole sign+broadcast+receipt sequence runs under
+    ``get_wallet_tx_lock()`` so concurrent calls from the MYX / identity /
+    launch paths don't race on the account nonce.
     """
     from web3 import Web3
     from eth_account import Account
@@ -238,21 +261,34 @@ async def publish_root_onchain(root_hex: str) -> str:
     if acct.address.lower() != settings.wallet_address.lower():
         raise RuntimeError("PRIVATE_KEY does not match WALLET_ADDRESS")
 
-    nonce = w3.eth.get_transaction_count(acct.address)
-    gas_price = w3.eth.gas_price
-
-    tx = {
-        "nonce": nonce,
-        "to": acct.address,  # self-tx — metadata anchor, no value movement
-        "value": 0,
-        "gas": 25_000,
-        "gasPrice": gas_price,
-        "data": "0x" + root_clean,
-        "chainId": 56,
-    }
-    signed = acct.sign_transaction(tx)
-    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-    return "0x" + tx_hash.hex().removeprefix("0x")
+    async with _WALLET_TX_LOCK:
+        # "pending" avoids a double-spend when this call lands right after
+        # another tx from the same wallet that hasn't mined yet.
+        nonce = w3.eth.get_transaction_count(acct.address, "pending")
+        gas_price = w3.eth.gas_price
+        tx = {
+            "nonce": nonce,
+            "to": acct.address,  # self-tx — metadata anchor, no value movement
+            "value": 0,
+            "gas": 25_000,
+            "gasPrice": gas_price,
+            "data": "0x" + root_clean,
+            "chainId": 56,
+        }
+        signed = acct.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        # Wait for inclusion before returning. If the receipt shows status 0,
+        # the tx reverted — raise so the caller doesn't record a ghost hash.
+        try:
+            receipt = await _asyncio.wait_for(
+                _asyncio.to_thread(w3.eth.wait_for_transaction_receipt, tx_hash, 120),
+                timeout=150,
+            )
+        except Exception as e:
+            raise RuntimeError(f"attestation tx {tx_hash.hex()} receipt wait failed: {e}") from e
+        if receipt.get("status") != 1:
+            raise RuntimeError(f"attestation tx {tx_hash.hex()} reverted on-chain")
+        return "0x" + tx_hash.hex().removeprefix("0x")
 
 
 class AttestationLog:
@@ -277,6 +313,10 @@ class AttestationLog:
         # When persistence is disabled (tests), keep entries in-memory so the
         # endpoint still returns real data.
         self._in_memory: list[dict] = []
+        # Cached line count. Computed lazily on first call; incremented on
+        # successful append so we don't re-scan the whole JSONL every request.
+        # Invalidated (reset to None) if an append fails, forcing a recount.
+        self._cached_count: int | None = None
 
     def append(self, entry: dict) -> bool:
         """Durably append ``entry``. Returns True iff the entry is persisted
@@ -293,13 +333,34 @@ class AttestationLog:
                 self._persist_path.parent.mkdir(parents=True, exist_ok=True)
                 with self._persist_path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, separators=(",", ":"), sort_keys=True) + "\n")
+                    # Flush + fsync so a hard power-loss after return doesn't
+                    # leave the line in the OS page cache only. Without this,
+                    # an attested chain tip could commit but the JSONL line
+                    # silently drop — breaking verify_chain reconstruction.
+                    f.flush()
+                    try:
+                        os.fsync(f.fileno())
+                    except OSError:
+                        # Best effort — some filesystems reject fsync on
+                        # append-only handles. The earlier flush still puts
+                        # the line in kernel buffers.
+                        pass
+                # Incrementally maintain the cached line count so /api/dgrid/
+                # audit/calls doesn't re-scan the whole file on every request.
+                if self._cached_count is not None:
+                    self._cached_count += 1
                 return True
             except Exception:
                 # Keep in-memory copy for debugging / live dashboard, but signal
-                # the caller that this entry is not durably recoverable.
+                # the caller that this entry is not durably recoverable. Also
+                # invalidate the cached count since the file may have been
+                # partially written.
                 self._in_memory.append(entry)
+                self._cached_count = None
                 return False
         self._in_memory.append(entry)
+        if self._cached_count is not None:
+            self._cached_count += 1
         return True
 
     def read_range(self, offset: int, limit: int) -> list[dict]:
@@ -330,13 +391,21 @@ class AttestationLog:
         return self._in_memory[offset : offset + limit]
 
     def count(self) -> int:
+        # Fast path: cached count from prior call or append. Cache is
+        # invalidated whenever a write fails (so we can't over-count).
+        if self._cached_count is not None:
+            return self._cached_count
         if self._persist_path and self._persist_path.exists():
             try:
                 with self._persist_path.open("r", encoding="utf-8") as f:
-                    return sum(1 for line in f if line.strip())
+                    n = sum(1 for line in f if line.strip())
+                self._cached_count = n
+                return n
             except Exception:
                 return 0
-        return len(self._in_memory)
+        n = len(self._in_memory)
+        self._cached_count = n
+        return n
 
     def clear_for_tests(self) -> None:
         self._in_memory.clear()

@@ -105,6 +105,13 @@
     var tier = (data && data.badge && data.badge.tier) || "unknown";
     var style = TIERS[tier] || TIERS.unknown;
     var label = (data && data.badge && data.badge.label) || style.label;
+    // Truth-boundary: never display "Certified" when the badge was derived
+    // from public-ranking heuristics — that badge is a RADAR ESTIMATE and the
+    // widget must say so. Only tier_source === "certified" (full on-chain
+    // measurement) earns the Certified wording.
+    var source = (data && (data.tier_source || (data.badge && data.badge.tier_source))) || "certified";
+    var isCertified = source === "certified";
+    var brandPrefix = isCertified ? "FOUR-LIFE · " : "FOUR-LIFE · Radar · ";
 
     // Clear root
     while (root.firstChild) root.removeChild(root.firstChild);
@@ -140,7 +147,7 @@
     wrap.appendChild(dot);
 
     var txt = document.createElement("span");
-    txt.textContent = "FOUR-LIFE · " + label;
+    txt.textContent = brandPrefix + label;
     wrap.appendChild(txt);
 
     if (cfg.modal) {
@@ -187,16 +194,26 @@
     var desc = (data && data.badge && data.badge.description) || "Analyzing token…";
     var why = (data && data.badge && data.badge.why) || [];
     var modelVersion = (data && data.model_version) || VERSION;
+    var source = (data && (data.tier_source || (data.badge && data.badge.tier_source))) || "certified";
+    var isCertified = source === "certified";
+    var headingText = isCertified
+      ? "FOUR-LIFE Certified — " + escapeHtml(label)
+      : "FOUR-LIFE Radar Estimate — " + escapeHtml(label);
+    var sourceNote = isCertified
+      ? ""
+      : "<div style='background:#ffd64122;border:1px solid #ffd64155;border-radius:8px;padding:8px 10px;font-size:11px;color:#ffd641;margin-bottom:14px'>" +
+        "Heuristic estimate from public ranking data — not a Certified tier. Track this token on FOUR-LIFE for on-chain measurement." +
+        "</div>";
 
     var header = "<div style='display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px'>" +
       "<div style='display:flex;align-items:center;gap:10px'>" +
         "<span style='width:10px;height:10px;border-radius:50%;background:" + style.dot + ";box-shadow:0 0 10px " + style.dot + "66'></span>" +
-        "<span style='font:700 17px/1 -apple-system,Segoe UI,sans-serif;color:" + style.fg + "'>FOUR-LIFE Certified — " + escapeHtml(label) + "</span>" +
+        "<span style='font:700 17px/1 -apple-system,Segoe UI,sans-serif;color:" + style.fg + "'>" + headingText + "</span>" +
       "</div>" +
       "<button data-role='close' style='background:transparent;border:0;color:#ffffff66;cursor:pointer;font-size:24px;line-height:1;padding:4px 8px'>×</button>" +
     "</div>";
 
-    var descBlock = "<div style='color:#ffffffaa;font-size:13px;margin-bottom:18px'>" + escapeHtml(desc) + "</div>";
+    var descBlock = sourceNote + "<div style='color:#ffffffaa;font-size:13px;margin-bottom:18px'>" + escapeHtml(desc) + "</div>";
 
     var rulesHtml = "";
     if (why.length > 0) {
