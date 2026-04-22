@@ -77,6 +77,17 @@
       animation: fl-pulse 2.2s ease-out infinite;
       pointer-events: none;
     }
+    /* Accessibility — honor the OS reduced-motion preference. Kills the
+       ambient pulse on the dot, the at_risk alert keyframes, and the
+       hover-transform on the pill so motion-sensitive users aren't
+       forced into our ambient animation loop. Static color cues alone
+       still carry the tier signal. */
+    @media (prefers-reduced-motion: reduce) {
+      .fl-pill,
+      .fl-pill:hover { transition: none !important; transform: none !important; }
+      .fl-pill[data-state="ok"] .fl-dot::after { animation: none !important; opacity: 0 !important; }
+      .fl-pill[data-tier="at_risk"] { animation: none !important; }
+    }
     @keyframes fl-pulse {
       0%   { opacity: 0.55; transform: scale(0.8); }
       70%  { opacity: 0;    transform: scale(2.2); }
@@ -219,7 +230,7 @@
   // If a reused host has a different version tag, we tear it down and
   // rebuild with the fresh stylesheet so extension reloads without a
   // hard tab refresh still pick up new UI.
-  const HOST_VERSION = "1.5.1";
+  const HOST_VERSION = "1.5.2";
 
   // ── Shadow DOM host ────────────────────────────────────────────────
   function ensureHost() {

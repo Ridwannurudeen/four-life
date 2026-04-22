@@ -209,6 +209,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onInstalled.addListener((details) => {
   ensureAlarm();
+  ensureContextMenu();
   // Fresh install → show the 3-step onboarding page. Update / chrome_update /
   // shared_module_update don't reopen the tour — we don't want to re-spam
   // existing users every extension refresh.
@@ -221,6 +222,51 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 chrome.runtime.onStartup.addListener(() => {
   ensureAlarm();
+  ensureContextMenu();
+});
+
+// ── Right-click context menu ──────────────────────────────────────────
+// "Grade '%s' with FOUR-LIFE" appears whenever the user selects text on
+// any page. If the selection is a valid 0x address, it opens the token
+// analysis as a full page. Invalid selections surface a notification
+// rather than silently failing. Zero cost discoverability path for
+// users who encounter a contract address outside our 4 supported sites.
+
+const CONTEXT_MENU_ID = "fl-grade-selection";
+
+function ensureContextMenu() {
+  // idempotent — removeAll + create on every trigger so the menu item
+  // always reflects the current state after extension reload.
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: CONTEXT_MENU_ID,
+        title: 'Grade "%s" with FOUR-LIFE',
+        contexts: ["selection"],
+      });
+    });
+  } catch { /* no permission / no API: fall through silently */ }
+}
+
+chrome.contextMenus?.onClicked?.addListener(async (info) => {
+  if (info.menuItemId !== CONTEXT_MENU_ID) return;
+  const raw = (info.selectionText || "").trim();
+  const addr = raw.toLowerCase();
+  if (/^0x[a-f0-9]{40}$/.test(addr)) {
+    await chrome.tabs.create({ url: `${API_BASE}/radar?token=${addr}` });
+    return;
+  }
+  // Not a valid hex address — tell the user instead of silently opening
+  // nothing. One notification avoids the "did that do anything?" moment.
+  try {
+    await chrome.notifications.create(`fl-ctx-err-${Date.now()}`, {
+      type: "basic",
+      iconUrl: "icons/icon-128.png",
+      title: "FOUR-LIFE",
+      message: `Selection isn't a BSC token address:\n"${raw.slice(0, 40)}${raw.length > 40 ? "…" : ""}"`,
+      priority: 1,
+    });
+  } catch { /* notifications not permitted on some platforms */ }
 });
 
 // ── Notification click routing ────────────────────────────────────────
