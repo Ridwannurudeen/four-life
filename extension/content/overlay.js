@@ -37,7 +37,34 @@
       font-size: 13px;
       line-height: 1.5;
       animation: fl-slide 180ms ease-out;
+      transition: width 220ms ease-out, max-width 220ms ease-out;
     }
+    /* Maximized drawer — toggled by the ⛶ button. Caps at 1100px on
+       wide monitors so the card columns don't stretch into awkward
+       single-line rows; clamps to 95vw on anything narrower. */
+    .fl-panel.fl-maximized {
+      width: min(1100px, 95vw);
+      max-width: 95vw;
+    }
+    .fl-max {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.7);
+      border-radius: 8px;
+      width: 30px; height: 30px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .fl-max:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+    .fl-max svg { display: block; }
+    /* Swap glyphs based on panel state: expand icon when restored,
+       collapse icon when maximized. Visible SVGs are controlled via
+       aria-pressed on the button. */
+    .fl-max[aria-pressed="false"] .fl-max-collapse,
+    .fl-max[aria-pressed="true"]  .fl-max-expand { display: none; }
     .fl-panel h2 {
       margin: 0 0 4px;
       font-size: 18px;
@@ -976,6 +1003,10 @@
               <button class="fl-watch" id="fl-watch" aria-pressed="false" title="Get Chrome notifications when this token's tier transitions">
                 <span class="fl-watch-icon">☆</span><span class="fl-watch-label">Watch</span>
               </button>
+              <button class="fl-max" id="fl-max" aria-pressed="false" aria-label="Maximize panel" title="Maximize">
+                <svg class="fl-max-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10V4h6"/><path d="M20 14v6h-6"/><path d="M4 4l7 7"/><path d="M20 20l-7-7"/></svg>
+                <svg class="fl-max-collapse" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v6H4"/><path d="M14 20v-6h6"/><path d="M10 10L3 3"/><path d="M14 14l7 7"/></svg>
+              </button>
               <button class="fl-close" id="fl-close" aria-label="Close">×</button>
             </div>
           </div>
@@ -1017,10 +1048,36 @@
     const scrim = root.getElementById("fl-scrim");
     const closeBtn = root.getElementById("fl-close");
     const watchBtn = root.getElementById("fl-watch");
+    const maxBtn = root.getElementById("fl-max");
+    const panel = wrap.querySelector(".fl-panel");
     const toast = root.getElementById("fl-watch-toast");
     if (scrim) scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
     document.addEventListener("keydown", onKeyDown);
+
+    // Maximize toggle — swaps the panel between 460px (drawer) and
+    // min(1100px, 95vw) (wide). We persist the choice for the current
+    // browsing session via sessionStorage so opening a new token after
+    // maximizing keeps the user's last preference. Falls back gracefully
+    // if sessionStorage is blocked (private mode, certain MV3 contexts).
+    const SS_KEY = "fl-panel-maximized";
+    let isMaximized = false;
+    try { isMaximized = sessionStorage.getItem(SS_KEY) === "1"; } catch {}
+    const applyMaximized = (m) => {
+      if (!panel || !maxBtn) return;
+      panel.classList.toggle("fl-maximized", m);
+      maxBtn.setAttribute("aria-pressed", m ? "true" : "false");
+      maxBtn.setAttribute("aria-label", m ? "Restore panel" : "Maximize panel");
+      maxBtn.setAttribute("title", m ? "Restore" : "Maximize");
+    };
+    applyMaximized(isMaximized);
+    if (maxBtn) {
+      maxBtn.addEventListener("click", () => {
+        isMaximized = !isMaximized;
+        try { sessionStorage.setItem(SS_KEY, isMaximized ? "1" : "0"); } catch {}
+        applyMaximized(isMaximized);
+      });
+    }
 
     // Watch-toggle wiring — talks to the service worker via chrome.runtime
     // messages. Unavailable in standalone dev contexts (no extension host);
