@@ -119,6 +119,18 @@ class TokenMonitor:
         non-overwritten "initial snapshot" field.
         """
         del seed
+        # Idempotency: if we're already tracking this token, preserve the
+        # earlier created_at (closer to true launch time) rather than letting
+        # a re-track call overwrite it with time.time(). This is what breaks
+        # age_hours on restarts that process duplicate launch records.
+        existing = self.state.tokens.get(token_address)
+        if existing is not None:
+            # Keep existing observation if it has an earlier created_at.
+            if launched_at and launched_at < existing.created_at:
+                existing.created_at = launched_at
+            logger.debug("Re-track ignored — already monitoring {} ({})", name, token_address)
+            return
+
         # Resolve pair-aware graduation target (falls back to low-confidence for unknown assets)
         target = await self.graduation_registry.get(quote_asset)
 
