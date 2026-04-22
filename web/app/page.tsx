@@ -31,7 +31,14 @@ interface RadarEntry {
 }
 
 interface LiveMetrics {
+  // Total tokens the backend graded on this scan (before limit truncation).
+  // Sourced from radar.total_scanned, not radar.length, so the stat doesn't
+  // drift when the ?limit= cap changes.
   radarCount: number;
+  // Live-monitored tokens — these receive Certified badges (full on-chain
+  // rule trace). Separate from radarCount so the headline can show both
+  // the breadth of coverage AND the depth of certified grading.
+  activeTokens: number;
   creatorsCount: number;
   historyTokensCount: number;
   graduations: number;
@@ -43,6 +50,7 @@ interface LiveMetrics {
 function useLiveMetrics() {
   const [m, setM] = useState<LiveMetrics>({
     radarCount: 0,
+    activeTokens: 0,
     creatorsCount: 0,
     historyTokensCount: 0,
     graduations: 0,
@@ -51,10 +59,11 @@ function useLiveMetrics() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [radar, creators, hist] = await Promise.all([
+      const [radar, creators, hist, status] = await Promise.all([
         fetch(`${API}/api/graduation-radar?limit=60&min_confidence=low`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API}/api/creators/leaderboard?limit=500`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API}/api/history/tokens?limit=500`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API}/api/status`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
 
       const radarList: RadarEntry[] = (radar?.radar as RadarEntry[] | undefined) || [];
@@ -62,7 +71,8 @@ function useLiveMetrics() {
         .reduce((s, c) => s + (c.graduations || 0), 0);
 
       setM({
-        radarCount: radarList.length,
+        radarCount: typeof radar?.total_scanned === "number" ? radar.total_scanned : radarList.length,
+        activeTokens: typeof status?.active_tokens === "number" ? status.active_tokens : 0,
         creatorsCount: creators?.total_creators ?? 0,
         historyTokensCount: hist?.count ?? 0,
         graduations: gradCount,
@@ -254,7 +264,7 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
           <div className="lg:col-span-7">
             <div className="eyebrow mb-6">
               <span className="h-1.5 w-1.5 rounded-full bg-[#6cff32] pulse-ring" />
-              Live on BNB Chain · {metrics.radarCount > 0 ? `${metrics.radarCount} tokens graded` : "60+ tokens graded"} · Agent ID 20
+              Live on BNB Chain · {metrics.radarCount > 0 ? `${metrics.radarCount} graded${metrics.activeTokens > 0 ? ` · ${metrics.activeTokens} Certified` : ""}` : "live grading"} · Agent ID 20
             </div>
 
             <h1 className="display display-xl mb-7">
@@ -493,11 +503,16 @@ function LiveMetricsBand({ metrics }: { metrics: LiveMetrics }) {
         </div>
         <Link href="/radar" className="hidden md:inline-flex text-sm text-[#6cff32] hover:underline">Browse the radar →</Link>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard
           label="Tokens graded"
           value={formatCompact(metrics.radarCount)}
-          hint="on the live radar"
+          hint="scanned this cycle"
+        />
+        <StatCard
+          label="Certified · live"
+          value={formatCompact(metrics.activeTokens)}
+          hint="full rule-trace grade"
         />
         <StatCard
           label="Creators ranked"
@@ -507,12 +522,12 @@ function LiveMetricsBand({ metrics }: { metrics: LiveMetrics }) {
         <StatCard
           label="With history"
           value={formatCompact(metrics.historyTokensCount)}
-          hint="snapshots persisted"
+          hint="tokens with snapshots"
         />
         <StatCard
           label="Graduations"
           value={formatCompact(metrics.graduations)}
-          hint="on-chain attestations"
+          hint="bonding curves completed"
         />
       </div>
     </section>

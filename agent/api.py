@@ -2155,6 +2155,62 @@ async def graduation_radar(
                 "fourmeme_url": f"https://four.meme/token/{addr}",
             })
 
+        # Merge live-monitored Certified tokens that aren't already in the radar
+        # payload. Four.meme's trending/new feeds only surface popular tokens —
+        # our tracked certified tokens may have 0 holders / stalled curve and
+        # therefore fall off those lists, which made the public radar appear
+        # to contain only radar_estimate entries. The radar's promise is "every
+        # active Four.meme token, graded deterministically," so a token under
+        # our live on-chain monitor MUST appear here with its Certified grade.
+        if agent and agent.monitor.state.tokens:
+            for addr, tracked in agent.monitor.state.tokens.items():
+                if addr in seen:
+                    continue
+                token_quote = (getattr(tracked, "quote_asset", "BNB") or "BNB").upper()
+                if quote_filter != "ALL" and token_quote != quote_filter:
+                    continue
+                target = await agent.graduation_registry.get(token_quote)
+                if CONFIDENCE_RANK.get(target.confidence, 0) < min_conf_rank:
+                    continue
+                try:
+                    risk = _peek_contract_risk(addr)
+                    crs = risk.risk_score if risk else 0
+                    certified = badge_from_health(
+                        tracked,
+                        contract_risk_score=crs,
+                        observation_status=getattr(tracked, "observation_status", "full_history"),
+                    )
+                except Exception:
+                    continue
+                seen.add(addr)
+                holders = int(getattr(tracked, "unique_buyers", 0) or 0)
+                progress = float(getattr(tracked, "curve_progress_pct", 0) or 0) / 100.0
+                all_tokens.append({
+                    "token_address": addr,
+                    "name": tracked.name or "",
+                    "symbol": tracked.symbol or "",
+                    "quote_asset": token_quote,
+                    "graduation_target": target.target_amount,
+                    "graduation_target_unit": target.quote_asset,
+                    "graduation_progress_value": round(progress * target.target_amount, 4) if target.target_amount > 0 else 0.0,
+                    "holders": holders,
+                    "curve_progress": round(progress * 100, 1),
+                    "volume_quote": 0.0,
+                    "volume_bnb": 0.0,  # back-compat
+                    "increase_pct": 0.0,
+                    "health_score": round(float(getattr(tracked, "health_score", 0) or 0), 1),
+                    # Derive a crude graduation probability from curve progress + tier for sort compat.
+                    "graduation_probability": round(min(100.0, float(getattr(tracked, "curve_progress_pct", 0) or 0) * 0.9), 1),
+                    "holder_velocity": round(float(getattr(tracked, "holder_velocity", 0) or 0), 2),
+                    "confidence_score": target.confidence,
+                    "badge_tier": certified.tier,
+                    "tier_source": certified.tier_source,
+                    "observation_status": certified.observation_status,
+                    "quote_asset_source": getattr(tracked, "quote_asset_source", "fourmeme_api"),
+                    "status": "",
+                    "fourmeme_url": f"https://four.meme/token/{addr}",
+                })
+
         sort_keys = {
             "graduation_probability": lambda x: x["graduation_probability"],
             "health_score": lambda x: x["health_score"],
