@@ -2026,6 +2026,14 @@ Be specific and actionable. No vague advice. Reference the actual pair-aware gra
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+# Radar response cache. Keyed by the full filter tuple so different
+# sort/filter combos don't poison each other. TTL matches the landing
+# page's 30s refresh cadence: judges always see data ≤30s old, but every
+# click between polls lands on a cached hit (<10ms vs. 2-12s uncached).
+_RADAR_CACHE: dict[tuple, tuple[float, dict]] = {}
+_RADAR_CACHE_TTL = 30.0
+
+
 @app.get("/api/graduation-radar", tags=["radar"], summary="Live Four.meme radar with filters (quote asset, min confidence, sort key)")
 async def graduation_radar(
     limit: int = 20,
@@ -2042,6 +2050,13 @@ async def graduation_radar(
     """
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
+
+    # Serve from cache if fresh. Key normalizes strings the same way the
+    # endpoint body would (lowercase/uppercase) so "BNB" and "bnb" share.
+    cache_key = (int(limit), (quote_asset or "all").upper(), (min_confidence or "low").lower(), sort_by)
+    cached = _RADAR_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _RADAR_CACHE_TTL:
+        return cached[1]
 
     CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
     VALID_SORTS = {"graduation_probability", "health_score", "holder_velocity", "curve_progress"}
@@ -2226,7 +2241,7 @@ async def graduation_radar(
             reverse=True,
         )
 
-        return {
+        response = {
             "radar": all_tokens[:limit],
             "total_scanned": len(all_tokens),
             "filters": {
@@ -2240,6 +2255,15 @@ async def graduation_radar(
             "timestamp": time.time(),
             "powered_by": "FOUR-LIFE | four-life.gudman.xyz",
         }
+        # Evict stale entries while we're here — keeps the dict bounded
+        # without a dedicated sweeper. 30s TTL across maybe 20 filter combos
+        # is tiny memory; this is belt-and-braces.
+        now = time.time()
+        for k in list(_RADAR_CACHE.keys()):
+            if (now - _RADAR_CACHE[k][0]) > _RADAR_CACHE_TTL:
+                del _RADAR_CACHE[k]
+        _RADAR_CACHE[cache_key] = (now, response)
+        return response
 
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
