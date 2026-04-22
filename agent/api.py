@@ -2211,13 +2211,20 @@ async def graduation_radar(
                     "fourmeme_url": f"https://four.meme/token/{addr}",
                 })
 
-        sort_keys = {
+        # Primary sort: always put Certified (live-monitored) tokens above
+        # radar_estimate rows so judges opening the radar see our depth first.
+        # Secondary: user's requested score. The is_certified boolean sorts
+        # True>False in descending order, so no extra work needed.
+        sort_score = {
             "graduation_probability": lambda x: x["graduation_probability"],
             "health_score": lambda x: x["health_score"],
             "holder_velocity": lambda x: x["holder_velocity"],
             "curve_progress": lambda x: x["curve_progress"],
-        }
-        all_tokens.sort(key=sort_keys[sort_by], reverse=True)
+        }[sort_by]
+        all_tokens.sort(
+            key=lambda x: (x.get("tier_source") == "certified", sort_score(x)),
+            reverse=True,
+        )
 
         return {
             "radar": all_tokens[:limit],
