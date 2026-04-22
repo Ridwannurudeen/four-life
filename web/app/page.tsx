@@ -276,10 +276,12 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
             </h1>
 
             <p className="text-white/70 text-lg md:text-2xl leading-[1.45] max-w-2xl mb-4 font-light">
-              Four.meme&apos;s Agentic Mode creates tokens. FOUR-LIFE is the autonomous lifecycle layer that keeps them alive past 72 hours — with every LLM decision cryptographically anchored on BNB Chain.
+              The autonomous lifecycle agent for Four.meme tokens on BNB Chain.
+              Trust grades are deterministic (pure on-chain rules, zero LLM). Operational
+              decisions go through an LLM gateway and every call is Merkle-committed on-chain.
             </p>
             <p className="text-white/50 text-sm md:text-base mb-8 max-w-2xl font-mono">
-              1,573 LLM calls + 518 MYX decisions attested on-chain · 6 Merkle-root transactions · $AUNT launched by the agent on Apr 20
+              1,573 DGrid LLM calls + 518 MYX decisions committed to on-chain Merkle roots · 6 attestation txs · $AUNT launched by the agent on Apr 20
             </p>
 
             <div className="flex flex-wrap gap-2 mb-7 text-[11px] font-mono">
@@ -570,9 +572,13 @@ function Primitives() {
     <section className="max-w-7xl mx-auto px-5 pb-16 md:pb-24">
       <div className="mb-10 max-w-3xl">
         <div className="eyebrow mb-4">Primitives</div>
-        <h2 className="display display-lg mb-3">Three layers. One trust model.</h2>
+        <h2 className="display display-lg mb-3">Grade · Shield · Attest.</h2>
         <p className="text-white/55 text-base md:text-lg">
-          Every primitive is computed from raw on-chain metrics with a full <code className="font-mono text-white/80 bg-white/5 px-1.5 py-0.5 rounded">why[]</code> trace. No LLM in the trust path. Anyone can reproduce any grade from the raw data.
+          Every trust grade is computed from raw on-chain metrics with a full{" "}
+          <code className="font-mono text-white/80 bg-white/5 px-1.5 py-0.5 rounded">why[]</code> rule trace.
+          No LLM is used to decide if a token is safe — anyone can reproduce any grade from the raw data.
+          The agent&apos;s operational LLM calls (narrative picks, post content, hedge signals) go through a
+          gateway that commits every call to an on-chain Merkle root.
         </p>
       </div>
 
@@ -606,8 +612,8 @@ function HowItWorks() {
   const steps = [
     {
       n: "01",
-      title: "Compute",
-      body: "Every token grade is computed from raw on-chain metrics — holders, whale concentration, buy/sell ratio, curve progress, contract risk — against deterministic thresholds. No LLM.",
+      title: "Compute (no LLM)",
+      body: "Every trust grade is computed from raw on-chain metrics — holders, whale concentration, buy/sell ratio, curve progress, contract risk — against deterministic thresholds. The rules that fired travel with the verdict so anyone can reproduce the grade.",
     },
     {
       n: "02",
@@ -755,7 +761,11 @@ function WhoUses() {
     <section className="max-w-7xl mx-auto px-5 py-16 md:py-24">
       <div className="mb-10 max-w-3xl">
         <div className="eyebrow mb-4">Who it&apos;s for</div>
-        <h2 className="display display-lg">Four roles. One primitive.</h2>
+        <h2 className="display display-lg">One API. Four audiences.</h2>
+        <p className="text-white/55 text-base md:text-lg mt-3">
+          Traders read the radar, creators embed the badge, operators subscribe to webhooks,
+          and bots trigger off tier transitions. Same deterministic grade across every surface.
+        </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {cards.map((c) => {

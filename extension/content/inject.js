@@ -33,10 +33,34 @@
       border: 1px solid rgba(255,255,255,0.08);
       box-shadow: 0 6px 20px rgba(0,0,0,0.35);
       cursor: pointer;
-      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease, box-shadow 200ms ease;
       backdrop-filter: blur(10px);
     }
     .fl-pill:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.18); }
+    /* Tier-scaled urgency — at_risk pills glow red and gently pulse so a
+       honeypot is structurally distinguishable from a Certified safe token
+       at a glance, without the user needing to read the label. Matches the
+       Pocket Universe / Rabby red-yellow-green hazard convention. */
+    .fl-pill[data-tier="at_risk"] {
+      border-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 0 1px rgba(239,68,68,0.3), 0 6px 22px rgba(239,68,68,0.35);
+      background: rgba(31, 14, 14, 0.92);
+      animation: fl-pill-alert 1.8s ease-in-out infinite;
+    }
+    .fl-pill[data-tier="at_risk"] .fl-brand { color: #ffb3b3; }
+    .fl-pill[data-tier="at_risk"] .fl-tag { color: #ef4444; font-weight: 700; }
+    @keyframes fl-pill-alert {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(239,68,68,0.3), 0 6px 22px rgba(239,68,68,0.35); }
+      50%      { box-shadow: 0 0 0 2px rgba(239,68,68,0.55), 0 10px 28px rgba(239,68,68,0.55); }
+    }
+    .fl-pill[data-tier="graduated"] {
+      border-color: rgba(168, 85, 247, 0.4);
+      box-shadow: 0 0 0 1px rgba(168,85,247,0.25), 0 6px 22px rgba(168,85,247,0.25);
+    }
+    .fl-pill[data-tier="healthy"] {
+      border-color: rgba(108, 255, 50, 0.3);
+      box-shadow: 0 0 0 1px rgba(108,255,50,0.2), 0 6px 22px rgba(108,255,50,0.15);
+    }
     .fl-pill[data-state="loading"], .fl-pill[data-state="error"] { cursor: default; opacity: 0.85; }
     .fl-dot {
       width: 9px; height: 9px; border-radius: 50%;
@@ -195,7 +219,7 @@
   // If a reused host has a different version tag, we tear it down and
   // rebuild with the fresh stylesheet so extension reloads without a
   // hard tab refresh still pick up new UI.
-  const HOST_VERSION = "1.4.2";
+  const HOST_VERSION = "1.5.0";
 
   // ── Shadow DOM host ────────────────────────────────────────────────
   function ensureHost() {
@@ -278,6 +302,10 @@
     pill.className = "fl-pill";
     pill.setAttribute("data-state", state);
     pill.setAttribute("data-tier-source", tierSource);
+    // data-tier drives the urgency styling (red glow + pulse on at_risk,
+    // purple on graduated, green on healthy). Only set for OK states so
+    // the loading/error pills keep their neutral style.
+    if (state === "ok" && tier) pill.setAttribute("data-tier", tier);
     pill.setAttribute("aria-label", `${ariaPrefix}: ${displayLabel}`);
 
     const dot = document.createElement("span");

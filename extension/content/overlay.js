@@ -424,6 +424,151 @@
       border-color: transparent;
     }
     .fl-action.primary:hover { filter: brightness(1.08); background: linear-gradient(135deg, #00d4ff, #6cff32); }
+    /* Danger-flagged footer action — used on the Swap link when the open
+       token is at_risk. Visual signal matches the pill's alert styling so
+       users anticipate the block modal instead of being surprised by it. */
+    .fl-action.fl-action-danger {
+      border-color: rgba(239,68,68,0.4);
+      background: rgba(239,68,68,0.08);
+      color: #ffb3b3;
+    }
+    .fl-action.fl-action-danger:hover {
+      background: rgba(239,68,68,0.14);
+      border-color: rgba(239,68,68,0.6);
+      color: #ffc9c9;
+    }
+
+    /* Pre-swap hard-warning modal — fires when the user clicks Swap on an
+       at_risk token. FOUR-LIFE acts as a firewall here, not a dashboard:
+       the destructive action is blocked behind an override button with the
+       top risk evidence quoted. Matches Pocket Universe / Wallet Guard /
+       Fire pattern. The modal is inside the same shadow root so CSP on
+       the host page doesn't affect it. */
+    .fl-swap-block {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fl-fade 120ms ease-out;
+      padding: 20px;
+    }
+    .fl-swap-block-card {
+      width: 460px;
+      max-width: 96vw;
+      background: #120a0a;
+      border: 2px solid rgba(239,68,68,0.5);
+      border-radius: 14px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 24px 80px rgba(239,68,68,0.25), 0 0 0 1px rgba(239,68,68,0.15);
+      color: #fff;
+      animation: fl-slide 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .fl-swap-block-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .fl-swap-block-ico {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(239,68,68,0.18);
+      color: #ef4444;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .fl-swap-block-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .fl-swap-block-kicker {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: #ef4444;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .fl-swap-block-body {
+      font-size: 13px;
+      line-height: 1.55;
+      color: rgba(255,255,255,0.75);
+      margin: 8px 0 12px;
+    }
+    .fl-swap-evidence {
+      background: rgba(239,68,68,0.07);
+      border: 1px solid rgba(239,68,68,0.18);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 10px 0 14px;
+    }
+    .fl-swap-evidence-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.88);
+      padding: 4px 0;
+    }
+    .fl-swap-evidence-row + .fl-swap-evidence-row {
+      border-top: 1px dashed rgba(239,68,68,0.15);
+    }
+    .fl-swap-evidence-dot {
+      color: #ef4444;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .fl-swap-block-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .fl-swap-safe {
+      flex: 1;
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #0b0b0e;
+      background: linear-gradient(135deg, #00d4ff, #6cff32);
+      border: none;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: 0.01em;
+    }
+    .fl-swap-safe:hover { filter: brightness(1.08); }
+    .fl-swap-override {
+      padding: 11px 14px;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.55);
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.12);
+      cursor: pointer;
+      letter-spacing: 0.01em;
+    }
+    .fl-swap-override:hover { color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.25); }
+    .fl-swap-footer {
+      margin-top: 10px;
+      font-size: 10.5px;
+      color: rgba(255,255,255,0.4);
+      text-align: center;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      letter-spacing: 0.02em;
+    }
 
     /* Deployer reputation card — shows creator wallet + aggregated track record
        from /api/creator/{wallet}/survival-score. Unknown devs surface as
@@ -1293,6 +1438,59 @@
     document.removeEventListener("keydown", onKeyDown);
   }
 
+  // Pre-swap hard-warning modal. Called when the user clicks "Swap ↗" on
+  // an at_risk token. Blocks the destructive navigation behind an override
+  // button so users can't accidentally buy a honeypot. This is FOUR-LIFE's
+  // firewall moment — the one place the product stops being passive.
+  function showSwapBlock({ swapUrl, tierLabel, evidence, address }) {
+    const root = window.FourLife?.getShadowRoot?.();
+    if (!root) { window.open(swapUrl, "_blank", "noopener"); return; }
+    const existing = root.getElementById("fl-swap-block");
+    if (existing) existing.remove();
+    const top = (Array.isArray(evidence) ? evidence : [])
+      .filter((e) => e && (e.severity === "critical" || e.severity === "high"))
+      .slice(0, 3);
+    const rows = (top.length ? top : (evidence || []).slice(0, 2))
+      .map((e) => `
+        <div class="fl-swap-evidence-row">
+          <span class="fl-swap-evidence-dot">✗</span>
+          <span><strong>${escapeHtml(e.name || e.flag || "Risk")}</strong>${e.description ? " — " + escapeHtml(e.description) : ""}</span>
+        </div>`)
+      .join("");
+    const blocker = document.createElement("div");
+    blocker.className = "fl-swap-block";
+    blocker.id = "fl-swap-block";
+    blocker.innerHTML = `
+      <div class="fl-swap-block-card" role="alertdialog" aria-labelledby="fl-swap-block-title">
+        <div class="fl-swap-block-head">
+          <span class="fl-swap-block-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+          <div>
+            <div class="fl-swap-block-kicker">FOUR-LIFE blocked this swap</div>
+            <div class="fl-swap-block-title" id="fl-swap-block-title">Token graded ${escapeHtml(tierLabel || "At Risk")}</div>
+          </div>
+        </div>
+        <p class="fl-swap-block-body">
+          This token failed the deterministic trust checks below. Continuing to PancakeSwap
+          likely results in loss of funds. Override only if you know what you're doing.
+        </p>
+        ${rows ? `<div class="fl-swap-evidence">${rows}</div>` : ""}
+        <div class="fl-swap-block-actions">
+          <button class="fl-swap-safe" id="fl-swap-cancel" type="button">Cancel — stay safe</button>
+          <button class="fl-swap-override" id="fl-swap-override" type="button">Override anyway</button>
+        </div>
+        <div class="fl-swap-footer">${escapeHtml(address)}</div>
+      </div>`;
+    root.getElementById("overlay-wrap")?.appendChild(blocker);
+    const cancel = root.getElementById("fl-swap-cancel");
+    const override = root.getElementById("fl-swap-override");
+    const close = () => blocker.remove();
+    blocker.addEventListener("click", (e) => { if (e.target === blocker) close(); });
+    cancel?.addEventListener("click", close);
+    override?.addEventListener("click", () => { close(); window.open(swapUrl, "_blank", "noopener"); });
+  }
+
   // Keyboard shortcuts for the open panel. Fires only while an overlay
   // is mounted. We guard against firing inside form inputs so the page's
   // own search fields keep working. Modifier keys bypass us entirely.
@@ -1623,6 +1821,23 @@
     const copyBtn = root.getElementById("fl-copy");
     const panel = wrap.querySelector(".fl-panel");
     const toast = root.getElementById("fl-watch-toast");
+
+    // Firewall hook on the Swap button. For at_risk tokens we intercept
+    // the click, show the block modal, and only let the user through if
+    // they explicitly override. The link still works as-is for any
+    // non-risky tier, so graduation-watch / healthy / graduated flow
+    // straight to PancakeSwap without friction.
+    const swapLink = Array.from(wrap.querySelectorAll(".fl-action"))
+      .find((a) => (a.getAttribute("href") || "").includes("pancakeswap.finance/swap"));
+    if (swapLink && tier === "at_risk") {
+      swapLink.classList.add("fl-action-danger");
+      swapLink.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const evidence = risk?.body?.evidence || [];
+        showSwapBlock({ swapUrl, tierLabel: label, evidence, address });
+      });
+      swapLink.setAttribute("title", "FOUR-LIFE flagged this token — click for the block modal");
+    }
     if (scrim) scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
     document.addEventListener("keydown", onKeyDown);
