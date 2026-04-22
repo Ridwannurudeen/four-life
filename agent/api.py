@@ -216,7 +216,7 @@ Public GET endpoints: 120 requests per minute per IP (rolling window). Write end
 
 ### Integration
 
-- TypeScript SDK: [`@four-life/sdk`](https://github.com/Ridwannurudeen/four-life/tree/master/sdk)
+- TypeScript SDK: [`@gudman/four-life-sdk`](https://github.com/Ridwannurudeen/four-life/tree/master/sdk)
 - Embeddable widget: `<script src="https://four-life.gudman.xyz/embed.js?token=0x..."></script>`
 - Browser extension: [repo link](https://github.com/Ridwannurudeen/four-life/tree/master/extension)
 
