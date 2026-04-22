@@ -2247,20 +2247,20 @@ async def graduation_radar(
                     "fourmeme_url": f"https://four.meme/token/{addr}",
                 })
 
-        # Primary sort: always put Certified (live-monitored) tokens above
-        # radar_estimate rows so judges opening the radar see our depth first.
-        # Secondary: user's requested score. The is_certified boolean sorts
-        # True>False in descending order, so no extra work needed.
+        # Sort honestly by the user's requested score. An earlier version
+        # pinned Certified tokens above radar_estimate regardless of sort,
+        # which made the Sort dropdown visibly pointless — our tracked
+        # tokens happen to have low graduation-probability, so certified
+        # always sat on top and the filter looked broken.
+        # Consumers that want Certified-first specifically should filter
+        # client-side by `tier_source === "certified"`, not rely on sort.
         sort_score = {
             "graduation_probability": lambda x: x["graduation_probability"],
             "health_score": lambda x: x["health_score"],
             "holder_velocity": lambda x: x["holder_velocity"],
             "curve_progress": lambda x: x["curve_progress"],
         }[sort_by]
-        all_tokens.sort(
-            key=lambda x: (x.get("tier_source") == "certified", sort_score(x)),
-            reverse=True,
-        )
+        all_tokens.sort(key=sort_score, reverse=True)
 
         response = {
             "radar": all_tokens[:limit],

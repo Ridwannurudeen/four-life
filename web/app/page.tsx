@@ -207,6 +207,7 @@ function Nav() {
           <Link href="/alerts" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Alerts</Link>
           <Link href="/activity" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Activity</Link>
           <Link href="/dgrid" className="px-3 py-1.5 rounded-md text-[#6cff32] hover:text-white hover:bg-white/5 transition-colors">DGrid</Link>
+          <Link href="/myx" className="px-3 py-1.5 rounded-md text-[#ffd641] hover:text-white hover:bg-white/5 transition-colors">MYX</Link>
           <Link href="/metrics" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">Metrics</Link>
           <a href={`${API}/docs`} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors">API</a>
         </nav>
