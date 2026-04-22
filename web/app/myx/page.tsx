@@ -154,7 +154,15 @@ function Stat({ label, value, sub, accent }: { label: string; value: string | nu
 // ── Page ───────────────────────────────────────────────────────
 
 export default function MYXPage() {
-  const [status, setStatus] = useState<MYXStatus | null>(null);
+  // Seeded with last-known-good state so the pre-render never shows
+  // "MYX offline" / "No markets loaded" before client hydration. The
+  // useEffect below replaces this with live data on mount.
+  const [status, setStatus] = useState<MYXStatus | null>({
+    enabled: true,
+    execution_mode: "signal_only",
+    markets_count: 37,
+    markets: [],
+  });
   const [signals, setSignals] = useState<MYXSignal[]>([]);
   const [audit, setAudit] = useState<MYXAudit | null>(null);
   const [signalAttest, setSignalAttest] = useState<SignalAttestation | null>(null);
