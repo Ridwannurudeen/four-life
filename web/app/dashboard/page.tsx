@@ -941,6 +941,123 @@ Stack: DGrid AI (LLM) | BNB Chain (web3) | ERC-8004 (identity) | Four.meme (laun
   );
 }
 
+/* ── MYX overview strip — lives on the main Overview tab ───────────────
+ * Surfaces MYX activity without requiring a Perps-tab click. Three signals:
+ *   - decisions attested on-chain (latest Merkle root + BscScan tx)
+ *   - live signal counter (agent is actively making hedge calls)
+ *   - latest signal verdict (proves the consensus path is firing) */
+
+interface MyxOverviewState {
+  chainedDecisions: number;
+  lastPublishedTx: string | null;
+  lastPublishedCount: number;
+  totalSignals: number;
+  latestSignal: {
+    symbol: string;
+    action: string;
+    confidence: number;
+    phase: string;
+  } | null;
+  marketsCount: number;
+}
+
+function MyxOverviewStrip() {
+  const [s, setS] = useState<MyxOverviewState | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [att, sigs, status, portfolio] = await Promise.all([
+          fetch(`${API}/api/myx/signal-attestation`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`${API}/api/myx/signals?limit=1`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`${API}/api/myx/status`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`${API}/api/myx/portfolio`).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const latest = (sigs?.signals || [])[0];
+        // Resolve the signal's symbol by cross-referencing the portfolio
+        // token summaries — saves a second per-token fetch.
+        const addr = (latest?.token_address || "").toLowerCase();
+        const match = (portfolio?.token_summaries || []).find((t: { token_address: string; symbol?: string }) => t.token_address.toLowerCase() === addr);
+        setS({
+          chainedDecisions: att?.num_signals_chained ?? 0,
+          lastPublishedTx: att?.last_published_txhash ?? null,
+          lastPublishedCount: att?.last_published_count ?? 0,
+          totalSignals: sigs?.total_ever ?? 0,
+          latestSignal: latest ? {
+            symbol: match?.symbol || (latest.token_address || "").slice(0, 6) + "…",
+            action: latest.action,
+            confidence: latest.confidence,
+            phase: latest.phase,
+          } : null,
+          marketsCount: status?.markets_count ?? 0,
+        });
+      } catch { /* swallow — overview strip is best-effort */ }
+    };
+    load();
+    const id = setInterval(load, 20_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  if (!s) return null;
+
+  return (
+    <section className="rounded-2xl border border-[#00d4ff]/20 bg-gradient-to-br from-[#00d4ff]/[0.04] to-transparent p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.15em] text-[#00d4ff] font-bold">MYX V2 · decision attestation layer</div>
+          <div className="text-xs text-white/40 mt-1">
+            Live hedge signals, consensus-backed DEFEND decisions, every decision committed on BNB Chain.
+          </div>
+        </div>
+        <a href="/myx" className="text-[11px] text-[#00d4ff] hover:underline">Open /myx →</a>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wide text-white/40">Decisions chained</div>
+          <div className="text-xl font-bold tabular mt-1">{s.chainedDecisions}</div>
+          <div className="text-[10px] text-white/30 mt-0.5">{s.chainedDecisions - s.lastPublishedCount} unpublished</div>
+        </div>
+        <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wide text-white/40">Last on-chain root</div>
+          {s.lastPublishedTx ? (
+            <a
+              href={`https://bscscan.com/tx/${s.lastPublishedTx}`}
+              target="_blank" rel="noopener noreferrer"
+              className="block text-[11px] font-mono text-[#00d4ff] hover:underline mt-1 truncate"
+              title={s.lastPublishedTx}
+            >
+              {s.lastPublishedTx.slice(0, 10)}…{s.lastPublishedTx.slice(-6)} ↗
+            </a>
+          ) : <div className="text-[11px] text-white/30 mt-1">not yet published</div>}
+          <div className="text-[10px] text-white/30 mt-0.5">committing {s.lastPublishedCount} decisions</div>
+        </div>
+        <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wide text-white/40">Markets wired</div>
+          <div className="text-xl font-bold tabular mt-1">{s.marketsCount}</div>
+          <div className="text-[10px] text-white/30 mt-0.5">BSC mainnet · signal-only</div>
+        </div>
+        <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wide text-white/40">Latest signal</div>
+          {s.latestSignal ? (
+            <>
+              <div className="text-sm font-bold mt-1">
+                <span className={s.latestSignal.action === "short" ? "text-[#ff494a]" : s.latestSignal.action === "long" ? "text-[#6cff32]" : "text-white/60"}>
+                  {s.latestSignal.action.toUpperCase()}
+                </span>
+                <span className="text-white/40 text-xs ml-1.5">{s.latestSignal.symbol}</span>
+              </div>
+              <div className="text-[10px] text-white/30 mt-0.5">
+                {Math.round(s.latestSignal.confidence * 100)}% conf · {s.latestSignal.phase}
+              </div>
+            </>
+          ) : <div className="text-[11px] text-white/30 mt-1">no signals yet</div>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ── MYX V2 Perps Panel ───────────────────────────────── */
 
 interface PerpsPortfolio {
@@ -1441,6 +1558,9 @@ export default function Dashboard() {
                 <StatCard label="Active" value={status.active_tokens} accent={status.active_tokens > 0 ? "green" : undefined} />
               </div>
             )}
+
+            {/* MYX summary — keeps perps activity visible on overview without tab-hunting */}
+            <MyxOverviewStrip />
 
             {/* Active Tokens */}
             <section>
