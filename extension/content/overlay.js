@@ -287,6 +287,91 @@
       border-color: transparent;
     }
     .fl-action.primary:hover { filter: brightness(1.08); background: linear-gradient(135deg, #00d4ff, #6cff32); }
+
+    /* Deployer reputation card — shows creator wallet + aggregated track record
+       from /api/creator/{wallet}/survival-score. Unknown devs surface as
+       "Unknown dev" explicitly so we never imply a non-existent history. */
+    .fl-creator {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      border-radius: 10px;
+    }
+    .fl-creator-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .fl-creator-head .fl-k {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.5);
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .fl-creator-addr {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11.5px;
+      color: #00d4ff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .fl-creator-addr:hover { text-decoration: underline; }
+    .fl-creator-tier {
+      text-transform: capitalize;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.03);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .fl-creator-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .fl-creator-stat {
+      text-align: center;
+      padding: 8px 6px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+    }
+    .fl-creator-stat-v {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.1;
+    }
+    .fl-creator-stat-k {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.5);
+      margin-top: 3px;
+    }
+    .fl-creator-note {
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.55);
+      font-style: italic;
+    }
+    .fl-creator-link {
+      display: inline-block;
+      margin-top: 4px;
+      color: #00d4ff;
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .fl-creator-link:hover { text-decoration: underline; }
   `;
 
   function tierColor(tier) {
@@ -393,6 +478,87 @@
   // per-token rule trace. Cached in-module for 60s so a user clicking
   // multiple tokens in quick succession doesn't hammer the API.
   const API_BASE = "https://four-life.gudman.xyz";
+
+  // ── Creator survival-score fetch ────────────────────────────────────
+  // The badge response now carries the deploying wallet; we combine it with
+  // /api/creator/{wallet}/survival-score to show dev reputation in the
+  // panel. Cached per-wallet in-module for the panel's lifetime.
+  const _creatorCache = new Map();
+  async function fetchCreatorScore(wallet) {
+    if (!wallet) return null;
+    const key = wallet.toLowerCase();
+    if (_creatorCache.has(key)) return _creatorCache.get(key);
+    try {
+      const r = await fetch(`${API_BASE}/api/creator/${key}/survival-score`, { cache: "no-store" });
+      if (!r.ok) { _creatorCache.set(key, null); return null; }
+      const data = await r.json();
+      _creatorCache.set(key, data);
+      return data;
+    } catch {
+      _creatorCache.set(key, null);
+      return null;
+    }
+  }
+
+  function creatorSectionHtml(creator, score) {
+    if (!creator) return "";
+    const short = (a) => a ? a.slice(0, 6) + "…" + a.slice(-4) : "—";
+    const tracked = !!(score && score.tracked);
+    // Map trust_tier string → visible chip color. Values match api.py
+    // _creator_trust_tier: proven / emerging / new_creator / unproven / unknown.
+    const tierColorMap = {
+      proven: "#6cff32",
+      emerging: "#00d4ff",
+      new_creator: "#ffd641",
+      unproven: "#ff9640",
+      unknown: "rgba(255,255,255,0.4)",
+    };
+    const tier = (score?.trust_tier || "unknown").toLowerCase();
+    const tierColor = tierColorMap[tier] || tierColorMap.unknown;
+    const gradRatePct = score ? Math.round((score.graduation_rate || 0) * 100) : 0;
+
+    if (!tracked) {
+      // Creator exists but we have no track record yet — don't invent one.
+      return `
+        <div class="fl-creator" role="region" aria-label="Deployer reputation">
+          <div class="fl-creator-head">
+            <div>
+              <div class="fl-k">Deployer</div>
+              <a href="https://bscscan.com/address/${escapeHtml(creator)}" target="_blank" rel="noopener noreferrer" class="fl-creator-addr">${escapeHtml(short(creator))} ↗</a>
+            </div>
+            <span class="fl-creator-tier" style="color:${escapeHtml(tierColor)};border-color:${escapeHtml(tierColor)}33">Unknown dev</span>
+          </div>
+          <div class="fl-creator-note">No prior FOUR-LIFE-tracked launches from this wallet.</div>
+        </div>`;
+    }
+
+    return `
+      <div class="fl-creator" role="region" aria-label="Deployer reputation">
+        <div class="fl-creator-head">
+          <div>
+            <div class="fl-k">Deployer</div>
+            <a href="https://bscscan.com/address/${escapeHtml(creator)}" target="_blank" rel="noopener noreferrer" class="fl-creator-addr">${escapeHtml(short(creator))} ↗</a>
+          </div>
+          <span class="fl-creator-tier" style="color:${escapeHtml(tierColor)};border-color:${escapeHtml(tierColor)}33">${escapeHtml(String(score.trust_tier || "unknown").replace("_", " "))}</span>
+        </div>
+        <div class="fl-creator-stats">
+          <div class="fl-creator-stat">
+            <div class="fl-creator-stat-v">${escapeHtml(String(score.launches_tracked || 0))}</div>
+            <div class="fl-creator-stat-k">launches tracked</div>
+          </div>
+          <div class="fl-creator-stat">
+            <div class="fl-creator-stat-v">${escapeHtml(String(score.graduations || 0))}</div>
+            <div class="fl-creator-stat-k">graduated</div>
+          </div>
+          <div class="fl-creator-stat">
+            <div class="fl-creator-stat-v">${gradRatePct}%</div>
+            <div class="fl-creator-stat-k">grad rate</div>
+          </div>
+        </div>
+        <a href="${API_BASE}/creators/${escapeHtml(creator)}" target="_blank" rel="noopener noreferrer" class="fl-creator-link">Full deployer ledger on FOUR-LIFE →</a>
+      </div>`;
+  }
+
   let _agentCtxCache = null;
   let _agentCtxCachedAt = 0;
   async function fetchAgentContext() {
@@ -505,6 +671,7 @@
           <div class="fl-addr">${escapeHtml(address)}</div>
 
           <div id="fl-agent-ctx-slot"></div>
+          <div id="fl-creator-slot"></div>
 
           <h3>Rule trace</h3>
           ${renderWhyTable(why)}
@@ -595,6 +762,17 @@
       const slot = root.getElementById("fl-agent-ctx-slot");
       if (slot && ctx) slot.innerHTML = agentContextHtml(ctx);
     });
+
+    // Creator track record — only fires when the badge response carried a
+    // creator wallet. Untracked devs still get a card ("Unknown dev") so the
+    // absence of history is itself a surfaced signal.
+    const creatorAddr = (badge?.body?.creator || "").toLowerCase();
+    if (creatorAddr) {
+      fetchCreatorScore(creatorAddr).then((score) => {
+        const slot = root.getElementById("fl-creator-slot");
+        if (slot) slot.innerHTML = creatorSectionHtml(creatorAddr, score);
+      });
+    }
   }
 
   window.FourLifeOverlay = { open, close };

@@ -629,6 +629,7 @@ async def token_detail(address: str, authorized: bool = Depends(is_authorized)):
             "address": address,
             "name": health.name,
             "symbol": health.symbol,
+            "creator": health.creator,
             "phase": health.phase,
             "age_hours": round(health.age_hours, 1),
             "health_score": health.health_score,
@@ -2249,9 +2250,12 @@ async def token_badge(token_address: str):
         if source == "live_monitor":
             obs_status = getattr(health, "observation_status", "full_history")
             qa_source = getattr(health, "quote_asset_source", "fourmeme_api")
+            creator = (getattr(health, "creator", "") or "").lower() or None
         else:
             obs_status = badge.observation_status  # "ranking_only" from badge_from_ranking
             qa_source = quote_asset_source         # set in the fallback branch above
+            # Four.meme's ranking response uses `userAddress` for the deployer.
+            creator = ((info.get("userAddress") or "").strip().lower() or None)
 
         return {
             "token_address": token_address,
@@ -2259,6 +2263,11 @@ async def token_badge(token_address: str):
             "tier_source": badge.tier_source,
             "observation_status": obs_status,
             "quote_asset_source": qa_source,
+            # Creator wallet — the deployer of the token. Lets downstream
+            # consumers (extension, SDK) combine this with
+            # /api/creator/{wallet}/survival-score to show dev reputation
+            # alongside the token verdict. Null if unknown.
+            "creator": creator,
             "data_source": source,
             "model_version": MODEL_VERSION,
             "last_updated_at": int(time.time()),

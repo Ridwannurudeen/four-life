@@ -64,24 +64,82 @@
   // Supports every site the manifest injects us into. Each pattern is tied
   // to a specific host + path shape so we don't false-match arbitrary hex
   // strings that happen to appear on some unrelated page.
+  //
+  // `kind` distinguishes how to interpret the matched hex:
+  //   - "token": the 0x address IS the token; done.
+  //   - "pair" : the 0x address is a LP-pair contract; need one API hop
+  //              (DEXScreener) to resolve the base token before we can
+  //              call our own /api/token/... endpoint.
   const URL_PATTERNS = [
     // four.meme/[en/]token/0x... (existing)
-    { host: /(?:^|\.)four\.meme$/i, re: /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/ },
+    { host: /(?:^|\.)four\.meme$/i, re: /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/, kind: "token" },
     // bscscan.com/token/0x...
-    { host: /(?:^|\.)bscscan\.com$/i, re: /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/ },
+    { host: /(?:^|\.)bscscan\.com$/i, re: /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/, kind: "token" },
     // pancakeswap.finance/info/tokens/0x... (v2 + v3)
-    { host: /(?:^|\.)pancakeswap\.finance$/i, re: /\/info\/(?:v\d+\/)?tokens?\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/ },
+    { host: /(?:^|\.)pancakeswap\.finance$/i, re: /\/info\/(?:v\d+\/)?tokens?\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/, kind: "token" },
     // pancakeswap.finance/swap?outputCurrency=0x...
-    { host: /(?:^|\.)pancakeswap\.finance$/i, re: /[?&]outputCurrency=(0x[0-9a-fA-F]{40})(?:[&#]|$)/ },
+    { host: /(?:^|\.)pancakeswap\.finance$/i, re: /[?&]outputCurrency=(0x[0-9a-fA-F]{40})(?:[&#]|$)/, kind: "token" },
+    // dexscreener.com/bsc/<pair_address> — the URL holds the PAIR contract,
+    // not the token. We resolve it via DEXScreener's public API before
+    // calling our own badge endpoint. BSC-only; other chains out of scope.
+    { host: /(?:^|\.)dexscreener\.com$/i, re: /\/bsc\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/, kind: "pair" },
   ];
-  function extractTokenAddress(url) {
+  function extractSourceRef(url) {
     let host = "";
     try { host = new URL(url).hostname; } catch { return null; }
-    for (const { host: hre, re } of URL_PATTERNS) {
+    for (const { host: hre, re, kind } of URL_PATTERNS) {
       if (!hre.test(host)) continue;
       const m = re.exec(url);
-      if (m && m[1]) return m[1].toLowerCase();
+      if (m && m[1]) return { kind, address: m[1].toLowerCase() };
     }
+    return null;
+  }
+
+  // Legacy shim: callers that just want the token address (not the pair).
+  // Returns null for pair-URL pages — the caller must use resolveTokenAddress.
+  function extractTokenAddress(url) {
+    const ref = extractSourceRef(url);
+    return (ref && ref.kind === "token") ? ref.address : null;
+  }
+
+  // Cache pair → token resolutions for this session so SPA navigation
+  // within DEXScreener (same pair, different tabs) doesn't re-hit the API.
+  const _pairCache = new Map();
+
+  async function resolvePairToToken(pairAddress) {
+    const key = pairAddress.toLowerCase();
+    if (_pairCache.has(key)) return _pairCache.get(key);
+    try {
+      const r = await fetch(`https://api.dexscreener.com/latest/dex/pairs/bsc/${key}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "omit",
+        mode: "cors",
+        cache: "no-store",
+      });
+      if (!r.ok) { _pairCache.set(key, null); return null; }
+      const body = await r.json();
+      // DEXScreener returns { pair: {...} } or { pairs: [{...}] }. The base
+      // token is the thing users are looking at; the quote token is usually
+      // WBNB/USDT. We grade the base.
+      const pair = body?.pair || (body?.pairs && body.pairs[0]) || null;
+      const base = pair?.baseToken?.address;
+      const resolved = base ? base.toLowerCase() : null;
+      _pairCache.set(key, resolved);
+      return resolved;
+    } catch {
+      _pairCache.set(key, null);
+      return null;
+    }
+  }
+
+  // Single entry-point the orchestrator uses: resolve any URL to a token
+  // address, doing the DEXScreener hop transparently when needed.
+  async function resolveTokenAddress(url) {
+    const ref = extractSourceRef(url);
+    if (!ref) return null;
+    if (ref.kind === "token") return ref.address;
+    if (ref.kind === "pair") return await resolvePairToToken(ref.address);
     return null;
   }
 
@@ -299,13 +357,28 @@
   }
 
   // ── SPA navigation handling ────────────────────────────────────────
-  function handleUrlChange() {
-    const addr = extractTokenAddress(location.href);
-    if (addr) {
-      if (addr !== currentAddress) startPolling(addr);
-    } else {
-      tearDown();
+  // Handles both the direct-token case (resolves synchronously) and the
+  // DEXScreener pair case (resolves via one DEXScreener API hop, ~200ms).
+  // Shows the loading pill immediately on pair pages so users don't see a
+  // blank top-right while the resolver runs.
+  async function handleUrlChange() {
+    const ref = extractSourceRef(location.href);
+    if (!ref) { tearDown(); return; }
+
+    // For pair URLs (DEXScreener), show a loading pill BEFORE the resolver
+    // hop completes so the user sees we're doing something. For token URLs
+    // we skip the pre-render since startPolling → refresh will show loading.
+    if (ref.kind === "pair") {
+      renderPill({ state: "loading", address: ref.address });
     }
+
+    const addr = await resolveTokenAddress(location.href);
+    if (!addr) {
+      // Pair page but the pair isn't in DEXScreener's BSC dataset — hide.
+      tearDown();
+      return;
+    }
+    if (addr !== currentAddress) startPolling(addr);
   }
 
   // Content scripts run in an isolated world, so monkey-patching

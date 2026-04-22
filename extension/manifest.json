@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FOUR-LIFE Certified",
-  "version": "1.2.0",
-  "description": "Trust-grade every Four.meme token on BNB Chain. Works on four.meme, BscScan, and PancakeSwap. Watchlist + Chrome notifications on tier transitions. Deterministic rule trace, on-chain attestation.",
+  "version": "1.3.0",
+  "description": "Trust-grade every Four.meme token on BNB Chain. Works on four.meme, BscScan, PancakeSwap, and DEXScreener. Watchlist + Chrome notifications on tier transitions. Deterministic rule trace, on-chain attestation.",
   "permissions": [
     "activeTab",
     "storage",
@@ -13,6 +13,8 @@
     "https://four.meme/*",
     "https://bscscan.com/*",
     "https://pancakeswap.finance/*",
+    "https://dexscreener.com/*",
+    "https://api.dexscreener.com/*",
     "https://four-life.gudman.xyz/*"
   ],
   "background": {
@@ -24,7 +26,8 @@
         "https://four.meme/*",
         "https://bscscan.com/token/*",
         "https://pancakeswap.finance/info/*",
-        "https://pancakeswap.finance/swap*"
+        "https://pancakeswap.finance/swap*",
+        "https://dexscreener.com/bsc/*"
       ],
       "js": ["content/inject.js", "content/overlay.js"],
       "css": ["content/styles.css"],
