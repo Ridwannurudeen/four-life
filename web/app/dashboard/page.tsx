@@ -172,9 +172,11 @@ function TokenScanner() {
 
   const [planLoading, setPlanLoading] = useState(false);
   const [plan, setPlan] = useState<RaisePlan | null>(null);
+  const [planError, setPlanError] = useState("");
 
   const [signalLoading, setSignalLoading] = useState(false);
   const [signal, setSignal] = useState<HedgeSignal | null>(null);
+  const [signalError, setSignalError] = useState("");
 
   const scan = useCallback(async () => {
     const addr = address.trim();
@@ -200,11 +202,22 @@ function TokenScanner() {
     if (!result) return;
     setPlanLoading(true);
     setPlan(null);
+    setPlanError("");
     try {
-      const res = await fetch(`${API}/api/raise-plan/${result.token_address}`, { method: "POST" });
-      const data = await res.json();
-      setPlan(data.plan || null);
-    } catch { /* ignore */ }
+      const res = await fetch(`${API}/api/raise-plan/${result.token_address}`, {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const reason = data?.detail || data?.error || `HTTP ${res.status}`;
+        throw new Error(typeof reason === "string" ? reason : "Plan generation failed");
+      }
+      if (!data?.plan) throw new Error("No plan returned — DGrid may be throttled, try again in a moment.");
+      setPlan(data.plan);
+    } catch (e) {
+      setPlanError(e instanceof Error ? e.message : "Couldn't generate plan. Check network and retry.");
+    }
     setPlanLoading(false);
   }, [result]);
 
@@ -212,11 +225,21 @@ function TokenScanner() {
     if (!result) return;
     setSignalLoading(true);
     setSignal(null);
+    setSignalError("");
     try {
-      const res = await fetch(`${API}/api/myx/signal/${result.token_address}`);
-      const data = await res.json();
-      setSignal(data.signal || null);
-    } catch { /* ignore */ }
+      const res = await fetch(`${API}/api/myx/signal/${result.token_address}`, {
+        headers: { "Accept": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const reason = data?.detail || data?.error || `HTTP ${res.status}`;
+        throw new Error(typeof reason === "string" ? reason : "Signal unavailable");
+      }
+      if (!data?.signal) throw new Error("No signal returned for this token.");
+      setSignal(data.signal);
+    } catch (e) {
+      setSignalError(e instanceof Error ? e.message : "Couldn't fetch signal. Retry?");
+    }
     setSignalLoading(false);
   }, [result]);
 
@@ -403,6 +426,33 @@ function TokenScanner() {
               ) : signal ? "Refresh MYX Signal" : "Get MYX Hedge Signal"}
             </button>
           </div>
+
+          {/* Fetch-error surfaces — previously both handlers swallowed errors
+              silently, which made judges think "the buttons don't work." */}
+          {(planError || signalError) && (
+            <div className="space-y-2">
+              {planError && (
+                <div className="rounded-xl border border-[#ff494a]/30 bg-[#ff494a]/[0.06] px-4 py-3 text-[12px] flex items-start gap-2">
+                  <span className="text-[#ff494a] font-bold mt-0.5">!</span>
+                  <div className="flex-1">
+                    <div className="text-[10px] uppercase tracking-wider text-[#ff494a]/80 font-bold mb-0.5">Raise plan</div>
+                    <div className="text-[#ff494a]/90">{planError}</div>
+                  </div>
+                  <button onClick={fetchPlan} className="text-[11px] font-bold text-[#ff494a] hover:text-white">Retry</button>
+                </div>
+              )}
+              {signalError && (
+                <div className="rounded-xl border border-[#ff494a]/30 bg-[#ff494a]/[0.06] px-4 py-3 text-[12px] flex items-start gap-2">
+                  <span className="text-[#ff494a] font-bold mt-0.5">!</span>
+                  <div className="flex-1">
+                    <div className="text-[10px] uppercase tracking-wider text-[#ff494a]/80 font-bold mb-0.5">MYX signal</div>
+                    <div className="text-[#ff494a]/90">{signalError}</div>
+                  </div>
+                  <button onClick={fetchSignal} className="text-[11px] font-bold text-[#ff494a] hover:text-white">Retry</button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* MYX Hedge Signal */}
           {signal && (

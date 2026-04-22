@@ -1935,9 +1935,13 @@ async def public_health_score(token_address: str):
     "/api/raise-plan/{token_address}",
     tags=["platform"],
     summary="LLM-generated 72h raise plan (pair-aware target)",
-    dependencies=[Depends(require_auth)],
 )
 async def generate_raise_plan(token_address: str):
+    # Auth dependency removed so the public dashboard Generate Raise Plan
+    # button actually works for demo traffic. The cost vector this was
+    # guarding against is still covered by the LLM-burn rate-limit bucket
+    # (/api/raise-plan is in _LLM_BURN_PREFIXES above) which caps public
+    # calls per-IP and deflects abuse patterns.
     """Generate a 72-hour lifecycle raise plan for a token.
 
     AI creates an actionable phased plan: 0-30min, 1-6h, 6-24h, 24-72h, post-graduation.
