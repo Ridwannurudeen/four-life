@@ -41,6 +41,22 @@
     .fl-dot {
       width: 9px; height: 9px; border-radius: 50%;
       box-shadow: 0 0 0 3px rgba(255,255,255,0.06);
+      position: relative;
+    }
+    .fl-pill[data-state="ok"] .fl-dot::after {
+      content: "";
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      background: inherit;
+      opacity: 0;
+      animation: fl-pulse 2.2s ease-out infinite;
+      pointer-events: none;
+    }
+    @keyframes fl-pulse {
+      0%   { opacity: 0.55; transform: scale(0.8); }
+      70%  { opacity: 0;    transform: scale(2.2); }
+      100% { opacity: 0;    transform: scale(2.2); }
     }
     .fl-brand { color: #ffffff; letter-spacing: 0.5px; }
     .fl-sep { color: rgba(255,255,255,0.35); }

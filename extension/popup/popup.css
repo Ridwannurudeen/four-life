@@ -106,10 +106,20 @@ body {
   gap: 8px;
 }
 .stat {
-  background: var(--bg-card);
+  background: linear-gradient(160deg, var(--bg-card) 0%, rgba(255,255,255,0.012) 100%);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px 11px;
+  position: relative;
+  overflow: hidden;
+}
+.stat::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cyan), var(--green));
+  opacity: 0.55;
 }
 .stat .k {
   font-size: 9.5px;
@@ -119,12 +129,16 @@ body {
   font-weight: 600;
 }
 .stat .v {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   margin-top: 3px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  line-height: 1.1;
 }
+.stat[data-k="active"] .v { color: var(--cyan); }
+.stat[data-k="dgrid"] .v { color: var(--green); }
+.stat[data-k="myx"] .v { color: var(--purple); }
 
 /* ── Section header ── */
 .section-hdr {
@@ -136,7 +150,19 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.13em;
   color: var(--text-faint);
-  font-weight: 600;
+  font-weight: 700;
+}
+.section-hdr > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.section-hdr > span:first-child::before {
+  content: "";
+  width: 3px; height: 11px;
+  background: linear-gradient(180deg, var(--cyan), var(--green));
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 .more {
   color: var(--cyan);
@@ -225,8 +251,25 @@ body {
   text-decoration: none;
   color: var(--text);
   transition: border-color 0.12s, background 0.12s;
+  position: relative;
+  overflow: hidden;
 }
 .row:hover { border-color: var(--line-strong); background: var(--bg-raised); }
+
+/* Visual curve-progress bar behind the text on radar rows. Drives
+   the row-curve text value so the number and the bar always agree.
+   Controlled via inline CSS custom property `--row-curve` in popup.js. */
+.row-radar::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  width: var(--row-curve, 0%);
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  opacity: 0.5;
+  transition: width 0.3s ease-out;
+  pointer-events: none;
+}
 .row-skel {
   height: 30px;
   background: var(--bg-card);

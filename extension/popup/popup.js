@@ -205,12 +205,17 @@
     for (const e of entries) {
       const tier = e.badge_tier || "observed";
       const source = e.tier_source || "certified";
-      const curve = Number(e.curve_progress || 0).toFixed(0);
+      const curveRaw = Number(e.curve_progress || 0);
+      const curve = curveRaw.toFixed(0);
+      // Clamp the progress bar width to [0,100] — the curve is a percentage,
+      // but the API can return >100 for graduated tokens (bonding curve done).
+      const barPct = Math.max(0, Math.min(100, curveRaw));
       const row = el("a", {
-        class: "row",
+        class: "row row-radar",
         href: "https://four.meme/en/token/" + e.token_address,
         target: "_blank",
         rel: "noopener noreferrer",
+        style: `--row-curve:${barPct}%`,
       }, [
         // Tier chip with optional "Radar" badge for radar_estimate
         el("span", {

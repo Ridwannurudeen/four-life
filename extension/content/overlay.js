@@ -46,11 +46,20 @@
     }
     .fl-panel h3 {
       margin: 22px 0 10px;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 10.5px;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.14em;
+      color: rgba(255,255,255,0.45);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fl-panel h3::before {
+      content: "";
+      width: 3px; height: 12px;
+      background: linear-gradient(180deg, #00d4ff, #6cff32);
+      border-radius: 2px;
     }
     .fl-header {
       display: flex;
@@ -143,10 +152,15 @@
     }
     .fl-addr {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 11px;
-      color: rgba(255,255,255,0.5);
-      margin-top: 6px;
+      font-size: 10.5px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 12px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 6px;
       word-break: break-all;
+      letter-spacing: 0.02em;
     }
     table.fl-table {
       width: 100%;
@@ -372,6 +386,236 @@
       text-decoration: none;
     }
     .fl-creator-link:hover { text-decoration: underline; }
+
+    /* ── Hero verdict block ─────────────────────────────────────────────
+       Replaces the old small tier-chip + heading pair. Big tier-color
+       radial glow backdrop, massive tier label, then a row of stat chips
+       for the headline metrics that matter to a trader seeing this once. */
+    .fl-hero {
+      position: relative;
+      margin: 2px 0 14px;
+      padding: 20px 18px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: #0f0f14;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .fl-hero::before {
+      content: "";
+      position: absolute;
+      top: -40%; left: -20%;
+      width: 80%; height: 140%;
+      background: radial-gradient(ellipse at center, var(--fl-tier-color, rgba(255,255,255,0.08)), transparent 62%);
+      opacity: 0.35;
+      filter: blur(14px);
+      z-index: -1;
+      pointer-events: none;
+    }
+    .fl-hero-kicker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: rgba(255,255,255,0.55);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .fl-hero-kicker-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--fl-tier-color, #fff);
+      box-shadow: 0 0 10px var(--fl-tier-color, rgba(255,255,255,0.3));
+    }
+    .fl-hero-label {
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin: 0;
+      color: #fff;
+      text-transform: capitalize;
+    }
+    .fl-hero-sub {
+      margin: 4px 0 14px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      line-height: 1.5;
+    }
+    .fl-hero-chips {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .fl-hero-chip {
+      padding: 9px 10px;
+      border-radius: 9px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .fl-hero-chip-v {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .fl-hero-chip-k {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.45);
+      margin-top: 3px;
+      font-weight: 600;
+    }
+
+    /* ── Rule trace cards ───────────────────────────────────────────────
+       Replaces the debugger-looking <table>. Each rule becomes a scannable
+       card: circular pass/fail icon on the left, human rule name on top,
+       metric vs threshold on bottom. */
+    .fl-rules { display: flex; flex-direction: column; gap: 6px; }
+    .fl-rule {
+      display: grid;
+      grid-template-columns: 32px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.06);
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .fl-rule:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+    .fl-rule-ico {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .fl-rule[data-passed="true"] .fl-rule-ico {
+      background: rgba(108,255,50,0.12);
+      color: #6cff32;
+      box-shadow: inset 0 0 0 1px rgba(108,255,50,0.3);
+    }
+    .fl-rule[data-passed="false"] .fl-rule-ico {
+      background: rgba(239,68,68,0.12);
+      color: #ef4444;
+      box-shadow: inset 0 0 0 1px rgba(239,68,68,0.3);
+    }
+    .fl-rule-body { min-width: 0; }
+    .fl-rule-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 2px;
+      text-transform: capitalize;
+    }
+    .fl-rule-meta {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10.5px;
+      color: rgba(255,255,255,0.55);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fl-rule-meta .fl-rule-op { color: rgba(255,255,255,0.4); padding: 0 4px; }
+    .fl-rule-verdict {
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 4px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .fl-rule[data-passed="true"] .fl-rule-verdict {
+      background: rgba(108,255,50,0.12);
+      color: #6cff32;
+    }
+    .fl-rule[data-passed="false"] .fl-rule-verdict {
+      background: rgba(239,68,68,0.12);
+      color: #ef4444;
+    }
+
+    /* ── Risk evidence cards ────────────────────────────────────────────
+       Severity-coded cards with a colored left border + severity SVG icon.
+       Replaces the word-colored text approach. */
+    .fl-risk-summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .fl-risk-summary-ico { flex-shrink: 0; }
+    .fl-risk-summary-k {
+      color: rgba(255,255,255,0.55);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      margin-right: 6px;
+    }
+    .fl-risk-summary-v {
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .fl-risk {
+      position: relative;
+      padding: 11px 12px 11px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 6px;
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .fl-risk::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 8px; bottom: 8px;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--fl-sev-color, rgba(255,255,255,0.4));
+    }
+    .fl-risk-ico {
+      color: var(--fl-sev-color, rgba(255,255,255,0.5));
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .fl-risk-body { min-width: 0; }
+    .fl-risk-name {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+    .fl-risk-desc {
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.45;
+    }
+    .fl-risk-sev {
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 4px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+      background: color-mix(in srgb, var(--fl-sev-color, #fff) 14%, transparent);
+      color: var(--fl-sev-color, rgba(255,255,255,0.8));
+    }
   `;
 
   function tierColor(tier) {
@@ -389,28 +633,41 @@
     return String(value);
   }
 
+  // Map the machine rule name to a short human-readable title. Keeps the
+  // card body scannable — "whale_extreme" becomes "Whale extreme".
+  function humanRuleName(rule) {
+    if (!rule) return "rule";
+    return String(rule).replace(/_/g, " ");
+  }
+
   function renderWhyTable(why) {
     if (!Array.isArray(why) || why.length === 0) {
       return `<div class="fl-empty">No rule trace returned.</div>`;
     }
-    const rows = why.map((r) => {
+    const cards = why.map((r) => {
       const passed = r.passed === true;
+      const valueStr = formatMetric(r.metric, r.value);
+      const thresholdStr = String(r.threshold ?? "");
+      const opStr = r.operator || "";
       return `
-        <tr>
-          <td>${escapeHtml(r.rule || "")}</td>
-          <td><code>${escapeHtml(r.metric || "")}</code></td>
-          <td><code>${escapeHtml(formatMetric(r.metric, r.value))}</code></td>
-          <td><code>${escapeHtml(r.operator || "")} ${escapeHtml(String(r.threshold))}</code></td>
-          <td class="${passed ? "fl-pass" : "fl-fail"}">${passed ? "PASS" : "FAIL"}</td>
-        </tr>`;
+        <div class="fl-rule" data-passed="${passed ? "true" : "false"}">
+          <span class="fl-rule-ico" aria-hidden="true">${passed ? "✓" : "✗"}</span>
+          <div class="fl-rule-body">
+            <div class="fl-rule-name">${escapeHtml(humanRuleName(r.rule))}</div>
+            <div class="fl-rule-meta"><code>${escapeHtml(r.metric || "")}</code> = <code>${escapeHtml(valueStr)}</code><span class="fl-rule-op">${escapeHtml(opStr)}</span><code>${escapeHtml(thresholdStr)}</code></div>
+          </div>
+          <span class="fl-rule-verdict">${passed ? "Pass" : "Fail"}</span>
+        </div>`;
     }).join("");
-    return `
-      <table class="fl-table">
-        <thead>
-          <tr><th>Rule</th><th>Metric</th><th>Value</th><th>Threshold</th><th>Result</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+    return `<div class="fl-rules">${cards}</div>`;
+  }
+
+  // Inline SVG severity icon. Two glyphs cover the risk-level spectrum:
+  // a warning triangle for critical/high, an info circle otherwise.
+  function severityIcon(sev) {
+    const triangle = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    const info = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+    return (sev === "critical" || sev === "high") ? triangle : info;
   }
 
   function renderEvidence(risk) {
@@ -426,29 +683,34 @@
     const level = body.risk_level || "unknown";
     const levelColor = SEV_COLORS[level] || "rgba(255,255,255,0.5)";
 
-    const header = `
-      <div class="fl-evidence-head" style="margin-bottom:10px">
-        <span>Overall risk: <span style="color:${levelColor}; text-transform:capitalize">${escapeHtml(level)}</span></span>
+    const summary = `
+      <div class="fl-risk-summary" style="--fl-sev-color:${levelColor}">
+        <span class="fl-risk-summary-ico" style="color:${levelColor}">${severityIcon(level)}</span>
+        <span class="fl-risk-summary-k">Overall risk</span>
+        <span class="fl-risk-summary-v" style="color:${levelColor}">${escapeHtml(level)}</span>
       </div>`;
 
     if (evidence.length === 0) {
-      return header + `<div class="fl-empty">No risk flags triggered.</div>`;
+      return summary + `<div class="fl-empty">No risk flags triggered.</div>`;
     }
 
     const items = evidence.map((e) => {
       const sev = e.severity || "info";
       const color = SEV_COLORS[sev] || "rgba(255,255,255,0.5)";
+      const name = e.name || e.flag || "flag";
+      const desc = e.description || e.detail || e.reason || "";
       return `
-        <div class="fl-evidence-item">
-          <div class="fl-evidence-head">
-            <span>${escapeHtml(e.name || e.flag || "flag")}</span>
-            <span class="fl-sev" style="color:${color}">${escapeHtml(sev)}</span>
+        <div class="fl-risk" style="--fl-sev-color:${color}">
+          <span class="fl-risk-ico" aria-hidden="true">${severityIcon(sev)}</span>
+          <div class="fl-risk-body">
+            <div class="fl-risk-name">${escapeHtml(name)}</div>
+            ${desc ? `<div class="fl-risk-desc">${escapeHtml(desc)}</div>` : ""}
           </div>
-          <div class="fl-evidence-body">${escapeHtml(e.description || e.detail || e.reason || "")}</div>
+          <span class="fl-risk-sev">${escapeHtml(sev)}</span>
         </div>`;
     }).join("");
 
-    return header + items;
+    return summary + items;
   }
 
   function escapeHtml(s) {
@@ -649,14 +911,67 @@
     const proofUrl = `${API_BASE}/proof`;
     const agentUrl = `https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1`;
 
+    // Headline metrics surfaced in the hero. Pulls from metrics_snapshot
+    // so the hero stays honest about what's measured vs what's missing.
+    // Radar-estimate badges get a different chip set because their
+    // health/age/whale inputs are approximated, not measured.
+    const ms = b?.metrics_snapshot || {};
+    const heroTierColor = tierColor(tier);
+    const formatChip = (v, digits = 0) => {
+      if (v === null || v === undefined || Number.isNaN(v)) return "—";
+      if (typeof v !== "number") return String(v);
+      if (Number.isInteger(v) && digits === 0) return v.toLocaleString();
+      return v.toFixed(digits);
+    };
+    const curvePct = typeof ms.curve_progress_pct === "number" ? ms.curve_progress_pct : null;
+    const heroKicker = isCertified
+      ? `<span class="fl-hero-kicker-dot"></span>FOUR-LIFE Certified · ${escapeHtml((ms.phase || "").replace(/_/g, " ") || "live")}`
+      : `<span class="fl-hero-kicker-dot"></span>FOUR-LIFE Radar Estimate`;
+
+    let heroChipsHtml;
+    if (isCertified) {
+      const healthScore = typeof ms.health_score === "number" ? ms.health_score : null;
+      const ageHours = typeof ms.age_hours === "number" ? ms.age_hours : null;
+      const ageStr = ageHours === null ? "—"
+        : ageHours < 1 ? `${Math.round(ageHours * 60)}m`
+        : ageHours < 48 ? `${ageHours.toFixed(1)}h`
+        : `${(ageHours / 24).toFixed(1)}d`;
+      heroChipsHtml = `
+        <div class="fl-hero-chip">
+          <div class="fl-hero-chip-v">${healthScore === null ? "—" : formatChip(healthScore, 0)}</div>
+          <div class="fl-hero-chip-k">Health</div>
+        </div>
+        <div class="fl-hero-chip">
+          <div class="fl-hero-chip-v">${curvePct === null ? "—" : `${formatChip(curvePct, 1)}%`}</div>
+          <div class="fl-hero-chip-k">Curve</div>
+        </div>
+        <div class="fl-hero-chip">
+          <div class="fl-hero-chip-v">${ageStr}</div>
+          <div class="fl-hero-chip-k">Age</div>
+        </div>`;
+    } else {
+      const holders = typeof ms.unique_buyers === "number" ? ms.unique_buyers : null;
+      const gradConf = (ms.graduation_confidence || "—").toString();
+      heroChipsHtml = `
+        <div class="fl-hero-chip">
+          <div class="fl-hero-chip-v">${curvePct === null ? "—" : `${formatChip(curvePct, 1)}%`}</div>
+          <div class="fl-hero-chip-k">Curve</div>
+        </div>
+        <div class="fl-hero-chip">
+          <div class="fl-hero-chip-v">${holders === null ? "—" : formatChip(holders, 0)}</div>
+          <div class="fl-hero-chip-k">Holders</div>
+        </div>
+        <div class="fl-hero-chip">
+          <div class="fl-hero-chip-v" style="text-transform:capitalize;font-size:14px">${escapeHtml(gradConf)}</div>
+          <div class="fl-hero-chip-k">Grad confidence</div>
+        </div>`;
+    }
+
     wrap.innerHTML = `
       <div class="fl-scrim" id="fl-scrim">
         <div class="fl-panel" role="dialog" aria-label="${escapeHtml(panelAria)}">
           <div class="fl-header">
-            <span class="fl-tier-chip">
-              <span class="fl-tier-dot" style="background:${tierColor(tier)}"></span>
-              ${escapeHtml(label)}
-            </span>
+            <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:rgba(255,255,255,0.4);font-weight:700">FOUR-LIFE</span>
             <div style="display:flex; gap:8px; align-items:center">
               <button class="fl-watch" id="fl-watch" aria-pressed="false" title="Get Chrome notifications when this token's tier transitions">
                 <span class="fl-watch-icon">☆</span><span class="fl-watch-label">Watch</span>
@@ -665,9 +980,15 @@
             </div>
           </div>
           <div class="fl-watch-toast" id="fl-watch-toast" role="status" aria-live="polite"></div>
-          <h2>${escapeHtml(headingText)}</h2>
+
+          <div class="fl-hero" style="--fl-tier-color:${heroTierColor}">
+            <div class="fl-hero-kicker">${heroKicker}</div>
+            <h2 class="fl-hero-label">${escapeHtml(label)}</h2>
+            <p class="fl-hero-sub">${escapeHtml(desc)}</p>
+            <div class="fl-hero-chips">${heroChipsHtml}</div>
+          </div>
+
           ${sourceNote}
-          <p class="fl-desc">${escapeHtml(desc)}</p>
           <div class="fl-addr">${escapeHtml(address)}</div>
 
           <div id="fl-agent-ctx-slot"></div>
