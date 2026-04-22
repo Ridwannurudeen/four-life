@@ -16,6 +16,10 @@ The autonomous lifecycle agent that grades every Four.meme token with pure on-ch
 
 [Live site](https://four-life.gudman.xyz) · [Proof ledger](https://four-life.gudman.xyz/proof) · [Live radar](https://four-life.gudman.xyz/radar) · [API docs](https://four-life.gudman.xyz/docs) · [Agent card](https://four-life.gudman.xyz/.well-known/agent-registration.json)
 
+<br />
+
+<img src="./docs/screenshots/hero.png" alt="FOUR-LIFE — Phase 4 for every Four.meme launch" width="100%" />
+
 </div>
 
 ---
@@ -253,6 +257,21 @@ Click **Swap ↗** on an at-risk token → instead of opening PancakeSwap, a red
 
 ---
 
+## Screenshots
+
+| | |
+|:---:|:---:|
+| <img src="./docs/screenshots/radar.png" alt="/radar" width="100%" /> | <img src="./docs/screenshots/evidence.png" alt="/evidence" width="100%" /> |
+| **`/radar`** · live grid, tier filters, deep-link drawer | **`/evidence`** · graded tokens with why-tables |
+| <img src="./docs/screenshots/dgrid.png" alt="/dgrid" width="100%" /> | <img src="./docs/screenshots/metrics.png" alt="/metrics" width="100%" /> |
+| **`/dgrid`** · gateway health · consensus demo · attestation tip | **`/metrics`** · p50 / p95 / p99 latency per endpoint |
+| <img src="./docs/screenshots/activity.png" alt="/activity" width="100%" /> | <img src="./docs/screenshots/alerts.png" alt="/alerts" width="100%" /> |
+| **`/activity`** · every autonomous action, tx-linked | **`/alerts`** · Protection Mode threat feed |
+| <img src="./docs/screenshots/launch.png" alt="/launch/{addr}" width="100%" /> | |
+| **`/launch/{addr}`** · shareable launch page per token | |
+
+---
+
 ## API reference
 
 Every public endpoint returns `tier_source`, `observation_status`, `quote_asset_source`, `confidence_score`, `fallback_used`, `data_sources`, `model_version`, and `last_updated_at` — consumers can audit the response without trusting the label.
@@ -454,7 +473,7 @@ four-life/
 │   └── background.js     # watchlist · notifications · context menu
 ├── tests/                # 373-test Python suite
 ├── deploy/               # systemd unit · nginx · setup.sh
-└── docs/                 # screenshots · demo script · BUIDL submission
+└── docs/                 # screenshots
 ```
 
 ---
