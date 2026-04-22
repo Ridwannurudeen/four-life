@@ -157,11 +157,20 @@
 
     root.innerHTML = "";
 
+    // Truth-boundary: the API distinguishes "certified" (full on-chain data)
+    // from "radar_estimate" (heuristic from public ranking). Brand must reflect
+    // which one — the extension MUST NOT label a radar_estimate badge as
+    // "Certified" on Four.meme's own token pages.
+    const tierSource = opts.tier_source || "certified";
+    const isCertified = tierSource === "certified";
+    const ariaPrefix = isCertified ? "FOUR-LIFE Certified" : "FOUR-LIFE Radar Estimate";
+
     const pill = document.createElement("button");
     pill.type = "button";
     pill.className = "fl-pill";
     pill.setAttribute("data-state", state);
-    pill.setAttribute("aria-label", `FOUR-LIFE Certified: ${displayLabel}`);
+    pill.setAttribute("data-tier-source", tierSource);
+    pill.setAttribute("aria-label", `${ariaPrefix}: ${displayLabel}`);
 
     const dot = document.createElement("span");
     dot.className = "fl-dot";
@@ -173,7 +182,7 @@
 
     const sep = document.createElement("span");
     sep.className = "fl-sep";
-    sep.textContent = "·";
+    sep.textContent = isCertified ? "·" : "· Radar ·";
 
     const tag = document.createElement("span");
     tag.className = "fl-tag";
@@ -219,10 +228,18 @@
     }
 
     const badge = badgeRes.body.badge;
+    // Pull tier_source from the top-level field (where the API stamps it for
+    // every response) with a fallback to the badge sub-object and finally
+    // "certified" for graceful degradation on older API versions.
+    const tierSource =
+      badgeRes.body.tier_source ||
+      badge.tier_source ||
+      "certified";
     renderPill({
       state: "ready",
       tier: badge.tier,
       label: badge.label,
+      tier_source: tierSource,
       address,
     });
   }

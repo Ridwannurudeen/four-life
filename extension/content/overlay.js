@@ -84,6 +84,18 @@
       color: rgba(255,255,255,0.75);
       margin: 10px 0 0;
     }
+    /* Heuristic-only banner — only renders when tier_source==="radar_estimate"
+       so visitors never see "Certified" visuals over a public-ranking estimate. */
+    .fl-source-note {
+      margin: 10px 0 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255, 214, 65, 0.12);
+      border: 1px solid rgba(255, 214, 65, 0.4);
+      color: #ffd641;
+      font-size: 11px;
+      line-height: 1.4;
+    }
     .fl-addr {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 11px;
@@ -285,10 +297,26 @@
     const label = b?.label || "Observed";
     const desc = b?.description || "";
     const why = b?.why || [];
+    // Truth-boundary: same discriminator as the pill. Modal heading must NOT
+    // say "Certified" for a radar_estimate badge — judges inspecting the
+    // panel would see heuristic data under a Certified headline otherwise.
+    const tierSource = badge?.body?.tier_source || b?.tier_source || "certified";
+    const isCertified = tierSource === "certified";
+    const headingText = isCertified
+      ? "FOUR-LIFE Certified"
+      : "FOUR-LIFE Radar Estimate";
+    const sourceNote = isCertified
+      ? ""
+      : `<div class="fl-source-note" role="note">
+          Heuristic grade from Four.meme's public ranking — not a Certified tier. Track this token on FOUR-LIFE to upgrade it to on-chain measurement.
+        </div>`;
+    const panelAria = isCertified
+      ? "FOUR-LIFE Certified details"
+      : "FOUR-LIFE Radar Estimate details";
 
     wrap.innerHTML = `
       <div class="fl-scrim" id="fl-scrim">
-        <div class="fl-panel" role="dialog" aria-label="FOUR-LIFE Certified details">
+        <div class="fl-panel" role="dialog" aria-label="${escapeHtml(panelAria)}">
           <div class="fl-header">
             <span class="fl-tier-chip">
               <span class="fl-tier-dot" style="background:${tierColor(tier)}"></span>
@@ -296,7 +324,8 @@
             </span>
             <button class="fl-close" id="fl-close" aria-label="Close">×</button>
           </div>
-          <h2>FOUR-LIFE Certified</h2>
+          <h2>${escapeHtml(headingText)}</h2>
+          ${sourceNote}
           <p class="fl-desc">${escapeHtml(desc)}</p>
           <div class="fl-addr">${escapeHtml(address)}</div>
 
