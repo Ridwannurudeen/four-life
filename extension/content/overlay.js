@@ -130,6 +130,31 @@
        are always sized even during transition. */
     .fl-max[aria-pressed="false"] .fl-max-collapse,
     .fl-max[aria-pressed="true"]  .fl-max-expand { display: none; }
+
+    /* "Full page" action — opens the token analysis as a real tab at
+       four-life.gudman.xyz/radar?token=<addr>. Separate from the drawer
+       maximize because a full tab is bookmarkable, shareable, and has
+       back/forward navigation — a different UX primitive. */
+    .fl-fullpage {
+      background: linear-gradient(135deg, #00d4ff, #6cff32);
+      border: none;
+      color: #0b0b0e;
+      border-radius: 8px;
+      height: 30px;
+      padding: 0 12px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: inherit;
+      text-decoration: none;
+      transition: filter 0.12s, transform 0.12s;
+    }
+    .fl-fullpage:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .fl-fullpage svg { display: block; }
     .fl-panel h2 {
       margin: 0 0 4px;
       font-size: 18px;
@@ -1514,6 +1539,9 @@
     } else if (key === "s") {
       const a = root.querySelector('.fl-action[data-action="share"]');
       if (a) { e.preventDefault(); a.click(); }
+    } else if (key === "p") {
+      const btn = root.getElementById("fl-fullpage");
+      if (btn) { e.preventDefault(); btn.click(); }
     }
   }
 
@@ -1762,6 +1790,10 @@
           <div class="fl-header">
             <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:rgba(255,255,255,0.4);font-weight:700">FOUR-LIFE</span>
             <div style="display:flex; gap:8px; align-items:center">
+              <a class="fl-fullpage" id="fl-fullpage" href="${escapeHtml(radarUrl)}" target="_blank" rel="noopener noreferrer" title="Open this token's analysis as a full page (P)" aria-label="Open full page">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7"/><path d="M10 14L21 3"/><path d="M21 14v7H3V3h7"/></svg>
+                Full page
+              </a>
               <button class="fl-watch" id="fl-watch" aria-pressed="false" title="Watch for tier transitions (W)">
                 <span class="fl-watch-icon">☆</span><span class="fl-watch-label">Watch</span>
               </button>
@@ -1821,6 +1853,24 @@
     const copyBtn = root.getElementById("fl-copy");
     const panel = wrap.querySelector(".fl-panel");
     const toast = root.getElementById("fl-watch-toast");
+
+    // "Full page" opener. The anchor's default target="_blank" is enough
+    // for most contexts, but some host pages (PancakeSwap in certain
+    // configs, CSP-tight DEXs) break window.open from a shadow-DOM click.
+    // Route via chrome.runtime to the background service worker when
+    // chrome.* is available — it always lands a fresh tab.
+    const fullpageBtn = root.getElementById("fl-fullpage");
+    if (fullpageBtn) {
+      fullpageBtn.addEventListener("click", (ev) => {
+        if (!chrome?.runtime?.sendMessage) return; // default anchor works
+        ev.preventDefault();
+        try {
+          chrome.runtime.sendMessage({ type: "fl:open-tab", url: radarUrl }, () => {});
+        } catch {
+          window.open(radarUrl, "_blank", "noopener");
+        }
+      });
+    }
 
     // Firewall hook on the Swap button. For at_risk tokens we intercept
     // the click, show the block modal, and only let the user through if

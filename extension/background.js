@@ -260,6 +260,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       } else if (msg?.type === "fl:poll-now") {
         await pollOnce();
         sendResponse({ ok: true });
+      } else if (msg?.type === "fl:open-tab") {
+        // Overlay "Full page" action — opens the token analysis as a real
+        // tab at four-life.gudman.xyz/radar?token=<addr>. Goes through the
+        // service worker so CSP-tight host pages can't block the navigation.
+        const url = String(msg.url || "");
+        if (url.startsWith("https://four-life.gudman.xyz/")) {
+          await chrome.tabs.create({ url });
+          sendResponse({ ok: true });
+        } else {
+          sendResponse({ ok: false, reason: "blocked_url" });
+        }
       } else {
         sendResponse({ ok: false, reason: "unknown_message" });
       }
