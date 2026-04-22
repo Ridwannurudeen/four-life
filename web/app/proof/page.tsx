@@ -81,6 +81,37 @@ interface StatusResp {
   active_tokens: number;
 }
 
+interface MyxAttestResp {
+  current_root: string;
+  num_signals_chained: number;
+  last_published_count: number;
+  last_published_txhash: string | null;
+}
+
+interface GradRow {
+  symbol: string;
+  token_address: string;
+  peak_curve_progress: number;
+  peak_holders: number;
+  launched_at: number;
+}
+
+interface CreatorResp {
+  tracked: boolean;
+  launches_tracked: number;
+  graduations: number;
+  graduation_rate: number;
+  trust_tier: string;
+  evidence: {
+    token_address: string;
+    symbol: string;
+    graduated: boolean;
+    peak_curve_progress: number;
+    peak_holders: number;
+    launched_at: number;
+  }[];
+}
+
 const TIER_COLOR: Record<Tier, string> = {
   graduated: "text-purple-300 border-purple-500/40 bg-purple-500/10",
   graduation_watch: "text-[#00d4ff] border-[#00d4ff]/40 bg-[#00d4ff]/10",
@@ -124,20 +155,28 @@ export default function ProofPage() {
     launches_with_activity: 0,
     active_tokens: 1,
   });
+  const [myx, setMyx] = useState<MyxAttestResp | null>(null);
+  const [grads, setGrads] = useState<GradRow[]>([]);
   const [loadedAt, setLoadedAt] = useState<number>(0);
 
   useEffect(() => {
     (async () => {
-      const [b, a, t, s] = await Promise.all([
+      const [b, a, t, s, m, c] = await Promise.all([
         fetch(`${API}/api/token/${AUNT}/badge`, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API}/api/dgrid/audit`, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API}/api/dgrid/trace?limit=8`, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API}/api/status`, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API}/api/myx/signal-attestation`, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API}/api/creator/${WALLET.toLowerCase()}/survival-score`, { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null) as Promise<CreatorResp | null>,
       ]);
       setBadge(b);
       setAudit(a);
       setTrace(Array.isArray(t) ? t.slice(0, 8) : []);
       setStatus(s);
+      setMyx(m);
+      if (c && Array.isArray(c.evidence)) {
+        setGrads(c.evidence.filter(ev => ev.graduated));
+      }
       setLoadedAt(Date.now());
     })();
   }, []);
@@ -154,7 +193,8 @@ export default function ProofPage() {
           <Link href="/" className="text-xs text-white/40 hover:text-white/70 uppercase tracking-[0.15em]">← FOUR-LIFE</Link>
           <h1 className="text-3xl md:text-5xl font-bold mt-4 tracking-tight">Proof of autonomy</h1>
           <p className="text-white/60 mt-3 max-w-2xl text-sm md:text-base">
-            Everything FOUR-LIFE claims about <span className="font-mono">$AUNT</span> — live from the API, cross-checkable
+            The agent&apos;s record, end-to-end. Launches it deployed, tokens it graduated, LLM calls committed
+            to Merkle roots on BNB Chain, and a live badge on a running token — every field cross-checkable
             against BscScan. Reload this page in 10 minutes and you&apos;ll see what the agent sees <em>then</em>.
             That&apos;s the point of a deterministic system.
           </p>
@@ -164,6 +204,75 @@ export default function ProofPage() {
             </div>
           )}
         </div>
+
+        {/* Section 0: outcome ledger — the single-glance record */}
+        <section className="mb-10 rounded-xl border border-white/10 bg-gradient-to-br from-[#6cff32]/5 via-black/30 to-[#00d4ff]/5 p-6">
+          <h2 className="text-[11px] uppercase tracking-[0.15em] text-white/40 mb-4">
+            0. The ledger — what the agent has actually done
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <LedgerStat
+              value={status?.total_launches ?? 0}
+              label="Launches"
+              sub="tokens deployed by agent"
+              color="text-white"
+            />
+            <LedgerStat
+              value={status?.total_graduations ?? 0}
+              label="Graduated"
+              sub="bonding curve completed"
+              color="text-purple-300"
+            />
+            <LedgerStat
+              value={
+                status?.total_launches && status?.total_launches > 0
+                  ? `${Math.round(((status?.total_graduations ?? 0) / status.total_launches) * 1000) / 10}%`
+                  : "—"
+              }
+              label="Grad rate"
+              sub="vs 1.34% platform avg"
+              color="text-[#6cff32]"
+            />
+            <LedgerStat
+              value={audit?.num_calls_chained?.toLocaleString() ?? "—"}
+              label="DGrid chained"
+              sub="LLM calls committed"
+              color="text-[#00d4ff]"
+            />
+            <LedgerStat
+              value={myx?.num_signals_chained?.toLocaleString() ?? "—"}
+              label="MYX chained"
+              sub="decisions committed"
+              color="text-[#ffd641]"
+            />
+          </div>
+          <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] font-mono">
+            <a href={`https://bscscan.com/address/${WALLET}`} target="_blank" rel="noopener noreferrer"
+               className="px-3 py-2 rounded-md border border-white/10 hover:border-white/25 hover:bg-white/5 truncate">
+              <span className="text-white/40">Agent wallet</span>
+              <span className="block text-purple-300 truncate">{WALLET.slice(0, 10)}…{WALLET.slice(-6)} ↗</span>
+            </a>
+            <a href={`${API}/api/identity`} target="_blank" rel="noopener noreferrer"
+               className="px-3 py-2 rounded-md border border-white/10 hover:border-white/25 hover:bg-white/5 truncate">
+              <span className="text-white/40">ERC-8004 agent</span>
+              <span className="block text-purple-300">#{status?.agent_id ?? "—"} on BSC</span>
+            </a>
+            {audit?.last_published_txhash && (
+              <a href={`https://bscscan.com/tx/${audit.last_published_txhash}`} target="_blank" rel="noopener noreferrer"
+                 className="px-3 py-2 rounded-md border border-white/10 hover:border-white/25 hover:bg-white/5 truncate">
+                <span className="text-white/40">Latest DGrid root</span>
+                <span className="block text-[#00d4ff] truncate">{audit.last_published_txhash.slice(0, 10)}…{audit.last_published_txhash.slice(-6)} ↗</span>
+              </a>
+            )}
+            {myx?.last_published_txhash && (
+              <a href={`https://bscscan.com/tx/${myx.last_published_txhash}`} target="_blank" rel="noopener noreferrer"
+                 className="px-3 py-2 rounded-md border border-white/10 hover:border-white/25 hover:bg-white/5 truncate">
+                <span className="text-white/40">Latest MYX root</span>
+                <span className="block text-[#ffd641] truncate">{myx.last_published_txhash.slice(0, 10)}…{myx.last_published_txhash.slice(-6)} ↗</span>
+              </a>
+            )}
+          </div>
+        </section>
 
         {/* Section 1: the token */}
         <section className="mb-10 rounded-xl border border-white/10 bg-black/30 p-6">
@@ -303,10 +412,52 @@ export default function ProofPage() {
           </p>
         </section>
 
+        {/* Section 5: the graduated tokens — outcomes, not theory */}
+        {grads.length > 0 && (
+          <section className="mb-10 rounded-xl border border-white/10 bg-black/30 p-6">
+            <h2 className="text-[11px] uppercase tracking-[0.15em] text-white/40 mb-4">
+              5. Graduated tokens — {grads.length} bonding curves completed
+            </h2>
+            <div className="space-y-2">
+              {grads.map((g) => (
+                <a
+                  key={g.token_address}
+                  href={`https://bscscan.com/token/${g.token_address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-md border border-purple-500/20 hover:border-purple-500/40 hover:bg-purple-500/5 transition-colors"
+                >
+                  <span className="text-sm font-bold">${g.symbol}</span>
+                  <span className="text-[11px] text-white/50 font-mono truncate">curve {Math.round(g.peak_curve_progress)}% · {g.peak_holders} peak holders</span>
+                  <span className="text-[11px] text-purple-300 font-mono truncate">{g.token_address.slice(0, 8)}…{g.token_address.slice(-6)} ↗</span>
+                </a>
+              ))}
+            </div>
+            <p className="text-[11px] text-white/40 mt-4">
+              All tokens deployed by the same ERC-8004 agent wallet. Four.meme platform-wide graduation rate is
+              1.34%; this agent&apos;s rate is {
+                status?.total_launches && status?.total_launches > 0
+                  ? `${Math.round(((status?.total_graduations ?? 0) / status.total_launches) * 1000) / 10}%`
+                  : "—"
+              }.
+            </p>
+          </section>
+        )}
+
         <div className="mt-12 text-center text-[11px] text-white/30 uppercase tracking-[0.15em]">
           Nothing on this page is baked in. Every field is a live API call.
         </div>
       </div>
+    </div>
+  );
+}
+
+function LedgerStat({ value, label, sub, color }: { value: number | string; label: string; sub: string; color: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-black/30 p-3">
+      <div className={`text-2xl md:text-3xl font-bold tabular ${color}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-white/50 font-semibold mt-1">{label}</div>
+      <div className="text-[10px] text-white/35 mt-0.5">{sub}</div>
     </div>
   );
 }
