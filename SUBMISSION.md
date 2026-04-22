@@ -144,10 +144,11 @@ All addresses are hardcoded in `agent/config.py` and wired into `agent/myx/clien
 
 | Tx | Root commits to | BscScan |
 |---|---|---|
-| MYX signal attestation #1 | 2 hedge signals | [`0x0d43051c…`](https://bscscan.com/tx/0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698) |
-| MYX signal attestation #2 | 452 hedge signals | [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026) |
+| MYX decision attestation #1 | 2 hedge decisions | [`0x0d43051c…`](https://bscscan.com/tx/0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698) |
+| MYX decision attestation #2 | 452 hedge decisions | [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026) |
+| MYX decision attestation #3 | 518 hedge decisions | [`0x5c5b9876…`](https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af) |
 
-Two signal-attestation roots prove the agent made real hedge decisions on MYX via a cryptographic chain — all that we can attest truthfully without being a broker.
+Three decision-attestation roots prove the agent is continuously making real hedge decisions on MYX via a cryptographic chain — 518 decisions committed on BNB Chain as of the latest publish, each carrying the action, confidence, size %, reasoning hash, and (for consensus-backed decisions) per-model vote metadata.
 
 ### MYX capabilities we shipped
 
@@ -200,7 +201,7 @@ We submit this to the MYX bounty on decision-attestation depth: the cryptographi
 - **Agent wallet:** `0x695E492398A51D2Ef5c699818e9616718aaEd1c1` — [BscScan](https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1)
 - **ERC-8004 Agent ID 20** — [registration tx](https://bscscan.com/tx/0x62a1a43d9e782686b833ed44eee7ea95a9ee3370f2f372334dc7bbf85cc14762), [agent card](https://four-life.gudman.xyz/.well-known/agent-registration.json)
 - **$AUNT launched by agent** — [token](https://bscscan.com/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444) · [launch tx](https://bscscan.com/tx/0x80ff903ca947448ec50927b866067b67e5bdd69a667f9d0f1b3af8f0c74869d2) · [Four.meme](https://four.meme/en/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444)
-- **5 on-chain attestation txs** (links above): 3 DGrid + 2 MYX
+- **6 on-chain attestation txs** (links above): 3 DGrid + 3 MYX decision roots
 - **367 tests passing** across agent/badge/consensus/history/MYX/webhooks/protection/notifications/SDK
 - **Tech stack:** Python 3.12 / FastAPI / web3.py / viem / Next.js 16 (static export) / nginx + systemd / SQLite + JSONL chains
 - **API surface:** 50+ routes across DGrid (11), MYX (13), platform primitives, webhooks, protection, notifications, creators, contract analyzer, identity, radar
@@ -230,7 +231,7 @@ FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's crypt
 | Criterion | Weight | How FOUR-LIFE delivers |
 |---|---|---|
 | **Innovation** | 30% | On-chain Merkle attestation of every LLM call across a token's full lifecycle. Multi-model DGrid consensus wired into every DEFEND-phase hedge decision — the unified gateway makes this a single fan-out, not per-provider plumbing. Explicit Certified-vs-Radar-Estimate split with per-surface enforcement (SDK, embed, webhooks, notifications, history) — the trust boundary is enforced, not claimed. |
-| **Technical Implementation** | 30% | 367 tests passing. Production-deployed. Real on-chain txs (agent launch, ERC-8004 registration, 5 Merkle attestations). Circuit breaker + multi-provider fallback + chaos-testable. Log-first attestation invariant (no ghost-hash scenario). Wallet-signing serialized + receipt-awaited. Full OpenAPI spec + independent pure-Python verifier. |
+| **Technical Implementation** | 30% | 367 tests passing. Production-deployed. Real on-chain txs (agent launch, ERC-8004 registration, 6 Merkle attestations). Circuit breaker + multi-provider fallback + chaos-testable. Log-first attestation invariant (no ghost-hash scenario). Wallet-signing serialized + receipt-awaited. Full OpenAPI spec + independent pure-Python verifier. |
 | **Practical Value** | 20% | Addresses Four.meme's top operational problem (~98% death rate) with infrastructure Four.meme-adjacent projects can adopt today: SDKs, embeddable badge with honest radar-estimate labelling, signed webhooks, Chrome extension. $AUNT is a real token the agent is managing — not slideware. |
 | **Presentation** | 20% | Landing page with live data on every panel. Dedicated showcase pages for DGrid and MYX with live Merkle tips, chaos toggle, consensus demo. Every claim in this document traces to a specific URL, BscScan tx, or source file. |
 

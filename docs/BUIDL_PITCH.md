@@ -12,7 +12,7 @@ Verifiably-autonomous lifecycle agent for Four.meme. Launches tokens, manages th
 
 ## Medium (≤500 chars)
 
-Four.meme's Agentic Mode creates tokens — then ~98% die within 72h because nothing manages them after launch. FOUR-LIFE is the Phase-4 lifecycle agent: launches tokens on Four.meme end-to-end, manages them via a THINK → BIRTH → RAISE → LEARN loop, hedges on MYX, and commits every decision to on-chain Merkle chains. 5 attestation txs live. 367 tests. Real token ($AUNT) under management. Judges verify claims by BscScan, not trust.
+Four.meme's Agentic Mode creates tokens — then ~98% die within 72h because nothing manages them after launch. FOUR-LIFE is the Phase-4 lifecycle agent: launches tokens on Four.meme end-to-end, manages them via a THINK → BIRTH → RAISE → LEARN loop, hedges on MYX, and commits every decision to on-chain Merkle chains. 6 attestation txs live (3 DGrid + 3 MYX decision roots). 367 tests. Real token ($AUNT) under management. Judges verify claims by BscScan, not trust.
 
 ---
 

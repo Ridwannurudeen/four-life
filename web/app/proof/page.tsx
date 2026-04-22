@@ -93,8 +93,9 @@ const ATTESTATIONS = [
   { kind: "DGrid #1", calls: 15, tx: "0xcf42283acebfc97657e87393684eedee40a21e98ba9c0b6b7480fa6c711a5c7c" },
   { kind: "DGrid #2", calls: 25, tx: "0x047c2f58e77d349f98eac8305080970c391c0e39c378816c22e69fc0d6b18fe9" },
   { kind: "DGrid #3", calls: 1573, tx: "0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636" },
-  { kind: "MYX signals #1", calls: 2, tx: "0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698" },
-  { kind: "MYX signals #2", calls: 452, tx: "0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" },
+  { kind: "MYX decisions #1", calls: 2, tx: "0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698" },
+  { kind: "MYX decisions #2", calls: 452, tx: "0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" },
+  { kind: "MYX decisions #3", calls: 518, tx: "0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af" },
 ];
 
 export default function ProofPage() {

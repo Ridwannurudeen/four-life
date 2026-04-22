@@ -343,12 +343,12 @@ export default function MYXPage() {
             reputation verifiable independent of the permissioned broker-signer gate.
           </div>
           <a
-            href="https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026"
+            href="https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full border border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20 text-[11px] font-mono"
           >
-            452 decisions committed · root 0xeda29cc6…2026 ↗
+            518 decisions committed · latest root 0x5c5b9876…37af ↗
           </a>
         </div>
         <div className="grid md:grid-cols-2 gap-3">

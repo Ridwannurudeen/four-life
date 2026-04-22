@@ -269,7 +269,7 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
               Four.meme&apos;s Agentic Mode creates tokens. FOUR-LIFE is the autonomous lifecycle layer that keeps them alive past 72 hours — with every LLM decision cryptographically anchored on BNB Chain.
             </p>
             <p className="text-white/50 text-sm md:text-base mb-8 max-w-2xl font-mono">
-              1,573 LLM calls attested on-chain · 5 Merkle-root transactions · $AUNT launched by the agent on Apr 20
+              1,573 LLM calls + 518 MYX decisions attested on-chain · 6 Merkle-root transactions · $AUNT launched by the agent on Apr 20
             </p>
 
             <div className="flex flex-wrap gap-2 mb-7 text-[11px] font-mono">
