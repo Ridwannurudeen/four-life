@@ -195,7 +195,7 @@
   // If a reused host has a different version tag, we tear it down and
   // rebuild with the fresh stylesheet so extension reloads without a
   // hard tab refresh still pick up new UI.
-  const HOST_VERSION = "1.4.1";
+  const HOST_VERSION = "1.4.2";
 
   // ── Shadow DOM host ────────────────────────────────────────────────
   function ensureHost() {

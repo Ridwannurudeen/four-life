@@ -46,6 +46,59 @@
       width: min(1100px, 95vw);
       max-width: 95vw;
     }
+
+    /* Resize bar — persistent vertical handle on the panel's left edge.
+       Universal sidebar convention (Rabby / Phantom / VS Code). Clicking
+       it toggles the panel between drawer and maximized. Hover shows a
+       chevron arrow that points the direction it'll grow. This sits on
+       every panel open regardless of whether the icon button renders. */
+    .fl-resize-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 16px;
+      cursor: ew-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      padding: 0;
+      z-index: 3;
+      transition: background 0.15s;
+    }
+    .fl-resize-bar::before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 35%;
+      bottom: 35%;
+      width: 2px;
+      border-radius: 1px;
+      background: rgba(255,255,255,0.25);
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .fl-resize-bar:hover { background: rgba(255,255,255,0.04); }
+    .fl-resize-bar:hover::before {
+      background: #00d4ff;
+      box-shadow: 0 0 10px rgba(0,212,255,0.5);
+    }
+    .fl-resize-bar .fl-resize-arrow {
+      position: relative;
+      color: rgba(255,255,255,0.55);
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+    }
+    .fl-resize-bar:hover .fl-resize-arrow { opacity: 1; color: #00d4ff; }
+    /* Flip the arrow glyph based on panel state so the user sees the
+       direction the panel will grow. Drawer → ← (grow leftward); max → →. */
+    .fl-panel.fl-maximized .fl-resize-arrow::before { content: "→"; }
+    .fl-panel:not(.fl-maximized) .fl-resize-arrow::before { content: "←"; }
+    .fl-panel { position: relative; }
     /* Expand/collapse toggle — matches the Watch button's shape so it
        reads as a peer, not a hidden icon. Visible on every panel open. */
     .fl-max {
@@ -1505,6 +1558,9 @@
     wrap.innerHTML = `
       <div class="fl-scrim" id="fl-scrim">
         <div class="fl-panel" role="dialog" aria-label="${escapeHtml(panelAria)}">
+          <button class="fl-resize-bar" id="fl-resize-bar" type="button" aria-label="Toggle panel width" title="Expand / shrink panel (F)">
+            <span class="fl-resize-arrow" aria-hidden="true"></span>
+          </button>
           <div class="fl-header">
             <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:rgba(255,255,255,0.4);font-weight:700">FOUR-LIFE</span>
             <div style="display:flex; gap:8px; align-items:center">
@@ -1624,6 +1680,18 @@
     applyMaximized(isMaximized);
     if (maxBtn) {
       maxBtn.addEventListener("click", () => {
+        isMaximized = !isMaximized;
+        try { sessionStorage.setItem(SS_KEY, isMaximized ? "1" : "0"); } catch {}
+        applyMaximized(isMaximized);
+      });
+    }
+    // Secondary path: the persistent resize bar on the panel's left edge.
+    // Same toggle behavior as maxBtn — having two triggers is intentional
+    // so the affordance is impossible to miss regardless of which one the
+    // user sees first.
+    const resizeBar = root.getElementById("fl-resize-bar");
+    if (resizeBar) {
+      resizeBar.addEventListener("click", () => {
         isMaximized = !isMaximized;
         try { sessionStorage.setItem(SS_KEY, isMaximized ? "1" : "0"); } catch {}
         applyMaximized(isMaximized);
