@@ -568,7 +568,9 @@ class AgentIdentity:
             "trust_anchors": {
                 "github": "https://github.com/Ridwannurudeen/four-life",
                 "website": base,
-                "demo_video": f"{base.rstrip('/')}/demo",
+                # Points at the one-page proof surface (token, certified state,
+                # DGrid trace, on-chain attestation tx hashes) — not a deadlink.
+                "proof": f"{base.rstrip('/')}/proof",
             },
             "registrations": [],
             "x402Support": False,

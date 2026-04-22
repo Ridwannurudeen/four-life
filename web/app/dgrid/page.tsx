@@ -430,7 +430,7 @@ export default function DGridPage() {
         <p className="text-white/60 leading-relaxed text-lg">
           Every LLM decision the agent makes — narrative, content, risk, vision, consensus, image — routes through{" "}
           <span className="text-[#6cff32] font-semibold">DGrid&apos;s unified AI Gateway</span>. One API, one auth, one
-          audit trail, across every model. A circuit breaker + three-tier fallback chain keeps the agent alive even
+          audit trail, across every model. A circuit breaker + multi-provider fallback keeps the agent alive even
           when DGrid hiccups — but DGrid always leads.
         </p>
       </div>

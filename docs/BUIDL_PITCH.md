@@ -24,7 +24,7 @@ What's live on `four-life.gudman.xyz`:
 
 - **Real token under management.** $AUNT — launched on Four.meme end-to-end by the agent (concept via DGrid, art via DALL-E, signed create-token tx). Launch tx `0x80ff903c…`.
 - **Strict truth-boundary.** "FOUR-LIFE Certified" is only issued when we have full on-chain data. Public-ranking tokens get a "Radar Estimate" with `tier_source: "radar_estimate"` and a distinct version. Embed, webhooks, notifications, and SDK all enforce the split — never pretend a heuristic is Certified.
-- **DGrid is the brain.** Every LLM call routes through it. Three-model consensus voting wired into every token's DEFEND phase — a capability single-provider agents literally cannot replicate. Circuit breaker + 3-tier fallback (DGrid → Anthropic → OpenAI) + chaos toggle + on-chain cost accounting.
+- **DGrid is the brain.** Every LLM call routes through it. Three-model consensus voting wired into every token's DEFEND phase — a capability single-provider agents literally cannot replicate. Circuit breaker + multi-provider fallback (DGrid primary → OpenAI; Anthropic slot activates when configured) + chaos toggle + on-chain cost accounting.
 - **Five on-chain attestation txs.** 3 DGrid roots (committing 1,573 LLM calls) + 2 MYX signal roots (452 signals). Anyone can page `/api/dgrid/audit/calls`, run `verify_chain()` locally, and confirm each root.
 - **MYX V2 signal infrastructure.** Every production BSC address wired. Phase-aware hedge signals attested on-chain. Signal-only by honest design — execution waits on MYX broker onboarding.
 

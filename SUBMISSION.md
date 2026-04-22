@@ -59,7 +59,7 @@ This is the integrity line judges should attack. Untracked-token badge response 
 
 | Capability | What it proves |
 |---|---|
-| **Circuit breaker + retry + 3-tier fallback** (DGrid → Anthropic → OpenAI) | Production-grade resilience; every fallback event is traced and counted |
+| **Circuit breaker + transient retry + multi-provider fallback** (DGrid primary → OpenAI fallback; Anthropic slot wired and activates when `ANTHROPIC_API_KEY` is set) | Production-grade resilience; every fallback event is traced and counted, live on `/api/dgrid/trace` |
 | **Multi-model consensus via DGrid** (`/api/dgrid/consensus`) | 3 models vote in parallel on a JSON field — **wired into the DEFEND phase of every token's lifecycle**. Impossible without a unified gateway. |
 | **Chaos toggle** (`/api/dgrid/chaos`, admin-authed) | Flip DGrid to fail → fallback chain engages → flip back → breaker resets and next call tries DGrid |
 | **On-chain Merkle attestation** | Every successful DGrid call folded into a SHA-256 hash chain. **3 roots published on BNB Chain** (see below). |
@@ -230,7 +230,7 @@ FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's crypt
 | Criterion | Weight | How FOUR-LIFE delivers |
 |---|---|---|
 | **Innovation** | 30% | On-chain Merkle attestation of every LLM call across a token's full lifecycle. Multi-model DGrid consensus wired into every DEFEND-phase hedge decision — the unified gateway makes this a single fan-out, not per-provider plumbing. Explicit Certified-vs-Radar-Estimate split with per-surface enforcement (SDK, embed, webhooks, notifications, history) — the trust boundary is enforced, not claimed. |
-| **Technical Implementation** | 30% | 367 tests passing. Production-deployed. Real on-chain txs (agent launch, ERC-8004 registration, 5 Merkle attestations). Circuit breaker + 3-tier fallback + chaos-testable. Log-first attestation invariant (no ghost-hash scenario). Wallet-signing serialized + receipt-awaited. Full OpenAPI spec + independent pure-Python verifier. |
+| **Technical Implementation** | 30% | 367 tests passing. Production-deployed. Real on-chain txs (agent launch, ERC-8004 registration, 5 Merkle attestations). Circuit breaker + multi-provider fallback + chaos-testable. Log-first attestation invariant (no ghost-hash scenario). Wallet-signing serialized + receipt-awaited. Full OpenAPI spec + independent pure-Python verifier. |
 | **Practical Value** | 20% | Addresses Four.meme's top operational problem (~98% death rate) with infrastructure Four.meme-adjacent projects can adopt today: SDKs, embeddable badge with honest radar-estimate labelling, signed webhooks, Chrome extension. $AUNT is a real token the agent is managing — not slideware. |
 | **Presentation** | 20% | Landing page with live data on every panel. Dedicated showcase pages for DGrid and MYX with live Merkle tips, chaos toggle, consensus demo. Every claim in this document traces to a specific URL, BscScan tx, or source file. |
 

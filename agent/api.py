@@ -2089,18 +2089,22 @@ async def graduation_radar(
             # Holder velocity is only available from on-chain monitor — proxy 0 for ranking-only tokens
             holder_velocity = 0.0
 
-            # Server-computed tier so the UI never re-derives trust labels.
-            # For tokens we already track on-chain, use the full deterministic
-            # badge (tier_source="certified"). For untracked tokens we return
-            # a RADAR ESTIMATE (tier_source="radar_estimate") so consumers can
-            # tell measurement-based Certified tiers apart from heuristic ones.
-            from agent.badge import SOURCE_CERTIFIED, SOURCE_RADAR_ESTIMATE
-            badge_tier = _radar_estimate_tier(
+            # Server-computed tier — the UI never re-derives trust labels.
+            # For consistency with /api/token/{addr}/badge, we use the SAME
+            # helpers here: `badge_from_ranking` for untracked tokens
+            # (tier_source="radar_estimate"), `badge_from_health` for tracked
+            # ones (tier_source="certified"). A token queried via /radar and
+            # /badge must never receive two different labels.
+            from agent.badge import SOURCE_RADAR_ESTIMATE
+            radar_badge = badge_from_ranking(
                 curve_progress_pct=progress * 100,
+                holders=holders,
                 increase_pct=increase * 100,
-                confidence=target.confidence,
+                graduation_confidence=target.confidence,
             )
-            tier_source = SOURCE_RADAR_ESTIMATE
+            badge_tier = radar_badge.tier
+            tier_source = radar_badge.tier_source  # always "radar_estimate"
+            assert tier_source == SOURCE_RADAR_ESTIMATE  # invariant
             if agent and addr in agent.monitor.state.tokens:
                 try:
                     tracked = agent.monitor.state.tokens[addr]
@@ -3237,6 +3241,10 @@ async def manual_track(data: dict, _=Depends(require_auth)):
     quote_asset = (data.get("quote_asset", "BNB") or "BNB").upper()
     creator_override = data.get("creator", "")
     concept = data.get("concept", {"name": name, "symbol": symbol, "personality": "Degen crypto energy"})
+    # Accept explicit launched_at (unix seconds) OR launch_block for existing tokens
+    # so age_hours reflects on-chain reality, not observation age.
+    launched_at_override = data.get("launched_at")
+    launch_block_override = data.get("launch_block")
 
     if not token_address:
         return JSONResponse({"error": "token_address required"}, status_code=400)
@@ -3246,6 +3254,23 @@ async def manual_track(data: dict, _=Depends(require_auth)):
 
     current_block = await agent.chain.get_block_number()
     creator = creator_override or agent.chain.account.address
+
+    # Resolve the best-available launched_at. Order of preference:
+    #   1. Explicit `launched_at` from the request body
+    #   2. Derived from explicit `launch_block` (block delta × 3s BSC block time)
+    #   3. Existing memory record for this token (if we're re-tracking after restart)
+    #   4. Current time (new launch happening now)
+    if launched_at_override:
+        resolved_launched_at = float(launched_at_override)
+        resolved_launch_block = int(launch_block_override or current_block)
+    elif launch_block_override:
+        block_delta = max(0, current_block - int(launch_block_override))
+        resolved_launched_at = time.time() - (block_delta * 3.0)
+        resolved_launch_block = int(launch_block_override)
+    else:
+        prior = agent.memory.get_launch(token_address)
+        resolved_launched_at = (prior.launched_at if prior and prior.launched_at else time.time())
+        resolved_launch_block = (prior.launch_block if prior and prior.launch_block else current_block)
 
     # Seed initial metrics from Four.meme's own radar so the token isn't born
     # as all-zeros. Best effort — if the lookup fails, we still track; on-chain
@@ -3264,22 +3289,27 @@ async def manual_track(data: dict, _=Depends(require_auth)):
 
     await agent.monitor.track_token(
         token_address, name=name, symbol=symbol,
-        creator=creator, created_block=current_block,
+        creator=creator, created_block=resolved_launch_block,
         quote_asset=quote_asset,
         seed=seed,
+        launched_at=resolved_launched_at,
     )
 
-    agent.memory.record_launch(LaunchRecord(
-        token_address=token_address,
-        name=name,
-        symbol=symbol,
-        narrative=concept.get("narrative", ""),
-        concept=concept,
-        launched_at=time.time(),
-        launch_block=current_block,
-        creator=creator,
-        quote_asset=quote_asset,
-    ))
+    # Only record a new LaunchRecord if one doesn't already exist — prevents
+    # duplicate rows when /api/agent/track is called repeatedly for the same
+    # token (e.g. after a service restart).
+    if not agent.memory.get_launch(token_address):
+        agent.memory.record_launch(LaunchRecord(
+            token_address=token_address,
+            name=name,
+            symbol=symbol,
+            narrative=concept.get("narrative", ""),
+            concept=concept,
+            launched_at=resolved_launched_at,
+            launch_block=resolved_launch_block,
+            creator=creator,
+            quote_asset=quote_asset,
+        ))
 
     agent.active_concepts[token_address] = concept
 

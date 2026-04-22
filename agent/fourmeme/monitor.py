@@ -98,8 +98,17 @@ class TokenMonitor:
         created_block: int = 0,
         quote_asset: str = "BNB",
         seed: dict | None = None,
+        launched_at: float | None = None,
     ) -> None:
         """Start tracking a token. Resolves its graduation target from Four.meme's config.
+
+        ``launched_at`` is the token's *actual* launch timestamp (from the
+        launch record or the mint-block timestamp). If the token has been
+        launched before we started observing (restart, manual /api/agent/track
+        of an existing token), passing ``launched_at`` makes ``age_hours``
+        reflect the real on-chain age — not the observation age. Without it we
+        fall back to ``time.time()`` and the badge/health report the
+        observation age, which is dishonest for tokens older than 1 block.
 
         ``seed`` is currently unused for numeric fields because
         ``update_token`` recomputes every health metric (unique_buyers,
@@ -118,7 +127,7 @@ class TokenMonitor:
             name=name,
             symbol=symbol,
             creator=creator,
-            created_at=time.time(),
+            created_at=launched_at if launched_at else time.time(),
             created_block=created_block,
             quote_asset=target.quote_asset,
             graduation_target=target.target_amount,

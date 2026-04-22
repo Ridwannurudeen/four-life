@@ -773,7 +773,7 @@ function BuiltOn() {
   const partners = [
     { t: "BNB Chain", body: "Runs on BSC mainnet. Every graduation attestation is on-chain." },
     { t: "Four.meme", body: "Pair-aware graduation targets sourced live from the platform config." },
-    { t: "DGrid", body: "Every LLM call routes through DGrid with 3-tier fallback (DGrid → Anthropic → OpenAI)." },
+    { t: "DGrid", body: "Every LLM call routes through DGrid. Multi-provider fallback (DGrid primary → OpenAI) keeps the agent alive during blips." },
     { t: "MYX V2", body: "Perp signals for hedging meme-token exposure through lifecycle phases." },
     { t: "ERC-8004", body: "FOUR-LIFE is a registered agent on BSC (agent ID 20). Reputation attestations per graduation." },
     { t: "Unibase", body: "Agent memory synced across sessions. Every launch outcome improves the next." },

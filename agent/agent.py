@@ -149,6 +149,11 @@ class FourLifeAgent:
                     creator=launch.creator or self.chain.account.address,
                     created_block=created_block,
                     quote_asset=(launch.quote_asset or "BNB").upper(),
+                    # Preserve the real launch timestamp across agent restarts
+                    # so age_hours reflects on-chain reality, not the
+                    # observation window. Without this a restart makes
+                    # $AUNT (launched Apr 20) look like it just launched.
+                    launched_at=launch.launched_at or None,
                 )
                 self.active_concepts[launch.token_address] = launch.concept or {
                     "name": launch.name,

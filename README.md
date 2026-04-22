@@ -270,8 +270,8 @@ FOUR-LIFE routes every LLM decision through [DGrid](https://dgrid.ai). Productio
 
 - **Circuit breaker** — opens after 3 consecutive DGrid failures with a 30s cooldown. Stops eating latency on a known-bad primary. Half-opens on the next call, closes on first success.
 - **Transient retry** — one in-place retry on DGrid 5xx/network errors before falling back. Keeps DGrid share high during blips.
-- **3-tier fallback** — DGrid → Anthropic → OpenAI. Every attempt (success or failure) lands in the trace ring buffer so judges can see exactly which provider served which call.
-- **Multi-model consensus** — `POST /api/dgrid/consensus` fans one prompt across N DGrid models in parallel and votes. Wired into the DEFEND phase of every token's lifecycle and into MYX high-stakes hedge decisions. Cross-partner flex single-provider agents cannot replicate.
+- **Multi-provider fallback** — DGrid primary → OpenAI fallback; an Anthropic tier is wired and activates automatically when `ANTHROPIC_API_KEY` is configured. Every attempt (success or failure) lands in the trace ring buffer so judges can see exactly which provider served which call.
+- **Multi-model consensus** — `POST /api/dgrid/consensus` fans one prompt across N DGrid models in parallel and votes. Wired into the DEFEND phase of every token's lifecycle and into MYX high-stakes hedge decisions.
 - **Chaos toggle** — `POST /api/dgrid/chaos {enabled: true}` forces DGrid to fail so judges can watch the fallback chain engage live on stage. Deterministic recovery when disabled.
 - **Cost tracking** — per-model USD rate table (`agent/brain/cost.py`). Every trace entry carries `cost_usd`; stats roll up by task / model / provider.
 - **On-chain Merkle attestation** — every successful DGrid call is hashed into a rolling SHA-256 chain. The tip is published on BNB Chain as a self-transaction with the root in the tx `data` field. **2 DGrid roots already on-chain.** Anyone can download the full call log via `/api/dgrid/audit/calls` and verify locally via `verify_chain()` — zero server trust required.
