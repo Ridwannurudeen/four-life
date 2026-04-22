@@ -151,6 +151,20 @@ function Stat({ label, value, sub, accent }: { label: string; value: string | nu
   );
 }
 
+function Skel({ w = "w-16", h = "h-5" }: { w?: string; h?: string }) {
+  return <span className={`inline-block ${h} ${w} rounded bg-white/10 animate-pulse align-middle`} />;
+}
+
+function StatSkeleton({ label }: { label: string }) {
+  return (
+    <div>
+      <div className="eyebrow text-white/40 mb-1">{label}</div>
+      <div className="text-2xl font-semibold"><Skel w="w-20" h="h-7" /></div>
+      <div className="mt-1"><Skel w="w-28" h="h-3" /></div>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────
 
 export default function MYXPage() {
@@ -171,6 +185,7 @@ export default function MYXPage() {
   const [filterToken, setFilterToken] = useState<string>("");
   const [consensusBusy, setConsensusBusy] = useState(false);
   const [consensusResult, setConsensusResult] = useState<MYXSignal | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -190,6 +205,8 @@ export default function MYXPage() {
       setNowMs(Date.now());
     } catch {
       /* ignore */
+    } finally {
+      setLoaded(true);
     }
   }, [filterToken]);
 
@@ -283,33 +300,49 @@ export default function MYXPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Card>
-          <Stat
-            label="Total signals"
-            value={portfolio?.total_signals_generated ?? "—"}
-            sub="across all tracked tokens"
-            accent="text-[#6cff32]"
-          />
+          {loaded ? (
+            <Stat
+              label="Total signals"
+              value={portfolio?.total_signals_generated ?? "—"}
+              sub="across all tracked tokens"
+              accent="text-[#6cff32]"
+            />
+          ) : (
+            <StatSkeleton label="Total signals" />
+          )}
         </Card>
         <Card>
-          <Stat
-            label="Active positions"
-            value={portfolio?.total_active_positions ?? 0}
-            sub={`${portfolio?.total_closed_positions ?? 0} closed`}
-          />
+          {loaded ? (
+            <Stat
+              label="Active positions"
+              value={portfolio?.total_active_positions ?? 0}
+              sub={`${portfolio?.total_closed_positions ?? 0} closed`}
+            />
+          ) : (
+            <StatSkeleton label="Active positions" />
+          )}
         </Card>
         <Card>
-          <Stat
-            label="Tokens hedged"
-            value={portfolio?.tokens_hedged ?? 0}
-            sub="getting live MYX signals"
-          />
+          {loaded ? (
+            <Stat
+              label="Tokens hedged"
+              value={portfolio?.tokens_hedged ?? 0}
+              sub="getting live MYX signals"
+            />
+          ) : (
+            <StatSkeleton label="Tokens hedged" />
+          )}
         </Card>
         <Card>
-          <Stat
-            label="Attested trades"
-            value={audit?.num_events_chained ?? 0}
-            sub={`${audit?.unpublished_events ?? 0} unpublished`}
-          />
+          {loaded ? (
+            <Stat
+              label="Attested trades"
+              value={audit?.num_events_chained ?? 0}
+              sub={`${audit?.unpublished_events ?? 0} unpublished`}
+            />
+          ) : (
+            <StatSkeleton label="Attested trades" />
+          )}
         </Card>
       </div>
 
@@ -363,29 +396,43 @@ export default function MYXPage() {
           <div className="rounded-lg border border-white/10 bg-black/20 p-3">
             <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Signal chain tip</div>
             <div className="font-mono text-xs text-[#00d4ff] break-all">
-              {signalAttest ? shortAddr(signalAttest.current_root, 24, 20) : "—"}
+              {loaded ? (signalAttest ? shortAddr(signalAttest.current_root, 24, 20) : "—") : <Skel w="w-64" h="h-4" />}
             </div>
             <div className="text-[10px] text-white/40 font-mono mt-1">
-              {signalAttest?.num_signals_chained ?? 0} signals chained · {signalAttest?.unpublished_signals ?? 0} unpublished
+              {loaded ? (
+                <>{signalAttest?.num_signals_chained ?? 0} signals chained · {signalAttest?.unpublished_signals ?? 0} unpublished</>
+              ) : (
+                <Skel w="w-48" h="h-3" />
+              )}
             </div>
           </div>
           <div className="rounded-lg border border-white/10 bg-black/20 p-3">
             <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Last published</div>
-            {signalAttest?.last_published_txhash ? (
-              <a
-                href={`https://bscscan.com/tx/${signalAttest.last_published_txhash}`}
-                target="_blank"
-                rel="noopener"
-                className="font-mono text-xs text-[#00d4ff] hover:text-[#6cff32] break-all"
-              >
-                {shortAddr(signalAttest.last_published_txhash, 16, 10)} ↗
-              </a>
+            {loaded ? (
+              signalAttest?.last_published_txhash ? (
+                <a
+                  href={`https://bscscan.com/tx/${signalAttest.last_published_txhash}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="font-mono text-xs text-[#00d4ff] hover:text-[#6cff32] break-all"
+                >
+                  {shortAddr(signalAttest.last_published_txhash, 16, 10)} ↗
+                </a>
+              ) : (
+                <div className="font-mono text-xs text-white/40">not yet published</div>
+              )
             ) : (
-              <div className="font-mono text-xs text-white/40">not yet published</div>
+              <Skel w="w-40" h="h-4" />
             )}
             <div className="text-[10px] text-white/40 font-mono mt-1">
-              {signalAttest?.last_published_at ? `${ago(signalAttest.last_published_at * 1000, nowMs)} · ` : ""}
-              root {shortAddr(signalAttest?.last_published_root, 12, 8)}
+              {loaded ? (
+                <>
+                  {signalAttest?.last_published_at ? `${ago(signalAttest.last_published_at * 1000, nowMs)} · ` : ""}
+                  root {shortAddr(signalAttest?.last_published_root, 12, 8)}
+                </>
+              ) : (
+                <Skel w="w-56" h="h-3" />
+              )}
             </div>
           </div>
         </div>
@@ -410,8 +457,15 @@ export default function MYXPage() {
               {consensusBusy ? "voting…" : `consensus for ${shortAddr(t.token_address)} →`}
             </button>
           ))}
-          {(portfolio?.token_summaries || []).length === 0 && (
+          {loaded && (portfolio?.token_summaries || []).length === 0 && (
             <div className="text-xs text-white/40">No tracked tokens yet.</div>
+          )}
+          {!loaded && (
+            <div className="flex gap-2 flex-wrap">
+              <Skel w="w-48" h="h-7" />
+              <Skel w="w-48" h="h-7" />
+              <Skel w="w-48" h="h-7" />
+            </div>
           )}
         </div>
         {consensusResult && (
@@ -457,29 +511,43 @@ export default function MYXPage() {
           <div className="rounded-lg border border-white/10 bg-black/20 p-3">
             <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Current Merkle tip</div>
             <div className="font-mono text-xs text-[#6cff32] break-all">
-              {audit ? shortAddr(audit.current_root, 24, 20) : "—"}
+              {loaded ? (audit ? shortAddr(audit.current_root, 24, 20) : "—") : <Skel w="w-64" h="h-4" />}
             </div>
             <div className="text-[10px] text-white/40 font-mono mt-1">
-              {audit?.num_events_chained ?? 0} trade events · {audit?.unpublished_events ?? 0} unpublished
+              {loaded ? (
+                <>{audit?.num_events_chained ?? 0} trade events · {audit?.unpublished_events ?? 0} unpublished</>
+              ) : (
+                <Skel w="w-48" h="h-3" />
+              )}
             </div>
           </div>
           <div className="rounded-lg border border-white/10 bg-black/20 p-3">
             <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1">Last published</div>
-            {audit?.last_published_txhash ? (
-              <a
-                href={`https://bscscan.com/tx/${audit.last_published_txhash}`}
-                target="_blank"
-                rel="noopener"
-                className="font-mono text-xs text-[#00d4ff] hover:text-[#6cff32] break-all"
-              >
-                {shortAddr(audit.last_published_txhash, 16, 10)} ↗
-              </a>
+            {loaded ? (
+              audit?.last_published_txhash ? (
+                <a
+                  href={`https://bscscan.com/tx/${audit.last_published_txhash}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="font-mono text-xs text-[#00d4ff] hover:text-[#6cff32] break-all"
+                >
+                  {shortAddr(audit.last_published_txhash, 16, 10)} ↗
+                </a>
+              ) : (
+                <div className="font-mono text-xs text-white/40">not yet published</div>
+              )
             ) : (
-              <div className="font-mono text-xs text-white/40">not yet published</div>
+              <Skel w="w-40" h="h-4" />
             )}
             <div className="text-[10px] text-white/40 font-mono mt-1">
-              {audit?.last_published_at ? `${ago(audit.last_published_at * 1000, nowMs)} · ` : ""}
-              root {shortAddr(audit?.last_published_root, 12, 8)}
+              {loaded ? (
+                <>
+                  {audit?.last_published_at ? `${ago(audit.last_published_at * 1000, nowMs)} · ` : ""}
+                  root {shortAddr(audit?.last_published_root, 12, 8)}
+                </>
+              ) : (
+                <Skel w="w-56" h="h-3" />
+              )}
             </div>
           </div>
         </div>
@@ -526,8 +594,18 @@ export default function MYXPage() {
             </div>
           )}
         </div>
-        {signals.length === 0 && (
+        {loaded && signals.length === 0 && (
           <div className="text-xs text-white/40">No signals yet — agent generates one every 5 min per tracked token.</div>
+        )}
+        {!loaded && (
+          <div className="space-y-1.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                <Skel w="w-64" h="h-4" />
+                <Skel w="w-14" h="h-3" />
+              </div>
+            ))}
+          </div>
         )}
         <div className="space-y-1.5">
           {signals.map((s, i) => (
@@ -596,7 +674,16 @@ export default function MYXPage() {
       {/* Markets */}
       <Card className="mb-6">
         <div className="eyebrow mb-4">MYX markets available for hedging · {status?.markets_count ?? 0} perp pairs</div>
-        {(status?.markets || []).length === 0 ? (
+        {!loaded ? (
+          <div className="grid md:grid-cols-3 gap-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 flex items-center justify-between">
+                <Skel w="w-20" h="h-3" />
+                <Skel w="w-16" h="h-3" />
+              </div>
+            ))}
+          </div>
+        ) : (status?.markets || []).length === 0 ? (
           <div className="text-xs text-white/40">No markets loaded. MYX may be offline.</div>
         ) : (
           <div className="grid md:grid-cols-3 gap-2 text-[11px]">

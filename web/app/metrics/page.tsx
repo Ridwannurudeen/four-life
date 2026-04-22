@@ -45,6 +45,20 @@ function Stat({ label, value, sub, accent }: { label: string; value: string | nu
   );
 }
 
+function Skel({ w = "w-16", h = "h-5" }: { w?: string; h?: string }) {
+  return <span className={`inline-block ${h} ${w} rounded bg-white/10 animate-pulse align-middle`} />;
+}
+
+function StatSkeleton({ label }: { label: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="eyebrow text-white/40 mb-1">{label}</div>
+      <Skel w="w-24" h="h-7" />
+      <div className="mt-2"><Skel w="w-32" h="h-3" /></div>
+    </div>
+  );
+}
+
 function statusBand(status: string): string {
   const s = parseInt(status, 10);
   if (s >= 500) return "text-[#ff494a]";
@@ -56,6 +70,7 @@ function statusBand(status: string): string {
 export default function MetricsPage() {
   const [m, setM] = useState<Metrics | null>(null);
   const [updatedAt, setUpdatedAt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +85,8 @@ export default function MetricsPage() {
         }
       } catch {
         /* ignore */
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
     };
     const initial = setTimeout(load, 0);
@@ -100,7 +117,45 @@ export default function MetricsPage() {
         </p>
       </div>
 
-      {!m && <div className="text-sm text-white/50">loading…</div>}
+      {!m && !loaded && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <StatSkeleton label="Uptime" />
+            <StatSkeleton label="Requests served" />
+            <StatSkeleton label="5xx error rate" />
+            <StatSkeleton label="p95 latency" />
+          </div>
+          <div className="grid md:grid-cols-2 gap-3 mb-6">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+              <div className="eyebrow mb-4">Latency percentiles</div>
+              <div className="space-y-3">
+                {["p50", "p95", "p99", "max"].map((label) => (
+                  <div key={label}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-white/60 uppercase tracking-wide">{label}</span>
+                      <Skel w="w-14" h="h-3" />
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/10 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
+              <div className="eyebrow mb-4">Status codes</div>
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <Skel w="w-20" h="h-3" />
+                    <Skel w="w-12" h="h-3" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!m && loaded && <div className="text-sm text-white/50">metrics unavailable — retrying…</div>}
 
       {m && (
         <>

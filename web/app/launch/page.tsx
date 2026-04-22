@@ -339,6 +339,56 @@ function RiskEvidence({ risk }: { risk: RiskSnapshot }) {
   );
 }
 
+// ── Index (no address) ─────────────────────────────────────────
+
+// Single-source-of-truth for featured tokens is web/app/evidence/page.tsx
+// (FEATURED const). Copied here because evidence/page.tsx doesn't export it
+// and an inline reshape to cards is the smaller change tonight. Keep in sync
+// with evidence/page.tsx if tokens are swapped.
+const FEATURED_LAUNCHES: { address: string; pitch: string }[] = [
+  { address: "0xd8c1c7b065ec8548093fe237157088b984dc4444", pitch: "70%+ curve, watched for graduation." },
+  { address: "0x857eb8346b88c23fae2f1f6043413935b6744444", pitch: "Mid-curve — holder velocity + buy pressure decide the fork." },
+  { address: "0x33f0022c15394a13a6997ed163896b519d554444", pitch: "Trust-graded even when the curve is still below 50%." },
+];
+
+function LaunchIndex() {
+  return (
+    <main className="max-w-5xl mx-auto px-5 py-16">
+      <div className="mb-10">
+        <Link href="/" className="text-xs text-white/40 hover:text-white/70">← Home</Link>
+      </div>
+      <div className="mb-10 max-w-3xl">
+        <div className="eyebrow mb-3">Launch pages</div>
+        <h1 className="text-3xl md:text-4xl font-bold mb-3">
+          Shareable launch page for any FOUR-LIFE-tracked token.
+        </h1>
+        <p className="text-white/60 text-sm md:text-base">
+          Drop <code className="font-mono text-white/80 bg-white/5 px-1.5 py-0.5 rounded">/launch/0x&lt;address&gt;</code> on any token to get a live grade, rule trace, risk evidence, and tier history. Below are three live previews — click through to see the full page.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {FEATURED_LAUNCHES.map((f) => (
+          <Link
+            key={f.address}
+            href={`/launch/${f.address}`}
+            className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 hover:bg-white/[0.05] hover:border-white/20 transition-colors group flex flex-col"
+          >
+            <div className="eyebrow mb-3 text-white/40">Certified preview</div>
+            <div className="font-mono text-xs text-white/60 mb-3">{short(f.address)}</div>
+            <p className="text-sm text-white/70 leading-relaxed mb-5 flex-1">{f.pitch}</p>
+            <div className="inline-flex items-center gap-1 text-xs font-semibold text-[#00d4ff] group-hover:gap-2 transition-all">
+              Preview this launch page →
+            </div>
+          </Link>
+        ))}
+      </div>
+      <div className="mt-10 text-xs text-white/40">
+        Want more examples? <Link href="/evidence" className="text-[#00d4ff] hover:underline">Browse the full evidence panel →</Link>
+      </div>
+    </main>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────
 
 export default function LaunchPage() {
@@ -385,18 +435,7 @@ export default function LaunchPage() {
   }, [token]);
 
   if (!token) {
-    return (
-      <main className="max-w-3xl mx-auto px-5 py-16">
-        <h1 className="text-2xl font-bold mb-3">FOUR-LIFE Certified — Token Page</h1>
-        <p className="text-white/60 mb-6">
-          Share a live trust grade for any Four.meme token. Use URL pattern:
-        </p>
-        <code className="block bg-black/40 rounded-lg p-4 text-sm text-[#6cff32] mb-6">
-          four-life.gudman.xyz/launch/0x&lt;your-token-address&gt;
-        </code>
-        <Link href="/radar" className="text-[#00d4ff] hover:underline">← Browse the Radar</Link>
-      </main>
-    );
+    return <LaunchIndex />;
   }
 
   return (

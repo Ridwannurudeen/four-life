@@ -1883,9 +1883,9 @@
     // have to re-fetch anything on click.
     const shareText = isCertified
       ? `FOUR-LIFE Certified — ${label} on $${(b?.metrics_snapshot?.symbol || "").toString().slice(0, 10) || "token"} ${address.slice(0, 8)}… verified on BNB Chain. ` +
-        `Deterministic rule trace, no LLM in the trust path.\n\nRadar: https://four-life.gudman.xyz/radar/${address}`
+        `Deterministic rule trace, no LLM in the trust path.\n\nRadar: https://four-life.gudman.xyz/radar?token=${address}`
       : `FOUR-LIFE Radar — ${label} estimate on $${(b?.metrics_snapshot?.symbol || "").toString().slice(0, 10) || "token"} ${address.slice(0, 8)}… ` +
-        `Heuristic grade from public-ranking data. Upgrade to Certified by tracking it on FOUR-LIFE.\n\n${API_BASE}/radar/${address}`;
+        `Heuristic grade from public-ranking data. Upgrade to Certified by tracking it on FOUR-LIFE.\n\n${API_BASE}/radar?token=${address}`;
     const shareUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(shareText);
     const proofUrl = `${API_BASE}/proof`;
     const agentUrl = `https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1`;

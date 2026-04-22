@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 // ── useReveal — IntersectionObserver fade-up ──────────────────────────
@@ -268,6 +269,139 @@ function LogoTS() {
       </svg>
       <span className="text-xs font-bold tracking-wide text-white/85">TypeScript</span>
     </div>
+  );
+}
+
+// ── Shared site nav (rendered from layout.tsx) ───────────────────────
+//
+// Renders on every route EXCEPT "/" (the landing page has its own sticky
+// nav in page.tsx). Primary links surface Radar / Proof / Dashboard /
+// Docs; data surfaces live under a Data ▾ details/summary dropdown so
+// judges never lose top-level navigation mid-flow.
+
+const SITE_NAV_API =
+  (process.env.NEXT_PUBLIC_API_URL || "https://four-life.gudman.xyz").replace(/\/$/, "");
+
+export function SiteNav() {
+  const pathname = usePathname();
+  if (pathname === "/") return null;
+
+  const primary: { href: string; label: string; external?: boolean }[] = [
+    { href: "/radar", label: "Radar" },
+    { href: "/proof", label: "Proof" },
+    { href: "/dashboard", label: "Dashboard" },
+    { href: `${SITE_NAV_API}/docs`, label: "Docs", external: true },
+  ];
+
+  const secondary: { href: string; label: string }[] = [
+    { href: "/metrics", label: "Metrics" },
+    { href: "/evidence", label: "Evidence" },
+    { href: "/activity", label: "Activity" },
+    { href: "/dgrid", label: "DGrid" },
+    { href: "/myx", label: "MYX" },
+    { href: "/creators", label: "Creators" },
+    { href: "/webhooks", label: "Webhooks" },
+    { href: "/embed", label: "Embed" },
+    { href: "/launch", label: "Launch" },
+  ];
+
+  const isActive = (href: string) =>
+    !href.startsWith("http") && (pathname === href || pathname.startsWith(`${href}/`));
+
+  const linkCls = (href: string) =>
+    `px-3 py-1.5 rounded-md transition-colors ${
+      isActive(href)
+        ? "text-white bg-white/[0.06]"
+        : "text-white/70 hover:text-white hover:bg-white/5"
+    }`;
+
+  return (
+    <header className="border-b border-white/[0.08] sticky top-0 z-40 bg-[#0f1012]/80 backdrop-blur-xl">
+      <div className="max-w-7xl mx-auto px-5 py-3.5 flex items-center justify-between gap-4">
+        <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+          <span className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#6cff32] to-[#00d4ff] flex items-center justify-center font-bold text-black text-lg shadow-[0_0_25px_rgba(108,255,50,0.35)] transition-transform group-hover:scale-110">4</span>
+          <div>
+            <div className="text-sm font-bold tracking-tight">FOUR-LIFE</div>
+            <div className="text-[10px] text-white/40 uppercase tracking-[0.15em] -mt-0.5">Certified</div>
+          </div>
+        </Link>
+
+        <nav className="hidden md:flex items-center gap-1 text-sm">
+          {primary.map((item) =>
+            item.external ? (
+              <a
+                key={item.href}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkCls(item.href)}
+              >
+                {item.label}
+              </a>
+            ) : (
+              <Link key={item.href} href={item.href} className={linkCls(item.href)}>
+                {item.label}
+              </Link>
+            ),
+          )}
+
+          <details className="relative group">
+            <summary className="list-none cursor-pointer px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors select-none">
+              Data <span className="text-white/40">▾</span>
+            </summary>
+            <div className="absolute right-0 mt-2 w-48 rounded-lg border border-white/[0.08] bg-[#0f1012]/95 backdrop-blur-xl shadow-xl p-1">
+              {secondary.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`block px-3 py-1.5 rounded-md text-sm ${
+                    isActive(item.href)
+                      ? "text-white bg-white/[0.06]"
+                      : "text-white/70 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+        </nav>
+
+        {/* Mobile: compact details/summary with all items stacked */}
+        <details className="md:hidden relative">
+          <summary className="list-none cursor-pointer px-3 py-1.5 rounded-md text-white/70 hover:text-white hover:bg-white/5 transition-colors select-none text-sm">
+            Menu <span className="text-white/40">▾</span>
+          </summary>
+          <div className="absolute right-0 mt-2 w-56 rounded-lg border border-white/[0.08] bg-[#0f1012]/95 backdrop-blur-xl shadow-xl p-1 z-50">
+            {[...primary, ...secondary].map((item) =>
+              "external" in item && item.external ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-3 py-1.5 rounded-md text-sm text-white/70 hover:text-white hover:bg-white/5"
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`block px-3 py-1.5 rounded-md text-sm ${
+                    isActive(item.href)
+                      ? "text-white bg-white/[0.06]"
+                      : "text-white/70 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
+          </div>
+        </details>
+      </div>
+    </header>
   );
 }
 

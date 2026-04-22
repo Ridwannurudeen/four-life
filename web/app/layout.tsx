@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { SiteNav } from "./_components";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,12 +29,21 @@ export const metadata: Metadata = {
     url: "https://four-life.gudman.xyz",
     siteName: "FOUR-LIFE",
     type: "website",
+    images: [
+      {
+        url: "/og-home.png",
+        width: 1200,
+        height: 630,
+        alt: "FOUR-LIFE — Only 1.34% of Four.meme tokens graduate. FOUR-LIFE is Phase 4.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "FOUR-LIFE — The trust layer for Four.meme",
     description:
       "Deterministic badges. Protection mode. Signed webhooks. Python + TypeScript SDKs.",
+    images: ["/og-home.png"],
   },
 };
 
@@ -44,7 +54,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`h-full antialiased ${inter.variable} ${jetbrains.variable}`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <SiteNav />
+        {children}
+      </body>
     </html>
   );
 }

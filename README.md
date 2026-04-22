@@ -7,7 +7,7 @@
 Deterministic, auditable, on-chain grading + defense for every meme token on BNB Chain.
 
 [![License](https://img.shields.io/badge/license-MIT-a1a1aa.svg?style=flat-square)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-365_passing-6cff32.svg?style=flat-square)](#tests)
+[![Tests](https://img.shields.io/badge/tests-373_passing-6cff32.svg?style=flat-square)](#tests)
 [![Next.js](https://img.shields.io/badge/next-16.2.4-a1a1aa.svg?style=flat-square)](./web)
 [![Live](https://img.shields.io/badge/live-four--life.gudman.xyz-00d4ff.svg?style=flat-square)](https://four-life.gudman.xyz)
 [![ERC-8004](https://img.shields.io/badge/ERC--8004-Agent_ID_20-a855f7.svg?style=flat-square)](https://bscscan.com/tx/0x62a1a43d9e782686b833ed44eee7ea95a9ee3370f2f372334dc7bbf85cc14762)

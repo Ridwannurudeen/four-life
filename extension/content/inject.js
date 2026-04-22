@@ -4,7 +4,7 @@
 
 (() => {
   const API_BASE = "https://four-life.gudman.xyz";
-  const RADAR_URL = (addr) => `${API_BASE}/radar/${addr}`;
+  const RADAR_URL = (addr) => `${API_BASE}/radar?token=${addr}`;
   const POLL_MS = 60_000;
   const HOST_ID = "four-life-certified-host";
 

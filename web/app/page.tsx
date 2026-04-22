@@ -608,6 +608,174 @@ function Primitives() {
 
 // ── How it works — 3 steps horizontal ────────────────────────────────
 
+// Demo-video slot. Reads a URL from NEXT_PUBLIC_DEMO_VIDEO_URL at build
+// time so the user can drop in a YouTube/Loom embed without editing this
+// file. Falls back to a "Demo coming" placeholder with a visual cue so
+// the slot still frames the product when the video isn't ready yet.
+function DemoVideo() {
+  const url = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL || "";
+  const hasVideo = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be|loom\.com)\//.test(url);
+  return (
+    <section className="max-w-5xl mx-auto px-5 py-10 md:py-16">
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <div className="eyebrow mb-3">Demo · 90 seconds</div>
+          <h2 className="display display-md">The agent, end to end.</h2>
+        </div>
+        <div className="text-[11px] text-white/35 font-mono hidden md:block">launch → grade → defend → attest</div>
+      </div>
+      <div className="relative rounded-2xl border border-white/10 bg-black/40 overflow-hidden" style={{ aspectRatio: "16 / 9" }}>
+        {hasVideo ? (
+          <iframe
+            src={url}
+            className="absolute inset-0 w-full h-full"
+            title="FOUR-LIFE demo walkthrough"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-full border-2 border-white/15 flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-white/50 ml-1" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
+                </svg>
+              </div>
+              <div className="absolute inset-0 rounded-full border-2 border-[#6cff32]/40 animate-ping"/>
+            </div>
+            <div className="mt-5 text-sm font-bold text-white">Walkthrough video arriving soon</div>
+            <div className="mt-1 text-xs text-white/45 max-w-sm">
+              Watch the agent launch a Four.meme token, grade it deterministically,
+              defend it through its lifecycle, and commit every decision on-chain.
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2 justify-center">
+              <Link href="/proof" className="text-[11px] px-3 py-1.5 rounded-md border border-white/15 text-white/75 hover:bg-white/5 hover:text-white">
+                Watch it live on /proof →
+              </Link>
+              <Link href="/radar" className="text-[11px] px-3 py-1.5 rounded-md border border-white/15 text-white/75 hover:bg-white/5 hover:text-white">
+                Browse the radar →
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// One-image system diagram so a judge who doesn't want to read paragraphs
+// can still reconstruct the architecture: Four.meme token → agent THINK/
+// RAISE/LEARN loop → two parallel outputs (deterministic grade + attested
+// LLM log on BNB Chain) → four consumer surfaces. Inline SVG means it
+// renders without a network hop and stays crisp at any zoom.
+function Architecture() {
+  return (
+    <section className="max-w-7xl mx-auto px-5 py-16 md:py-20">
+      <div className="mb-10 max-w-3xl">
+        <div className="eyebrow mb-4">Architecture · one glance</div>
+        <h2 className="display display-lg mb-3">Token in. Proof out.</h2>
+        <p className="text-white/55 text-base md:text-lg">
+          A Four.meme token enters on the left. The autonomous agent runs a
+          three-phase lifecycle loop. Every trust grade is deterministic
+          (no LLM); every operational LLM call is committed to an on-chain
+          Merkle root. Four consumer surfaces read the same primitives.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-black/30 p-6 md:p-8 overflow-x-auto">
+        <svg viewBox="0 0 1200 400" className="w-full h-auto min-w-[900px]" role="img" aria-label="FOUR-LIFE system diagram">
+          <defs>
+            <linearGradient id="arrow-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#00d4ff"/>
+              <stop offset="100%" stopColor="#6cff32"/>
+            </linearGradient>
+            <marker id="arrow-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 Z" fill="#6cff32"/>
+            </marker>
+          </defs>
+
+          {/* Column 1 — Input */}
+          <g>
+            <rect x="20" y="150" width="180" height="100" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.14)" strokeWidth="1"/>
+            <text x="110" y="175" textAnchor="middle" fontSize="11" fontWeight="700" letterSpacing="2" fill="rgba(255,255,255,0.5)">INPUT</text>
+            <text x="110" y="205" textAnchor="middle" fontSize="18" fontWeight="800" fill="#fff">Four.meme</text>
+            <text x="110" y="228" textAnchor="middle" fontSize="14" fill="rgba(255,255,255,0.7)">token address</text>
+          </g>
+
+          {/* Arrow 1 */}
+          <line x1="200" y1="200" x2="290" y2="200" stroke="url(#arrow-grad)" strokeWidth="2.5" markerEnd="url(#arrow-head)"/>
+
+          {/* Column 2 — Agent loop */}
+          <g>
+            <rect x="300" y="90" width="280" height="220" rx="14" fill="rgba(108,255,50,0.04)" stroke="rgba(108,255,50,0.3)" strokeWidth="1.5"/>
+            <text x="440" y="115" textAnchor="middle" fontSize="11" fontWeight="700" letterSpacing="2" fill="#6cff32">FOUR-LIFE AGENT · ERC-8004 #20</text>
+
+            {/* THINK / RAISE / LEARN as three pills */}
+            {[
+              { t: "THINK", x: 320, color: "#00d4ff", body: "Pick narrative" },
+              { t: "RAISE", x: 320, color: "#ffd641", body: "Nurture → Defend → Accelerate" },
+              { t: "LEARN", x: 320, color: "#a855f7", body: "Post-mortem · update memory" },
+            ].map((p, i) => (
+              <g key={p.t} transform={`translate(0, ${140 + i * 48})`}>
+                <rect x={p.x} y="0" width="240" height="38" rx="8" fill="rgba(255,255,255,0.03)" stroke={`${p.color}60`} strokeWidth="1"/>
+                <rect x={p.x} y="0" width="4" height="38" rx="2" fill={p.color}/>
+                <text x={p.x + 16} y="16" fontSize="11" fontWeight="800" letterSpacing="1.5" fill={p.color}>{p.t}</text>
+                <text x={p.x + 16} y="30" fontSize="11" fill="rgba(255,255,255,0.7)">{p.body}</text>
+              </g>
+            ))}
+          </g>
+
+          {/* Arrow 2a — to grade */}
+          <line x1="580" y1="160" x2="700" y2="140" stroke="url(#arrow-grad)" strokeWidth="2.5" markerEnd="url(#arrow-head)"/>
+          {/* Arrow 2b — to attestation */}
+          <line x1="580" y1="240" x2="700" y2="260" stroke="url(#arrow-grad)" strokeWidth="2.5" markerEnd="url(#arrow-head)"/>
+
+          {/* Column 3 — Parallel outputs */}
+          <g>
+            <rect x="710" y="75" width="260" height="110" rx="12" fill="rgba(0,212,255,0.05)" stroke="rgba(0,212,255,0.35)" strokeWidth="1"/>
+            <text x="840" y="100" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.8" fill="#00d4ff">DETERMINISTIC GRADE · NO LLM</text>
+            <text x="840" y="128" textAnchor="middle" fontSize="16" fontWeight="800" fill="#fff">tier + why[] trace</text>
+            <text x="840" y="150" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">graduated · watch · healthy</text>
+            <text x="840" y="168" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">observed · at_risk</text>
+          </g>
+          <g>
+            <rect x="710" y="215" width="260" height="110" rx="12" fill="rgba(168,85,247,0.05)" stroke="rgba(168,85,247,0.35)" strokeWidth="1"/>
+            <text x="840" y="240" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.8" fill="#a855f7">ON-CHAIN ATTESTATION · BNB CHAIN</text>
+            <text x="840" y="268" textAnchor="middle" fontSize="16" fontWeight="800" fill="#fff">Merkle-root txs</text>
+            <text x="840" y="290" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">DGrid LLM calls · MYX decisions</text>
+            <text x="840" y="308" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">every call committed, verifiable</text>
+          </g>
+
+          {/* Arrows 3 — to consumer surfaces */}
+          <line x1="970" y1="200" x2="1060" y2="200" stroke="url(#arrow-grad)" strokeWidth="2.5" markerEnd="url(#arrow-head)"/>
+
+          {/* Column 4 — Consumers */}
+          <g>
+            <rect x="1070" y="100" width="115" height="200" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.14)" strokeWidth="1"/>
+            <text x="1127" y="125" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.8" fill="rgba(255,255,255,0.5)">CONSUMERS</text>
+            {[
+              { y: 150, t: "SDK · Py + TS" },
+              { y: 180, t: "Extension" },
+              { y: 210, t: "/radar /proof" },
+              { y: 240, t: "Webhooks" },
+              { y: 270, t: "Embeddable" },
+            ].map((c) => (
+              <g key={c.t}>
+                <circle cx="1087" cy={c.y} r="3" fill="#6cff32"/>
+                <text x="1097" y={c.y + 4} fontSize="12" fontWeight="600" fill="rgba(255,255,255,0.85)">{c.t}</text>
+              </g>
+            ))}
+          </g>
+        </svg>
+      </div>
+
+      <p className="text-[11px] text-white/35 mt-4 font-mono text-center">
+        Read left→right: a token enters, the agent grades it with pure rules while logging every LLM reasoning step on-chain, and four surfaces consume the same primitives.
+      </p>
+    </section>
+  );
+}
+
 function HowItWorks() {
   const steps = [
     {
@@ -977,9 +1145,11 @@ export default function Landing() {
       </Reveal>
 
       <LiveTicker sample={metrics.radarSample} />
+      <Reveal><DemoVideo /></Reveal>
       <Reveal><TryNow /></Reveal>
       <Reveal><LiveMetricsBand metrics={metrics} /></Reveal>
       <Reveal><Primitives /></Reveal>
+      <Reveal><Architecture /></Reveal>
       <Reveal><HowItWorks /></Reveal>
       <Reveal><Developers /></Reveal>
       <Reveal><WhoUses /></Reveal>

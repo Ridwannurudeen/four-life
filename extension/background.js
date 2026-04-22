@@ -11,7 +11,7 @@
  *      A change in EITHER fires a notification (a certified upgrade from a
  *      prior radar_estimate is a real transition — the provenance changed
  *      even if the tier string is identical).
- *   5. Notification click → opens the token's FOUR-LIFE /radar page so the
+ *   5. Notification click → opens the token's FOUR-LIFE radar page so the
  *      user lands on the full rule trace + attestation evidence.
  *
  * Design constraints:
@@ -142,7 +142,7 @@ async function fireTransitionNotification(address, entry, curr) {
     });
     // Remember the opening URL so the click handler can route correctly.
     const targets = await getClickTargets();
-    targets[notifId] = `${API_BASE}/radar/${address}`;
+    targets[notifId] = `${API_BASE}/radar?token=${address}`;
     await chrome.storage.session?.set({ "fl:notif-targets": targets }).catch(() => {});
     // Fallback to sync storage if session storage isn't available.
     if (!chrome.storage.session) {

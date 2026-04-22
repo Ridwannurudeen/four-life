@@ -134,31 +134,36 @@ export default function EvidencePage() {
     FEATURED.map((f) => ({ address: f.address, pitch: f.pitch, badge: null, health: null })),
   );
   const [updatedAt, setUpdatedAt] = useState<number>(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const next: Case[] = await Promise.all(
-        FEATURED.map(async (f) => {
-          try {
-            const [b, t] = await Promise.all([
-              fetch(`${API}/api/token/${f.address}/badge`).then((r) => (r.ok ? r.json() : null)),
-              fetch(`${API}/api/tokens/${f.address}`).then((r) => (r.ok ? r.json() : null)),
-            ]);
-            return {
-              address: f.address,
-              pitch: f.pitch,
-              badge: (b as BadgeResponse | null)?.badge ?? null,
-              health: (t as TokenPayload | null)?.health ?? null,
-            };
-          } catch {
-            return { address: f.address, pitch: f.pitch, badge: null, health: null };
-          }
-        }),
-      );
-      if (!cancelled) {
-        setCases(next);
-        setUpdatedAt(Math.floor(Date.now() / 1000));
+      try {
+        const next: Case[] = await Promise.all(
+          FEATURED.map(async (f) => {
+            try {
+              const [b, t] = await Promise.all([
+                fetch(`${API}/api/token/${f.address}/badge`).then((r) => (r.ok ? r.json() : null)),
+                fetch(`${API}/api/tokens/${f.address}`).then((r) => (r.ok ? r.json() : null)),
+              ]);
+              return {
+                address: f.address,
+                pitch: f.pitch,
+                badge: (b as BadgeResponse | null)?.badge ?? null,
+                health: (t as TokenPayload | null)?.health ?? null,
+              };
+            } catch {
+              return { address: f.address, pitch: f.pitch, badge: null, health: null };
+            }
+          }),
+        );
+        if (!cancelled) {
+          setCases(next);
+          setUpdatedAt(Math.floor(Date.now() / 1000));
+        }
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
     }
     const initial = setTimeout(load, 0);
@@ -203,7 +208,11 @@ export default function EvidencePage() {
           <span key={t} className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${TIER_STYLE[t].dot}`} />
             <span className="uppercase text-[10px] tracking-wide">{t.replace("_", " ")}</span>
-            <span className="font-mono">{distribution[t] || 0}</span>
+            {loaded ? (
+              <span className="font-mono">{distribution[t] || 0}</span>
+            ) : (
+              <span className="inline-block h-3 w-4 rounded bg-white/10 animate-pulse align-middle" />
+            )}
           </span>
         ))}
         {updatedAt > 0 && (
@@ -260,7 +269,18 @@ export default function EvidencePage() {
               )}
             </div>
             {c.badge && <WhyTable why={c.badge.why} />}
-            {!c.badge && (
+            {!c.badge && !loaded && (
+              <div className="mt-3 space-y-1.5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <span className="inline-block h-3 w-24 rounded bg-white/10 animate-pulse" />
+                    <span className="inline-block h-3 w-32 rounded bg-white/10 animate-pulse" />
+                    <span className="inline-block h-3 w-20 rounded bg-white/10 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            )}
+            {!c.badge && loaded && (
               <p className="text-xs text-white/40 italic">Grade loading — if this persists, the token isn&apos;t tracked yet.</p>
             )}
           </div>

@@ -17,7 +17,7 @@ The badge is fully auditable: every tier assignment comes with the exact rule tr
    - Tier label + description
    - Full rule trace (`why[]`)
    - Risk evidence list
-   - Link to the full operator checklist at `/radar/{address}`
+   - Link to the full operator checklist at `/radar?token={address}`
 5. Polls every 60s so the badge updates as metrics change.
 
 ---
@@ -36,7 +36,7 @@ The badge pill appears within ~1–2 seconds. Click it to open the detail panel.
 
 ## Permissions
 
-The manifest requests exactly four permissions and four host permissions. Every one is load-bearing — nothing is requested speculatively.
+The manifest requests exactly five permissions and six host permissions. Every one is load-bearing — nothing is requested speculatively.
 
 | Permission | Why |
 |---|---|
@@ -44,12 +44,15 @@ The manifest requests exactly four permissions and four host permissions. Every 
 | `storage` | Watchlist persistence via `chrome.storage.sync` (syncs across devices). |
 | `alarms` | Wakes the service worker every 3 min to poll watched tokens for tier changes. |
 | `notifications` | Fires Chrome notifications when a watched token's tier transitions. |
+| `contextMenus` | Adds a right-click "Grade with FOUR-LIFE" action for selected token addresses. |
 
 Host permissions:
 
 - `https://four.meme/*` — content script injects the trust badge on token pages.
 - `https://bscscan.com/*` — same content script on `/token/0x...` pages.
 - `https://pancakeswap.finance/*` — same content script on `/info/tokens/...` + `/swap?outputCurrency=...`.
+- `https://dexscreener.com/*` — same content script on `/bsc/{pair}` pages after resolving the base token.
+- `https://api.dexscreener.com/*` — resolves DEXScreener pair contracts to token contracts.
 - `https://four-life.gudman.xyz/*` — public API (badge, risk-snapshot, attestation).
 
 No tracking, no analytics, no third-party calls. Watchlist stays on-device; `chrome.storage.sync` means it rides your own Google account's encrypted sync — we never see it.

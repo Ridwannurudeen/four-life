@@ -378,7 +378,7 @@ export default function DGridPage() {
       const body: ConsensusResult = await res.json();
       setConsensus(body);
       reload();
-    } catch (e) {
+    } catch {
       /* surface error in UI below */
       setConsensus({
         prompt: consensusInput,

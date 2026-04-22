@@ -110,6 +110,19 @@ function StatCard({ label, value, accent }: { label: string; value: string | num
   );
 }
 
+function Skel({ w = "w-16", h = "h-5" }: { w?: string; h?: string }) {
+  return <span className={`inline-block ${h} ${w} rounded bg-white/10 animate-pulse align-middle`} />;
+}
+
+function StatCardSkeleton({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="eyebrow text-white/40 mb-1">{label}</div>
+      <Skel w="w-20" h="h-7" />
+    </div>
+  );
+}
+
 function EventRow({ ev }: { ev: TimelineEvent }) {
   const s = KIND_STYLE[ev.kind];
   return (
@@ -168,6 +181,7 @@ export default function ActivityPage() {
   const [identity, setIdentity] = useState<IdentityPayload | null>(null);
   const [tokens, setTokens] = useState<Token[]>([]);
   const [updatedAt, setUpdatedAt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +201,8 @@ export default function ActivityPage() {
         setUpdatedAt(Math.floor(Date.now() / 1000));
       } catch {
         /* ignore — keep previous values */
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
     };
     const initial = setTimeout(load, 0);
@@ -280,15 +296,27 @@ export default function ActivityPage() {
 
       {/* Status rail */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-10">
-        <StatCard
-          label="State"
-          value={status?.running ? "LIVE" : "OFFLINE"}
-          accent={status?.running ? "text-[#6cff32]" : "text-[#ff494a]"}
-        />
-        <StatCard label="Agent ID" value={status?.agent_id ? `#${status.agent_id}` : "—"} accent="text-purple-300" />
-        <StatCard label="Active tokens" value={status?.active_tokens ?? "—"} />
-        <StatCard label="Attestations" value={identity?.reputation_attestations?.filter((a) => a.tx_hash).length ?? 0} />
-        <StatCard label="Learnings" value={status?.learnings_count ?? 0} />
+        {loaded ? (
+          <>
+            <StatCard
+              label="State"
+              value={status?.running ? "LIVE" : "OFFLINE"}
+              accent={status?.running ? "text-[#6cff32]" : "text-[#ff494a]"}
+            />
+            <StatCard label="Agent ID" value={status?.agent_id ? `#${status.agent_id}` : "—"} accent="text-purple-300" />
+            <StatCard label="Active tokens" value={status?.active_tokens ?? "—"} />
+            <StatCard label="Attestations" value={identity?.reputation_attestations?.filter((a) => a.tx_hash).length ?? 0} />
+            <StatCard label="Learnings" value={status?.learnings_count ?? 0} />
+          </>
+        ) : (
+          <>
+            <StatCardSkeleton label="State" />
+            <StatCardSkeleton label="Agent ID" />
+            <StatCardSkeleton label="Active tokens" />
+            <StatCardSkeleton label="Attestations" />
+            <StatCardSkeleton label="Learnings" />
+          </>
+        )}
       </div>
 
       {reg?.tx_hash && (
@@ -329,12 +357,26 @@ export default function ActivityPage() {
       </div>
 
       <div className="space-y-5">
-        {timeline.length === 0 && (
+        {!loaded && (
+          <>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="relative pl-6">
+                <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-white/10 animate-pulse" />
+                <div className="space-y-2">
+                  <Skel w="w-32" h="h-3" />
+                  <Skel w="w-64" h="h-4" />
+                  <Skel w="w-80" h="h-3" />
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+        {loaded && timeline.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-white/40 text-sm">
             No events yet. The agent is warming up.
           </div>
         )}
-        {timeline.map((ev, i) => (
+        {loaded && timeline.map((ev, i) => (
           <EventRow key={`${ev.kind}-${ev.ts}-${i}`} ev={ev} />
         ))}
       </div>
