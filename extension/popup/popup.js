@@ -194,6 +194,75 @@
     }
   };
 
+  // Relative-time formatter for activity timestamps. Same UX everyone uses.
+  const relTime = (ts) => {
+    if (!ts) return "—";
+    const age = Math.max(0, Date.now() / 1000 - Number(ts));
+    if (age < 60) return `${Math.round(age)}s`;
+    if (age < 3600) return `${Math.round(age / 60)}m`;
+    if (age < 86_400) return `${Math.round(age / 3600)}h`;
+    return `${Math.round(age / 86_400)}d`;
+  };
+
+  // Human label per action_type. Maps the backend enum to a short title
+  // that fits in the popup row without wrapping.
+  const ACTION_LABEL = {
+    alert: "Risk alert",
+    post_content: "Social post",
+    track: "Track started",
+    track_token: "Track started",
+    birth: "Token launched",
+    launch: "Token launched",
+    hedge: "Hedge decision",
+    myx_decision: "MYX decision",
+    think: "Market analysis",
+    raise: "Raise step",
+    defend: "Defend",
+    accelerate: "Accelerate",
+  };
+  const ACTION_ICON = {
+    alert: "!",
+    post_content: "X",
+    track: "+",
+    track_token: "+",
+    birth: "★",
+    launch: "★",
+    hedge: "⚖",
+    myx_decision: "⚖",
+    think: "◌",
+  };
+
+  const renderActivity = (data) => {
+    const host = $("#activity-list");
+    if (!host) return;
+    const items = Array.isArray(data?.actions) ? data.actions.slice(0, 5) : [];
+    if (items.length === 0) {
+      host.innerHTML = "";
+      host.appendChild(el("div", { class: "empty", text: "No agent actions yet." }));
+      return;
+    }
+    host.innerHTML = "";
+    for (const a of items) {
+      const type = a.action_type || "action";
+      const label = ACTION_LABEL[type] || type.replace(/_/g, " ");
+      const icon = ACTION_ICON[type] || "·";
+      const urg = a.urgency || "normal";
+      const addr = a.token_address || "";
+      const row = el("div", {
+        class: "act",
+        dataset: { type, urgency: urg },
+      }, [
+        el("span", { class: "act-ico", text: icon }),
+        el("div", { class: "act-body" }, [
+          el("span", { class: "act-title", text: label }),
+          el("span", { class: "act-meta", text: short(addr, 4, 4) }),
+        ]),
+        el("span", { class: "act-time", text: relTime(a.timestamp) }),
+      ]);
+      host.appendChild(row);
+    }
+  };
+
   const renderRadar = (radar) => {
     const host = $("#radar-list");
     host.innerHTML = "";
@@ -252,11 +321,12 @@
   });
 
   const refresh = async () => {
-    const [status, dgridAudit, myxAttest, radar, watchlist] = await Promise.all([
+    const [status, dgridAudit, myxAttest, radar, actions, watchlist] = await Promise.all([
       fetchJson("/api/status"),
       fetchJson("/api/dgrid/audit"),
       fetchJson("/api/myx/signal-attestation"),
       fetchJson("/api/graduation-radar?limit=5"),
+      fetchJson("/api/actions?limit=5"),
       getWatchlist(),
     ]);
     renderStatus(status);
@@ -264,6 +334,7 @@
     renderAttests(dgridAudit, myxAttest);
     renderWatchlist(watchlist);
     renderRadar(radar);
+    renderActivity(actions);
   };
 
   refresh();

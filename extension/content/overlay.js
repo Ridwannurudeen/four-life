@@ -188,6 +188,31 @@
       border-radius: 6px;
       word-break: break-all;
       letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fl-addr-val { flex: 1; min-width: 0; word-break: break-all; }
+    .fl-copy {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .fl-copy:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+    .fl-copy[data-copied="true"] {
+      color: #6cff32;
+      border-color: rgba(108,255,50,0.4);
+      background: rgba(108,255,50,0.08);
     }
     table.fl-table {
       width: 100%;
@@ -242,13 +267,19 @@
       padding: 10px 0;
     }
     .fl-footer {
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      position: sticky;
+      bottom: 0;
+      margin: 24px -22px -40px;
+      padding: 14px 22px 18px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(11,11,14,0.85), #0b0b0e);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
+      z-index: 2;
     }
     .fl-link {
       color: #fff;
@@ -476,6 +507,268 @@
       gap: 8px;
       margin-top: 6px;
     }
+    /* Certified mode gets a dedicated ring widget beside the chip stack.
+       Grid: ring | 2 stacked chips. Radar mode keeps 3 equal chips. */
+    .fl-hero.fl-hero-certified .fl-hero-chips {
+      grid-template-columns: 116px 1fr;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .fl-hero.fl-hero-certified .fl-hero-chip-stack {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+    }
+    .fl-health-ring {
+      position: relative;
+      padding: 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fl-health-ring svg { display: block; width: 100px; height: 100px; transform: rotate(-90deg); }
+    .fl-health-ring .fl-ring-bg {
+      fill: none;
+      stroke: rgba(255,255,255,0.08);
+      stroke-width: 8;
+    }
+    .fl-health-ring .fl-ring-fg {
+      fill: none;
+      stroke: var(--fl-tier-color, #00d4ff);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: var(--fl-ring-len, 0) 999;
+      filter: drop-shadow(0 0 6px color-mix(in srgb, var(--fl-tier-color, #00d4ff) 40%, transparent));
+      transition: stroke-dasharray 420ms cubic-bezier(0.2, 0.6, 0.2, 1);
+    }
+    .fl-health-ring .fl-ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .fl-health-ring .fl-ring-v {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+    .fl-health-ring .fl-ring-k {
+      font-size: 8.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.5);
+      margin-top: 4px;
+      font-weight: 600;
+    }
+
+    /* Contract-safety checklist — renders the /contract-risk response
+       as a scannable list of ✓ (safe) / ✗ (risky) / ? (unknown) rows. */
+    .fl-contract {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      border-radius: 10px;
+    }
+    .fl-contract-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.5);
+      font-weight: 700;
+    }
+    .fl-contract-score {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--fl-contract-color, #6cff32);
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .fl-contract-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 14px;
+    }
+    .fl-contract-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.35;
+      padding: 3px 0;
+    }
+    .fl-contract-ico {
+      width: 14px; height: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .fl-contract-row[data-st="ok"] .fl-contract-ico { color: #6cff32; }
+    .fl-contract-row[data-st="bad"] .fl-contract-ico { color: #ef4444; }
+    .fl-contract-row[data-st="warn"] .fl-contract-ico { color: #ffd641; }
+    .fl-contract-row[data-st="unknown"] {
+      color: rgba(255,255,255,0.4);
+    }
+    .fl-contract-row[data-st="unknown"] .fl-contract-ico { color: rgba(255,255,255,0.3); }
+
+    /* Rule tooltip — small ℹ trigger on each rule card opens a positioned
+       hover popover with plain-english explanation. Works on hover (desktop)
+       and touch (pointerdown keeps it open until another tap). */
+    .fl-rule-info {
+      position: relative;
+      width: 16px; height: 16px;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.55);
+      font-size: 10px;
+      font-weight: 800;
+      font-style: italic;
+      font-family: Georgia, serif;
+      margin-left: 5px;
+      cursor: help;
+      line-height: 1;
+    }
+    .fl-rule-info:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .fl-rule-tip {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: 260px;
+      padding: 10px 12px;
+      background: #151519;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: rgba(255,255,255,0.85);
+      font-size: 11px;
+      line-height: 1.5;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      opacity: 0;
+      transform: translateY(-4px);
+      pointer-events: none;
+      transition: opacity 140ms, transform 140ms;
+      z-index: 10;
+      text-transform: none;
+      letter-spacing: 0.01em;
+      font-weight: 400;
+    }
+    .fl-rule-info:hover .fl-rule-tip,
+    .fl-rule-info:focus .fl-rule-tip,
+    .fl-rule-info[data-open="true"] .fl-rule-tip {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    /* Left-align the tooltip for rules near the left edge of the panel
+       where the default right-anchored tip would overflow. Not used by
+       default — opt-in by adding data-tip-side="left". */
+    .fl-rule-info[data-tip-side="left"] .fl-rule-tip { right: auto; left: 0; }
+
+    /* Snapshot-history card — SVG sparkline of curve_progress over time
+       plus a strip of tier-transition dots aligned to the same x-axis.
+       Shows how the token has evolved under FOUR-LIFE's grading. */
+    .fl-spark {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.02);
+      border-radius: 10px;
+    }
+    .fl-spark-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 9.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.5);
+      font-weight: 700;
+    }
+    .fl-spark-range {
+      color: rgba(255,255,255,0.4);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: none;
+    }
+    .fl-spark-svg {
+      width: 100%;
+      height: 60px;
+      display: block;
+    }
+    .fl-spark-line {
+      fill: none;
+      stroke: url(#fl-spark-grad);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .fl-spark-fill {
+      fill: url(#fl-spark-fill-grad);
+      opacity: 0.55;
+    }
+    .fl-spark-axis {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5px;
+      color: rgba(255,255,255,0.35);
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      margin-top: 2px;
+    }
+    .fl-spark-ticks {
+      display: flex;
+      gap: 3px;
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px dashed rgba(255,255,255,0.07);
+    }
+    .fl-spark-tick {
+      flex: 1;
+      height: 6px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.08);
+      transition: background 0.15s;
+    }
+    .fl-spark-tick[data-tier="healthy"] { background: #6cff32; }
+    .fl-spark-tick[data-tier="graduation_watch"] { background: #00d4ff; }
+    .fl-spark-tick[data-tier="graduated"] { background: #a855f7; }
+    .fl-spark-tick[data-tier="observed"] { background: #eab308; }
+    .fl-spark-tick[data-tier="at_risk"] { background: #ef4444; }
+    .fl-spark-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      margin-top: 8px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.45);
+    }
+    .fl-spark-legend span {
+      display: inline-flex; align-items: center; gap: 5px;
+      text-transform: capitalize;
+    }
+    .fl-spark-legend i {
+      width: 7px; height: 7px; border-radius: 2px;
+      background: rgba(255,255,255,0.3);
+    }
     .fl-hero-chip {
       padding: 9px 10px;
       border-radius: 9px;
@@ -667,6 +960,183 @@
     return String(rule).replace(/_/g, " ");
   }
 
+  // Plain-english rationale for each deterministic rule. Shown in the ℹ
+  // tooltip on every rule card so users learn WHY the threshold exists,
+  // not just whether it tripped. Keyed by rule name from agent/badge.py.
+  const RULE_EXPLAIN = {
+    whale_extreme: "Single holder owning more than 40% of supply is an extreme rug risk — one sell wipes the chart.",
+    whale_cluster: "Three or more wallets with large positions often coordinate exits. Clusters dump together.",
+    sell_pressure: "Buy/sell ratio below 0.6 means sellers outpace buyers. Momentum is leaking out.",
+    curve_stalled: "Bonding-curve progress under 5% means no organic demand arriving — the token isn't moving toward graduation.",
+    graduation_watch: "Curve progress is above the threshold where Four.meme tokens historically graduate. High probability of migrating to PancakeSwap.",
+    healthy: "Combined signal — rising buyers, no whale concentration, steady curve — passes every structural check.",
+    at_risk: "At least one critical structural failure: whale concentration, stalled curve, or sustained sell pressure.",
+    observed: "Default tier before enough data accumulates for a confident grade.",
+    radar_estimate_cap: "This tier came from Four.meme's public ranking data only — the on-chain inputs required for Healthy or At Risk weren't measured.",
+    holder_velocity: "Unique buyers joining per hour. Real organic growth runs 5+/hr; dead tokens run 0.",
+    graduated: "Bonding curve completed — token has migrated to open DEX trading.",
+  };
+  function explainRule(rule) {
+    if (!rule) return "";
+    return RULE_EXPLAIN[rule] || `Deterministic rule in FOUR-LIFE's trust grade for this metric.`;
+  }
+
+  // Render the SVG health-score ring. Circumference = 2πr = 2π·38 ≈ 238.76.
+  // stroke-dasharray is set to (score/100 * circumference) so the arc fills
+  // proportionally. Animated via CSS transition on --fl-ring-len.
+  function healthRingHtml(score) {
+    const safe = Math.max(0, Math.min(100, typeof score === "number" ? score : 0));
+    const circumference = 238.76;
+    const len = (safe / 100) * circumference;
+    const display = typeof score === "number" ? Math.round(score) : "—";
+    return `
+      <div class="fl-health-ring" aria-label="Health score ${display}">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="fl-ring-bg" cx="50" cy="50" r="38"/>
+          <circle class="fl-ring-fg" cx="50" cy="50" r="38" style="--fl-ring-len:${len.toFixed(2)}"/>
+        </svg>
+        <div class="fl-ring-center">
+          <div class="fl-ring-v">${escapeHtml(String(display))}</div>
+          <div class="fl-ring-k">Health</div>
+        </div>
+      </div>`;
+  }
+
+  // Fetch + render contract-safety checklist. Data is cached for 10 min
+  // on the server so hammering it from the overlay is safe. Module-level
+  // cache de-dupes rapid panel toggles for the same token.
+  const _contractCache = new Map();
+  async function fetchContractRisk(address) {
+    if (!address) return null;
+    const key = address.toLowerCase();
+    if (_contractCache.has(key)) return _contractCache.get(key);
+    try {
+      const r = await fetch(`${API_BASE}/api/token/${key}/contract-risk`, { cache: "no-store" });
+      if (!r.ok) { _contractCache.set(key, null); return null; }
+      const data = await r.json();
+      _contractCache.set(key, data);
+      return data;
+    } catch {
+      _contractCache.set(key, null);
+      return null;
+    }
+  }
+
+  const CHECK_OK_SVG = `<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 10 9 15 16 6"/></svg>`;
+  const CHECK_BAD_SVG = `<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg>`;
+  const CHECK_UNKNOWN_SVG = `<svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><line x1="10" y1="14" x2="10" y2="10"/><circle cx="10" cy="7" r="0.8" fill="currentColor"/></svg>`;
+
+  // Snapshot-history fetcher + sparkline. Pulls the last 30 snapshots so
+  // we have enough points for a meaningful line without overwhelming the
+  // panel. Module-level cache for 60s so re-opening the panel doesn't
+  // re-fetch on every click.
+  const _historyCache = new Map();
+  async function fetchHistory(address) {
+    if (!address) return null;
+    const key = address.toLowerCase();
+    const cached = _historyCache.get(key);
+    const now = Date.now();
+    if (cached && (now - cached.at) < 60_000) return cached.data;
+    try {
+      const r = await fetch(`${API_BASE}/api/token/${key}/history?limit=30`, { cache: "no-store" });
+      if (!r.ok) { _historyCache.set(key, { data: null, at: now }); return null; }
+      const data = await r.json();
+      _historyCache.set(key, { data, at: now });
+      return data;
+    } catch {
+      _historyCache.set(key, { data: null, at: now });
+      return null;
+    }
+  }
+
+  function formatRelative(ts) {
+    if (!ts) return "—";
+    const ageSec = Math.max(0, (Date.now() / 1000) - Number(ts));
+    if (ageSec < 60) return `${Math.round(ageSec)}s ago`;
+    if (ageSec < 3600) return `${Math.round(ageSec / 60)}m ago`;
+    if (ageSec < 86_400) return `${Math.round(ageSec / 3600)}h ago`;
+    return `${Math.round(ageSec / 86_400)}d ago`;
+  }
+
+  function historySparklineHtml(history) {
+    if (!history || !Array.isArray(history.snapshots)) return "";
+    // The API returns newest-first; reverse for left-to-right time axis.
+    const snaps = history.snapshots.slice().reverse();
+    if (snaps.length < 2) return "";
+    const W = 420, H = 60, PAD_X = 2, PAD_Y = 4;
+    const xs = snaps.map((s, i) => PAD_X + (i / (snaps.length - 1)) * (W - 2 * PAD_X));
+    const ys = snaps.map((s) => {
+      const v = Math.max(0, Math.min(100, Number(s?.metrics?.curve_progress_pct ?? 0)));
+      return H - PAD_Y - (v / 100) * (H - 2 * PAD_Y);
+    });
+    const linePts = xs.map((x, i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ");
+    const fillPts = `${xs[0].toFixed(1)},${H} ${linePts} ${xs[xs.length - 1].toFixed(1)},${H}`;
+    // Tick row — one tile per snapshot, colored by the tier at that point.
+    const ticks = snaps.map((s) => `<div class="fl-spark-tick" data-tier="${escapeHtml(s.tier || "")}" title="${escapeHtml((s.tier || "").replace("_", " "))} · ${escapeHtml(formatRelative(s.recorded_at || s.timestamp))}"></div>`).join("");
+    const firstTs = snaps[0]?.recorded_at || snaps[0]?.timestamp;
+    const lastTs = snaps[snaps.length - 1]?.recorded_at || snaps[snaps.length - 1]?.timestamp;
+    const tiersSeen = Array.from(new Set(snaps.map(s => s.tier).filter(Boolean)));
+    const legendColors = { healthy: "#6cff32", graduation_watch: "#00d4ff", graduated: "#a855f7", observed: "#eab308", at_risk: "#ef4444" };
+    const legendHtml = tiersSeen.map(t => `<span><i style="background:${legendColors[t] || "rgba(255,255,255,0.3)"}"></i>${escapeHtml(t.replace("_", " "))}</span>`).join("");
+    return `
+      <div class="fl-spark" role="region" aria-label="Snapshot history">
+        <div class="fl-spark-head">
+          <span>Snapshot history · ${snaps.length}</span>
+          <span class="fl-spark-range">${escapeHtml(formatRelative(firstTs))} → now</span>
+        </div>
+        <svg class="fl-spark-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="fl-spark-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#00d4ff"/>
+              <stop offset="100%" stop-color="#6cff32"/>
+            </linearGradient>
+            <linearGradient id="fl-spark-fill-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon class="fl-spark-fill" points="${fillPts}"/>
+          <polyline class="fl-spark-line" points="${linePts}"/>
+        </svg>
+        <div class="fl-spark-axis"><span>Curve progress %</span><span>${history.count || snaps.length} pts</span></div>
+        <div class="fl-spark-ticks" aria-label="Tier transitions">${ticks}</div>
+        ${legendHtml ? `<div class="fl-spark-legend">${legendHtml}</div>` : ""}
+      </div>`;
+  }
+
+  function contractSafetyHtml(cr) {
+    if (!cr || cr.error) return "";
+    // Build the 6 checks. Each row is {ok: true|false|null (unknown), label}.
+    // "ok" means safe (green ✓); "bad" means risky (red ✗); null means
+    // unknown (muted ? icon).
+    const rows = [
+      { st: cr.is_verified_on_bscscan ? "ok" : "bad", label: cr.is_verified_on_bscscan ? "Source verified on BscScan" : "Source unverified on BscScan" },
+      { st: cr.has_mint_function === false ? "ok" : cr.has_mint_function === true ? "bad" : "unknown", label: cr.has_mint_function === true ? "Has mint function" : cr.has_mint_function === false ? "No mint function" : "Mint status unknown" },
+      { st: cr.has_blacklist === false ? "ok" : cr.has_blacklist === true ? "bad" : "unknown", label: cr.has_blacklist === true ? "Has blacklist" : cr.has_blacklist === false ? "No blacklist" : "Blacklist unknown" },
+      { st: cr.has_pause === false ? "ok" : cr.has_pause === true ? "bad" : "unknown", label: cr.has_pause === true ? "Has pause function" : cr.has_pause === false ? "No pause function" : "Pause unknown" },
+      { st: cr.is_proxy === false ? "ok" : cr.is_proxy === true ? "warn" : "unknown", label: cr.is_proxy === true ? "Upgradable proxy" : cr.is_proxy === false ? "Not a proxy" : "Proxy status unknown" },
+      { st: cr.owner_is_renounced === true ? "ok" : cr.has_ownership === false ? "ok" : cr.owner_is_renounced === false ? "warn" : "unknown", label: cr.owner_is_renounced === true ? "Ownership renounced" : cr.has_ownership === false ? "No owner role" : cr.owner_is_renounced === false ? "Owner still controls" : "Ownership unknown" },
+    ];
+    const iconFor = (st) => st === "ok" ? CHECK_OK_SVG : st === "bad" || st === "warn" ? CHECK_BAD_SVG : CHECK_UNKNOWN_SVG;
+    const score = typeof cr.risk_score === "number" ? cr.risk_score : null;
+    // risk_score: 0 = clean, higher = riskier. Color threshold matches
+    // the evidence severity bands used elsewhere.
+    const scoreColor = score === null ? "#6cff32"
+      : score >= 50 ? "#ef4444"
+      : score >= 20 ? "#ffd641"
+      : "#6cff32";
+    return `
+      <div class="fl-contract" style="--fl-contract-color:${scoreColor}" role="region" aria-label="Contract safety">
+        <div class="fl-contract-head">
+          <span>Contract safety</span>
+          ${score === null ? "" : `<span class="fl-contract-score">Risk ${score}/100</span>`}
+        </div>
+        <div class="fl-contract-list">
+          ${rows.map(r => `<div class="fl-contract-row" data-st="${r.st}"><span class="fl-contract-ico">${iconFor(r.st)}</span>${escapeHtml(r.label)}</div>`).join("")}
+        </div>
+      </div>`;
+  }
+
   function renderWhyTable(why) {
     if (!Array.isArray(why) || why.length === 0) {
       return `<div class="fl-empty">No rule trace returned.</div>`;
@@ -676,11 +1146,12 @@
       const valueStr = formatMetric(r.metric, r.value);
       const thresholdStr = String(r.threshold ?? "");
       const opStr = r.operator || "";
+      const explain = explainRule(r.rule);
       return `
         <div class="fl-rule" data-passed="${passed ? "true" : "false"}">
           <span class="fl-rule-ico" aria-hidden="true">${passed ? "✓" : "✗"}</span>
           <div class="fl-rule-body">
-            <div class="fl-rule-name">${escapeHtml(humanRuleName(r.rule))}</div>
+            <div class="fl-rule-name">${escapeHtml(humanRuleName(r.rule))}<span class="fl-rule-info" tabindex="0" role="button" aria-label="What does this rule mean?">i<span class="fl-rule-tip">${escapeHtml(explain)}</span></span></div>
             <div class="fl-rule-meta"><code>${escapeHtml(r.metric || "")}</code> = <code>${escapeHtml(valueStr)}</code><span class="fl-rule-op">${escapeHtml(opStr)}</span><code>${escapeHtml(thresholdStr)}</code></div>
           </div>
           <span class="fl-rule-verdict">${passed ? "Pass" : "Fail"}</span>
@@ -757,8 +1228,30 @@
     document.removeEventListener("keydown", onKeyDown);
   }
 
+  // Keyboard shortcuts for the open panel. Fires only while an overlay
+  // is mounted. We guard against firing inside form inputs so the page's
+  // own search fields keep working. Modifier keys bypass us entirely.
   function onKeyDown(e) {
-    if (e.key === "Escape") close();
+    if (e.key === "Escape") { close(); return; }
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const tag = (e.target?.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || e.target?.isContentEditable) return;
+    const root = window.FourLife?.getShadowRoot?.();
+    if (!root) return;
+    const key = e.key.toLowerCase();
+    if (key === "f") {
+      const btn = root.getElementById("fl-max");
+      if (btn) { e.preventDefault(); btn.click(); }
+    } else if (key === "w") {
+      const btn = root.getElementById("fl-watch");
+      if (btn) { e.preventDefault(); btn.click(); }
+    } else if (key === "c") {
+      const btn = root.getElementById("fl-copy");
+      if (btn) { e.preventDefault(); btn.click(); }
+    } else if (key === "s") {
+      const a = root.querySelector('.fl-action[data-action="share"]');
+      if (a) { e.preventDefault(); a.click(); }
+    }
   }
 
   // ── Agent-context fetch ─────────────────────────────────────────────
@@ -937,6 +1430,9 @@
     const shareUrl = "https://twitter.com/intent/tweet?text=" + encodeURIComponent(shareText);
     const proofUrl = `${API_BASE}/proof`;
     const agentUrl = `https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1`;
+    // One-click PancakeSwap deep link with the token pre-selected as the
+    // output currency. Safer than dropping users on a generic swap page.
+    const swapUrl = `https://pancakeswap.finance/swap?outputCurrency=${address}`;
 
     // Headline metrics surfaced in the hero. Pulls from metrics_snapshot
     // so the hero stays honest about what's measured vs what's missing.
@@ -963,18 +1459,18 @@
         : ageHours < 1 ? `${Math.round(ageHours * 60)}m`
         : ageHours < 48 ? `${ageHours.toFixed(1)}h`
         : `${(ageHours / 24).toFixed(1)}d`;
+      // Certified hero: animated health ring on the left, 2 chips stacked right.
       heroChipsHtml = `
-        <div class="fl-hero-chip">
-          <div class="fl-hero-chip-v">${healthScore === null ? "—" : formatChip(healthScore, 0)}</div>
-          <div class="fl-hero-chip-k">Health</div>
-        </div>
-        <div class="fl-hero-chip">
-          <div class="fl-hero-chip-v">${curvePct === null ? "—" : `${formatChip(curvePct, 1)}%`}</div>
-          <div class="fl-hero-chip-k">Curve</div>
-        </div>
-        <div class="fl-hero-chip">
-          <div class="fl-hero-chip-v">${ageStr}</div>
-          <div class="fl-hero-chip-k">Age</div>
+        ${healthRingHtml(healthScore)}
+        <div class="fl-hero-chip-stack">
+          <div class="fl-hero-chip">
+            <div class="fl-hero-chip-v">${curvePct === null ? "—" : `${formatChip(curvePct, 1)}%`}</div>
+            <div class="fl-hero-chip-k">Curve</div>
+          </div>
+          <div class="fl-hero-chip">
+            <div class="fl-hero-chip-v">${ageStr}</div>
+            <div class="fl-hero-chip-k">Age</div>
+          </div>
         </div>`;
     } else {
       const holders = typeof ms.unique_buyers === "number" ? ms.unique_buyers : null;
@@ -1000,19 +1496,19 @@
           <div class="fl-header">
             <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.16em;color:rgba(255,255,255,0.4);font-weight:700">FOUR-LIFE</span>
             <div style="display:flex; gap:8px; align-items:center">
-              <button class="fl-watch" id="fl-watch" aria-pressed="false" title="Get Chrome notifications when this token's tier transitions">
+              <button class="fl-watch" id="fl-watch" aria-pressed="false" title="Watch for tier transitions (W)">
                 <span class="fl-watch-icon">☆</span><span class="fl-watch-label">Watch</span>
               </button>
-              <button class="fl-max" id="fl-max" aria-pressed="false" aria-label="Maximize panel" title="Maximize">
+              <button class="fl-max" id="fl-max" aria-pressed="false" aria-label="Maximize panel" title="Maximize (F)">
                 <svg class="fl-max-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10V4h6"/><path d="M20 14v6h-6"/><path d="M4 4l7 7"/><path d="M20 20l-7-7"/></svg>
                 <svg class="fl-max-collapse" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v6H4"/><path d="M14 20v-6h6"/><path d="M10 10L3 3"/><path d="M14 14l7 7"/></svg>
               </button>
-              <button class="fl-close" id="fl-close" aria-label="Close">×</button>
+              <button class="fl-close" id="fl-close" aria-label="Close" title="Close (Esc)">×</button>
             </div>
           </div>
           <div class="fl-watch-toast" id="fl-watch-toast" role="status" aria-live="polite"></div>
 
-          <div class="fl-hero" style="--fl-tier-color:${heroTierColor}">
+          <div class="fl-hero ${isCertified ? "fl-hero-certified" : ""}" style="--fl-tier-color:${heroTierColor}">
             <div class="fl-hero-kicker">${heroKicker}</div>
             <h2 class="fl-hero-label">${escapeHtml(label)}</h2>
             <p class="fl-hero-sub">${escapeHtml(desc)}</p>
@@ -1020,10 +1516,15 @@
           </div>
 
           ${sourceNote}
-          <div class="fl-addr">${escapeHtml(address)}</div>
+          <div class="fl-addr">
+            <span class="fl-addr-val">${escapeHtml(address)}</span>
+            <button class="fl-copy" id="fl-copy" type="button" aria-label="Copy token address" data-copied="false" title="Copy address (C)">Copy</button>
+          </div>
 
           <div id="fl-agent-ctx-slot"></div>
           <div id="fl-creator-slot"></div>
+          <div id="fl-contract-slot"></div>
+          <div id="fl-history-slot"></div>
 
           <h3>Rule trace</h3>
           ${renderWhyTable(why)}
@@ -1033,13 +1534,14 @@
 
           <div class="fl-footer">
             <div class="fl-actions">
-              <a class="fl-action primary" href="${escapeHtml(shareUrl)}" target="_blank" rel="noopener noreferrer" data-action="share">
+              <a class="fl-action primary" href="${escapeHtml(shareUrl)}" target="_blank" rel="noopener noreferrer" data-action="share" title="Share verdict to X (S)">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                 Share verdict
               </a>
-              <a class="fl-action" href="${escapeHtml(radarUrl)}" target="_blank" rel="noopener noreferrer">Open on FOUR-LIFE</a>
+              <a class="fl-action" href="${escapeHtml(swapUrl)}" target="_blank" rel="noopener noreferrer" title="Open on PancakeSwap">Swap ↗</a>
+              <a class="fl-action" href="${escapeHtml(radarUrl)}" target="_blank" rel="noopener noreferrer">FOUR-LIFE</a>
               <a class="fl-action" href="${escapeHtml(proofUrl)}" target="_blank" rel="noopener noreferrer">/proof</a>
-              <a class="fl-action" href="${escapeHtml(agentUrl)}" target="_blank" rel="noopener noreferrer">Agent wallet ↗</a>
+              <a class="fl-action" href="${escapeHtml(agentUrl)}" target="_blank" rel="noopener noreferrer">Agent ↗</a>
             </div>
           </div>
         </div>
@@ -1049,11 +1551,45 @@
     const closeBtn = root.getElementById("fl-close");
     const watchBtn = root.getElementById("fl-watch");
     const maxBtn = root.getElementById("fl-max");
+    const copyBtn = root.getElementById("fl-copy");
     const panel = wrap.querySelector(".fl-panel");
     const toast = root.getElementById("fl-watch-toast");
     if (scrim) scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
     document.addEventListener("keydown", onKeyDown);
+
+    // Copy-address — falls back to the legacy execCommand path if the
+    // clipboard API is blocked by the host page's permissions policy.
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        let ok = false;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(address);
+            ok = true;
+          }
+        } catch {}
+        if (!ok) {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = address;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+          } catch {}
+        }
+        copyBtn.dataset.copied = ok ? "true" : "false";
+        copyBtn.textContent = ok ? "Copied" : "Failed";
+        clearTimeout(copyBtn._t);
+        copyBtn._t = setTimeout(() => {
+          copyBtn.dataset.copied = "false";
+          copyBtn.textContent = "Copy";
+        }, 1800);
+      });
+    }
 
     // Maximize toggle — swaps the panel between 460px (drawer) and
     // min(1100px, 95vw) (wide). We persist the choice for the current
@@ -1151,6 +1687,24 @@
         if (slot) slot.innerHTML = creatorSectionHtml(creatorAddr, score);
       });
     }
+
+    // Contract safety — fire in parallel. Response cached server-side for
+    // 10min so this is cheap on repeat panel opens. Fills the slot when
+    // ready; stays hidden if the RPC/BscScan scan fails.
+    fetchContractRisk(address).then((cr) => {
+      const slot = root.getElementById("fl-contract-slot");
+      if (slot && cr && !cr.error) slot.innerHTML = contractSafetyHtml(cr);
+    });
+
+    // Snapshot history — sparkline of curve progress + tier-transition
+    // strip. Only renders when there are ≥2 snapshots so we don't show
+    // a misleading single-point "chart".
+    fetchHistory(address).then((hist) => {
+      const slot = root.getElementById("fl-history-slot");
+      if (slot && hist && Array.isArray(hist.snapshots) && hist.snapshots.length >= 2) {
+        slot.innerHTML = historySparklineHtml(hist);
+      }
+    });
   }
 
   window.FourLifeOverlay = { open, close };
