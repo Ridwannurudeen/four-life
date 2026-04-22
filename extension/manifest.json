@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "FOUR-LIFE Certified",
-  "version": "1.1.0",
-  "description": "Trust-grade every four.meme token. Watchlist + Chrome notifications when a tier transitions. Deterministic rule trace, on-chain attestation.",
+  "version": "1.2.0",
+  "description": "Trust-grade every Four.meme token on BNB Chain. Works on four.meme, BscScan, and PancakeSwap. Watchlist + Chrome notifications on tier transitions. Deterministic rule trace, on-chain attestation.",
   "permissions": [
     "activeTab",
     "storage",
@@ -11,6 +11,8 @@
   ],
   "host_permissions": [
     "https://four.meme/*",
+    "https://bscscan.com/*",
+    "https://pancakeswap.finance/*",
     "https://four-life.gudman.xyz/*"
   ],
   "background": {
@@ -18,7 +20,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://four.meme/*"],
+      "matches": [
+        "https://four.meme/*",
+        "https://bscscan.com/token/*",
+        "https://pancakeswap.finance/info/*",
+        "https://pancakeswap.finance/swap*"
+      ],
       "js": ["content/inject.js", "content/overlay.js"],
       "css": ["content/styles.css"],
       "run_at": "document_idle"
@@ -28,6 +35,12 @@
     "default_popup": "popup/popup.html",
     "default_title": "FOUR-LIFE Certified"
   },
+  "web_accessible_resources": [
+    {
+      "resources": ["onboarding/onboarding.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

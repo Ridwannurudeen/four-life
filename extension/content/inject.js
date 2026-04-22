@@ -61,10 +61,28 @@
   let lastRiskState = null;
 
   // ── Address extraction ─────────────────────────────────────────────
+  // Supports every site the manifest injects us into. Each pattern is tied
+  // to a specific host + path shape so we don't false-match arbitrary hex
+  // strings that happen to appear on some unrelated page.
+  const URL_PATTERNS = [
+    // four.meme/[en/]token/0x... (existing)
+    { host: /(?:^|\.)four\.meme$/i, re: /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/ },
+    // bscscan.com/token/0x...
+    { host: /(?:^|\.)bscscan\.com$/i, re: /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/ },
+    // pancakeswap.finance/info/tokens/0x... (v2 + v3)
+    { host: /(?:^|\.)pancakeswap\.finance$/i, re: /\/info\/(?:v\d+\/)?tokens?\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/ },
+    // pancakeswap.finance/swap?outputCurrency=0x...
+    { host: /(?:^|\.)pancakeswap\.finance$/i, re: /[?&]outputCurrency=(0x[0-9a-fA-F]{40})(?:[&#]|$)/ },
+  ];
   function extractTokenAddress(url) {
-    // Four.meme token page: https://four.meme/token/0x<40-hex>
-    const match = /\/token\/(0x[0-9a-fA-F]{40})(?:[/?#]|$)/.exec(url);
-    return match ? match[1].toLowerCase() : null;
+    let host = "";
+    try { host = new URL(url).hostname; } catch { return null; }
+    for (const { host: hre, re } of URL_PATTERNS) {
+      if (!hre.test(host)) continue;
+      const m = re.exec(url);
+      if (m && m[1]) return m[1].toLowerCase();
+    }
+    return null;
   }
 
   // ── API calls ──────────────────────────────────────────────────────
@@ -147,13 +165,17 @@
       ? "#9ca3af"
       : state === "error"
         ? "#6b7280"
-        : TIER_COLORS[tier] || "#9ca3af";
+        : state === "not_tracked"
+          ? "#6b7280"
+          : TIER_COLORS[tier] || "#9ca3af";
 
     const displayLabel = state === "loading"
       ? "analyzing…"
       : state === "error"
         ? "unavailable"
-        : label || TIER_FALLBACK_LABEL[tier] || "Observed";
+        : state === "not_tracked"
+          ? "Not a Four.meme launch"
+          : label || TIER_FALLBACK_LABEL[tier] || "Observed";
 
     root.innerHTML = "";
 
@@ -222,6 +244,15 @@
     lastBadgeState = badgeRes;
     lastRiskState = riskRes;
 
+    // API returned 404 with a body like {badge: null, reason: "..."} →
+    // the token isn't a Four.meme launch (or isn't in the ranking snapshot).
+    // Render a distinct "not-tracked" state instead of a generic error so
+    // BscScan / PancakeSwap visitors seeing ANY ERC-20 get an honest
+    // message rather than a misleading "unavailable".
+    if (badgeRes.status === 404 || (badgeRes.body && badgeRes.body.badge === null)) {
+      renderPill({ state: "not_tracked", address });
+      return;
+    }
     if (!badgeRes.ok || !badgeRes.body?.badge) {
       renderPill({ state: "error", address });
       return;

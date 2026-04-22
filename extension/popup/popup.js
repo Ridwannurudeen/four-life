@@ -65,6 +65,16 @@
   document.addEventListener("click", (e) => {
     const a = e.target.closest("a[href]");
     if (!a) return;
+    // Dedicated tour link — opens the extension's bundled onboarding page.
+    if (a.id === "open-onboarding") {
+      e.preventDefault();
+      const url = chrome?.runtime?.getURL
+        ? chrome.runtime.getURL("onboarding/onboarding.html")
+        : "onboarding/onboarding.html";
+      openInTab(url);
+      window.close();
+      return;
+    }
     if (a.target === "_blank") {
       e.preventDefault();
       openInTab(a.href);

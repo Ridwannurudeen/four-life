@@ -207,8 +207,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // ── Lifecycle hooks ────────────────────────────────────────────────────
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   ensureAlarm();
+  // Fresh install → show the 3-step onboarding page. Update / chrome_update /
+  // shared_module_update don't reopen the tour — we don't want to re-spam
+  // existing users every extension refresh.
+  if (details?.reason === "install") {
+    try {
+      chrome.tabs.create({ url: chrome.runtime.getURL("onboarding/onboarding.html") });
+    } catch { /* if tab creation fails (e.g. no permission on some platform) the install still succeeds */ }
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {

@@ -328,11 +328,39 @@ body {
 
 /* ── Empty state ── */
 .empty {
-  padding: 14px;
+  padding: 16px 14px;
   text-align: center;
   color: var(--text-faint);
   font-size: 11px;
   background: var(--bg-card);
   border: 1px dashed var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
 }
+.empty-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.empty-sub {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.empty .star {
+  color: var(--yellow);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.empty-link {
+  display: inline-block;
+  padding: 5px 11px;
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+  color: var(--bg);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 11px;
+  border-radius: 6px;
+}
+.empty-link:hover { filter: brightness(1.08); }

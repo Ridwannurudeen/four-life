@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Welcome · FOUR-LIFE Certified</title>
+  <link rel="icon" href="../icons/icon-128.png" />
+  <link rel="stylesheet" href="onboarding.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="hdr">
+      <div class="brand">
+        <img class="logo" src="../icons/icon-128.png" alt="FOUR-LIFE logo" width="44" height="44" />
+        <div class="brand-text">
+          <h1>FOUR-LIFE Certified</h1>
+          <p class="sub">Trust layer for Four.meme tokens · BNB Chain</p>
+        </div>
+      </div>
+      <a class="hdr-link" href="https://four-life.gudman.xyz" target="_blank" rel="noopener noreferrer">four-life.gudman.xyz ↗</a>
+    </header>
+
+    <section class="hero">
+      <div class="hero-tag">Installed · v1.2.0 · 3-minute tour</div>
+      <h2>Deterministic trust grading, wherever you browse BNB Chain tokens.</h2>
+      <p class="lede">
+        The extension injects a <strong>FOUR-LIFE Certified</strong> badge onto every
+        <span class="tag">four.meme</span>, <span class="tag">BscScan</span>, and
+        <span class="tag">PancakeSwap</span> token page. Every tier comes with a full
+        rule trace and live on-chain attestation evidence — no black-box verdicts.
+      </p>
+    </section>
+
+    <section class="steps">
+      <article class="step">
+        <div class="step-num">1</div>
+        <h3>Click the toolbar icon → see live agent state</h3>
+        <p>Agent ID, active tokens, latest on-chain attestation roots, top radar entries — auto-refreshed every 20 seconds.</p>
+        <div class="step-art art-popup" aria-hidden="true">
+          <div class="fake-popup">
+            <div class="fake-hdr">
+              <span class="fake-logo"></span>
+              <span class="fake-name">FOUR-LIFE</span>
+              <span class="fake-status">● Agent live</span>
+            </div>
+            <div class="fake-grid">
+              <div class="fake-stat"><span class="k">Agent ID</span><span class="v">#20</span></div>
+              <div class="fake-stat"><span class="k">Active</span><span class="v">11</span></div>
+              <div class="fake-stat"><span class="k">DGrid</span><span class="v">1,866</span></div>
+              <div class="fake-stat"><span class="k">MYX</span><span class="v">574</span></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="step">
+        <div class="step-num">2</div>
+        <h3>Visit any BNB Chain token page</h3>
+        <p>A pill appears in the top-right. Click it for the full rule trace, risk evidence, and links to the agent's on-chain Merkle roots.</p>
+        <div class="supported">
+          <a href="https://four.meme/en/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
+            <span class="dot green"></span> four.meme / $AUNT
+          </a>
+          <a href="https://bscscan.com/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
+            <span class="dot cyan"></span> BscScan / $AUNT
+          </a>
+          <a href="https://pancakeswap.finance/info/tokens/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" class="supported-link">
+            <span class="dot yellow"></span> PancakeSwap info
+          </a>
+        </div>
+        <p class="note">
+          <strong>Certified vs Radar Estimate:</strong> a Certified tier is only issued when the agent has full on-chain measurement (buy/sell events, whale distribution, holder velocity). Tokens visible only via public ranking get a <em>Radar Estimate</em> with a distinct version string and explicit "heuristic only" banner. The pill, the modal, and the Chrome notifications all discriminate — no heuristic gets labeled as Certified.
+        </p>
+      </article>
+
+      <article class="step">
+        <div class="step-num">3</div>
+        <h3>Star tokens → Chrome alerts on tier changes</h3>
+        <p>Click <span class="star">★</span> <strong>Watch</strong> on any token's panel. When its tier transitions (healthy → at_risk, or radar_estimate → certified upgrade), a native Chrome notification fires. Click it to open the token's full evidence page.</p>
+        <div class="perms">
+          <strong>Permissions we ask for:</strong>
+          <span class="pill">activeTab</span>
+          <span class="pill">storage</span>
+          <span class="pill">alarms</span>
+          <span class="pill">notifications</span>
+          <span class="muted">— no tracking, no analytics, no auth. Watchlist syncs across devices via <code>chrome.storage.sync</code>.</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="cta-row">
+      <a class="cta cta-primary" href="https://four.meme/en/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444" target="_blank" rel="noopener noreferrer" id="cta-demo">
+        Try it now on $AUNT →
+      </a>
+      <a class="cta" href="https://four-life.gudman.xyz/proof" target="_blank" rel="noopener noreferrer">
+        See the live proof surface
+      </a>
+      <a class="cta ghost" href="https://github.com/Ridwannurudeen/four-life" target="_blank" rel="noopener noreferrer">
+        GitHub
+      </a>
+    </section>
+
+    <footer class="ftr">
+      <span>MIT · ERC-8004 Agent ID 20 · <a href="https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1" target="_blank" rel="noopener noreferrer">Agent wallet</a></span>
+      <button class="btn-close" id="btn-close">Close this tab</button>
+    </footer>
+  </main>
+  <script src="onboarding.js"></script>
+</body>
+</html>
