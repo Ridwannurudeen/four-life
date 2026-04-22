@@ -46,23 +46,35 @@
       width: min(1100px, 95vw);
       max-width: 95vw;
     }
+    /* Expand/collapse toggle — matches the Watch button's shape so it
+       reads as a peer, not a hidden icon. Visible on every panel open. */
     .fl-max {
       background: transparent;
       border: 1px solid rgba(255,255,255,0.1);
       color: rgba(255,255,255,0.7);
       border-radius: 8px;
-      width: 30px; height: 30px;
+      height: 30px;
+      padding: 0 10px;
       cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      padding: 0;
+      gap: 5px;
+      font-family: inherit;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
     }
     .fl-max:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
-    .fl-max svg { display: block; }
+    .fl-max[aria-pressed="true"] {
+      color: #00d4ff;
+      border-color: rgba(0, 212, 255, 0.4);
+      background: rgba(0, 212, 255, 0.08);
+    }
+    .fl-max svg { display: block; flex-shrink: 0; }
     /* Swap glyphs based on panel state: expand icon when restored,
-       collapse icon when maximized. Visible SVGs are controlled via
-       aria-pressed on the button. */
+       collapse icon when maximized. Label swaps via data-* so both
+       are always sized even during transition. */
     .fl-max[aria-pressed="false"] .fl-max-collapse,
     .fl-max[aria-pressed="true"]  .fl-max-expand { display: none; }
     .fl-panel h2 {
@@ -1500,8 +1512,9 @@
                 <span class="fl-watch-icon">☆</span><span class="fl-watch-label">Watch</span>
               </button>
               <button class="fl-max" id="fl-max" aria-pressed="false" aria-label="Maximize panel" title="Maximize (F)">
-                <svg class="fl-max-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10V4h6"/><path d="M20 14v6h-6"/><path d="M4 4l7 7"/><path d="M20 20l-7-7"/></svg>
-                <svg class="fl-max-collapse" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v6H4"/><path d="M14 20v-6h6"/><path d="M10 10L3 3"/><path d="M14 14l7 7"/></svg>
+                <svg class="fl-max-expand" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10V4h6"/><path d="M20 14v6h-6"/><path d="M4 4l7 7"/><path d="M20 20l-7-7"/></svg>
+                <svg class="fl-max-collapse" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v6H4"/><path d="M14 20v-6h6"/><path d="M10 10L3 3"/><path d="M14 14l7 7"/></svg>
+                <span class="fl-max-label">Expand</span>
               </button>
               <button class="fl-close" id="fl-close" aria-label="Close" title="Close (Esc)">×</button>
             </div>
@@ -1604,7 +1617,9 @@
       panel.classList.toggle("fl-maximized", m);
       maxBtn.setAttribute("aria-pressed", m ? "true" : "false");
       maxBtn.setAttribute("aria-label", m ? "Restore panel" : "Maximize panel");
-      maxBtn.setAttribute("title", m ? "Restore" : "Maximize");
+      maxBtn.setAttribute("title", m ? "Restore (F)" : "Maximize (F)");
+      const lbl = maxBtn.querySelector(".fl-max-label");
+      if (lbl) lbl.textContent = m ? "Shrink" : "Expand";
     };
     applyMaximized(isMaximized);
     if (maxBtn) {

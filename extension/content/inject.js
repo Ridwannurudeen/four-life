@@ -191,13 +191,25 @@
     }
   }
 
+  // Bump on every extension release that touches the shadow DOM or CSS.
+  // If a reused host has a different version tag, we tear it down and
+  // rebuild with the fresh stylesheet so extension reloads without a
+  // hard tab refresh still pick up new UI.
+  const HOST_VERSION = "1.4.1";
+
   // ── Shadow DOM host ────────────────────────────────────────────────
   function ensureHost() {
     let host = document.getElementById(HOST_ID);
-    if (host && host.shadowRoot) return host;
+    if (host && host.shadowRoot) {
+      if (host.dataset.flVersion === HOST_VERSION) return host;
+      // Stale host from a previous extension version — rebuild.
+      host.remove();
+      host = null;
+    }
 
     host = document.createElement("div");
     host.id = HOST_ID;
+    host.dataset.flVersion = HOST_VERSION;
     host.style.position = "fixed";
     host.style.top = "16px";
     host.style.right = "16px";

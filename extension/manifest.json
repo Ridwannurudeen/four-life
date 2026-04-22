@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FOUR-LIFE Certified",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Trust-grade every Four.meme token on BNB Chain. Works on four.meme, BscScan, PancakeSwap, and DEXScreener. Watchlist + Chrome notifications on tier transitions. Deterministic rule trace, on-chain attestation.",
   "permissions": [
     "activeTab",
