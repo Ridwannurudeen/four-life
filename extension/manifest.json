@@ -1,9 +1,14 @@
 {
   "manifest_version": 3,
   "name": "FOUR-LIFE Certified",
-  "version": "1.0.0",
-  "description": "Shows the FOUR-LIFE Certified trust badge and deterministic risk snapshot on every four.meme token page.",
-  "permissions": ["activeTab"],
+  "version": "1.1.0",
+  "description": "Trust-grade every four.meme token. Watchlist + Chrome notifications when a tier transitions. Deterministic rule trace, on-chain attestation.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "alarms",
+    "notifications"
+  ],
   "host_permissions": [
     "https://four.meme/*",
     "https://four-life.gudman.xyz/*"

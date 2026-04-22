@@ -69,6 +69,51 @@
       line-height: 1;
     }
     .fl-close:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+
+    /* Watch toggle — star button in the header that subscribes the token
+       for Chrome notifications on tier transitions. Active state is gold. */
+    .fl-watch {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.55);
+      border-radius: 8px;
+      height: 30px;
+      padding: 0 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .fl-watch:hover { color: #fff; border-color: rgba(255,255,255,0.25); }
+    .fl-watch[aria-pressed="true"] {
+      color: #ffd641;
+      border-color: rgba(255, 214, 65, 0.45);
+      background: rgba(255, 214, 65, 0.08);
+    }
+    .fl-watch-toast {
+      position: absolute;
+      top: 52px;
+      right: 22px;
+      padding: 7px 12px;
+      background: rgba(10,10,14,0.96);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+      pointer-events: none;
+    }
+    .fl-watch-toast[data-visible="true"] {
+      opacity: 1;
+      transform: translateY(0);
+    }
     .fl-tier-chip {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 6px 12px;
@@ -446,8 +491,14 @@
               <span class="fl-tier-dot" style="background:${tierColor(tier)}"></span>
               ${escapeHtml(label)}
             </span>
-            <button class="fl-close" id="fl-close" aria-label="Close">×</button>
+            <div style="display:flex; gap:8px; align-items:center">
+              <button class="fl-watch" id="fl-watch" aria-pressed="false" title="Get Chrome notifications when this token's tier transitions">
+                <span class="fl-watch-icon">☆</span><span class="fl-watch-label">Watch</span>
+              </button>
+              <button class="fl-close" id="fl-close" aria-label="Close">×</button>
+            </div>
           </div>
+          <div class="fl-watch-toast" id="fl-watch-toast" role="status" aria-live="polite"></div>
           <h2>${escapeHtml(headingText)}</h2>
           ${sourceNote}
           <p class="fl-desc">${escapeHtml(desc)}</p>
@@ -477,9 +528,66 @@
 
     const scrim = root.getElementById("fl-scrim");
     const closeBtn = root.getElementById("fl-close");
+    const watchBtn = root.getElementById("fl-watch");
+    const toast = root.getElementById("fl-watch-toast");
     if (scrim) scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
     if (closeBtn) closeBtn.addEventListener("click", close);
     document.addEventListener("keydown", onKeyDown);
+
+    // Watch-toggle wiring — talks to the service worker via chrome.runtime
+    // messages. Unavailable in standalone dev contexts (no extension host);
+    // gracefully no-ops in that case.
+    if (watchBtn && chrome?.runtime?.sendMessage) {
+      const setBtnState = (watching) => {
+        watchBtn.setAttribute("aria-pressed", watching ? "true" : "false");
+        const icon = watchBtn.querySelector(".fl-watch-icon");
+        const lbl = watchBtn.querySelector(".fl-watch-label");
+        if (icon) icon.textContent = watching ? "★" : "☆";
+        if (lbl) lbl.textContent = watching ? "Watching" : "Watch";
+        watchBtn.title = watching
+          ? "You will get a Chrome notification when this tier transitions. Click to stop watching."
+          : "Get Chrome notifications when this token's tier transitions";
+      };
+      const showToast = (msg) => {
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.dataset.visible = "true";
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => { toast.dataset.visible = "false"; }, 2400);
+      };
+
+      // Initial state check.
+      chrome.runtime.sendMessage({ type: "fl:watch:is-watching", address }, (resp) => {
+        if (resp?.ok) setBtnState(!!resp.watching);
+      });
+
+      watchBtn.addEventListener("click", () => {
+        chrome.runtime.sendMessage({ type: "fl:watch:is-watching", address }, (resp) => {
+          const isWatching = !!(resp?.ok && resp.watching);
+          const msgType = isWatching ? "fl:watch:remove" : "fl:watch:add";
+          chrome.runtime.sendMessage({ type: msgType, address }, (r) => {
+            if (!r?.ok) {
+              showToast(r?.reason === "limit"
+                ? `Watchlist full (${r.limit}). Remove one to add another.`
+                : "Couldn't update watchlist.");
+              return;
+            }
+            if (msgType === "fl:watch:add") {
+              if (r.reason === "already_watching") {
+                setBtnState(true);
+                showToast("Already watching.");
+              } else {
+                setBtnState(true);
+                showToast("Watching. Chrome will notify on tier changes.");
+              }
+            } else {
+              setBtnState(false);
+              showToast("Removed from watchlist.");
+            }
+          });
+        });
+      });
+    }
 
     // Fire agent-context fetch lazily — fills the slot when ready; doesn't
     // block the panel render if the API is slow.

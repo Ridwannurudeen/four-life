@@ -134,6 +134,56 @@
     }
   };
 
+  const renderWatchlist = (watchlist) => {
+    const host = $("#watch-list");
+    const empty = $("#watch-empty");
+    const count = $("#watch-count");
+    if (!host) return;
+
+    const entries = Object.entries(watchlist || {});
+    if (count) count.textContent = String(entries.length);
+
+    if (entries.length === 0) {
+      host.innerHTML = "";
+      if (empty) host.appendChild(empty);
+      return;
+    }
+
+    host.innerHTML = "";
+    // Sort: most-recent last_seen first. That pushes tokens the poller
+    // has actually hit to the top.
+    entries.sort((a, b) => (b[1].last_seen_ms || 0) - (a[1].last_seen_ms || 0));
+
+    for (const [addr, data] of entries) {
+      const tier = data.tier || "observed";
+      const source = data.tier_source || "certified";
+      const sym = data.symbol || short(addr, 4, 4);
+      const row = el("a", {
+        class: "row",
+        href: "https://four.meme/en/token/" + addr,
+        target: "_blank",
+        rel: "noopener noreferrer",
+      }, [
+        el("span", {
+          class: "tier-chip",
+          dataset: { tier, source },
+          title: source === "certified"
+            ? "Certified — full on-chain data"
+            : "Radar Estimate — public-ranking heuristic, not a Certified tier",
+        }, [
+          el("span", { class: "tchip-dot" }),
+          el("span", { text: (tier || "").replace("_", " ") }),
+        ]),
+        el("span", { class: "row-body" }, [
+          el("span", { class: "row-sym", text: String(sym).slice(0, 12) }),
+          el("span", { class: "row-addr", text: short(addr, 4, 4) }),
+        ]),
+        el("span", { class: "row-curve", text: "★" }),
+      ]);
+      host.appendChild(row);
+    }
+  };
+
   const renderRadar = (radar) => {
     const host = $("#radar-list");
     host.innerHTML = "";
@@ -175,16 +225,29 @@
 
   // ── Orchestrator ───────────────────────────────────────────────────
 
+  // Ask the service worker for the watchlist. Wrapped in a promise so it
+  // fits into the same Promise.all pattern as the HTTP fetches below.
+  const getWatchlist = () => new Promise((resolve) => {
+    if (!chrome?.runtime?.sendMessage) return resolve({});
+    try {
+      chrome.runtime.sendMessage({ type: "fl:watch:list" }, (resp) => {
+        resolve((resp?.ok && resp.watchlist) || {});
+      });
+    } catch { resolve({}); }
+  });
+
   const refresh = async () => {
-    const [status, dgridAudit, myxAttest, radar] = await Promise.all([
+    const [status, dgridAudit, myxAttest, radar, watchlist] = await Promise.all([
       fetchJson("/api/status"),
       fetchJson("/api/dgrid/audit"),
       fetchJson("/api/myx/signal-attestation"),
       fetchJson("/api/graduation-radar?limit=5"),
+      getWatchlist(),
     ]);
     renderStatus(status);
     renderChainCounts(dgridAudit, myxAttest);
     renderAttests(dgridAudit, myxAttest);
+    renderWatchlist(watchlist);
     renderRadar(radar);
   };
 
