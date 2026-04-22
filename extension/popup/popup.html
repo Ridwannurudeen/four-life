@@ -6,31 +6,75 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div class="wrap">
-    <div class="brand">
-      <div class="logo"></div>
-      <div class="brand-text">
-        <div class="name">FOUR-LIFE</div>
-        <div class="sub">Certified</div>
+  <div class="app" id="app">
+    <header class="hdr">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="brand-text">
+          <div class="name">FOUR-LIFE</div>
+          <div class="sub">Certified</div>
+        </div>
       </div>
-    </div>
+      <div class="status" id="status-rail">
+        <span class="status-dot" id="status-dot"></span>
+        <span class="status-label" id="status-label">Connecting…</span>
+      </div>
+    </header>
 
-    <p class="lede">
-      Visit any <strong>four.meme</strong> token page to see its deterministic trust grade — tier, rule trace, and risk evidence.
-    </p>
+    <section class="grid" id="stats-grid">
+      <div class="stat" data-k="agent-id">
+        <div class="k">Agent ID</div>
+        <div class="v" id="stat-agent-id">—</div>
+      </div>
+      <div class="stat" data-k="active">
+        <div class="k">Active tokens</div>
+        <div class="v" id="stat-active">—</div>
+      </div>
+      <div class="stat" data-k="dgrid">
+        <div class="k">DGrid calls chained</div>
+        <div class="v" id="stat-dgrid">—</div>
+      </div>
+      <div class="stat" data-k="myx">
+        <div class="k">MYX decisions chained</div>
+        <div class="v" id="stat-myx">—</div>
+      </div>
+    </section>
 
-    <div class="tiers">
-      <div class="tier"><span class="dot green"></span>Healthy / Graduation Watch / Graduated</div>
-      <div class="tier"><span class="dot yellow"></span>Observed</div>
-      <div class="tier"><span class="dot red"></span>At Risk</div>
-    </div>
+    <section class="attests" aria-labelledby="attests-hdr">
+      <div class="section-hdr" id="attests-hdr">
+        <span>Latest on-chain roots</span>
+        <a class="more" href="https://four-life.gudman.xyz/proof" target="_blank" rel="noopener noreferrer">/proof →</a>
+      </div>
+      <div class="pills" id="attest-pills">
+        <div class="pill pill-skel"></div>
+        <div class="pill pill-skel"></div>
+      </div>
+    </section>
 
-    <a class="cta" id="open-radar" href="https://four-life.gudman.xyz/radar" target="_blank" rel="noopener noreferrer">
-      Open FOUR-LIFE Radar →
-    </a>
+    <section aria-labelledby="radar-hdr">
+      <div class="section-hdr" id="radar-hdr">
+        <span>Radar — live grading</span>
+        <a class="more" href="https://four-life.gudman.xyz/radar" target="_blank" rel="noopener noreferrer">/radar →</a>
+      </div>
+      <div class="radar" id="radar-list">
+        <div class="row row-skel"></div>
+        <div class="row row-skel"></div>
+        <div class="row row-skel"></div>
+        <div class="row row-skel"></div>
+        <div class="row row-skel"></div>
+      </div>
+    </section>
 
-    <div class="foot">four-life.gudman.xyz</div>
+    <footer class="ftr">
+      <a class="btn" href="https://four-life.gudman.xyz/dashboard" target="_blank" rel="noopener noreferrer">Dashboard</a>
+      <a class="btn" href="https://four-life.gudman.xyz/docs" target="_blank" rel="noopener noreferrer">API</a>
+      <a class="btn" href="https://github.com/Ridwannurudeen/four-life" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a class="btn ghost" href="https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1" target="_blank" rel="noopener noreferrer">Wallet ↗</a>
+    </footer>
+
+    <div class="tick" id="tick">auto-refresh · 20s</div>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
