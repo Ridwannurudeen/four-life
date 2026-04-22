@@ -1931,6 +1931,142 @@ async def public_health_score(token_address: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+def _deterministic_raise_plan(
+    *,
+    token_address: str,
+    quote_asset: str,
+    target_amount: float,
+    target_phrase: str,
+    health,
+) -> dict:
+    """Rule-based 5-phase raise plan built from the health snapshot.
+
+    Used when both LLM attempts fail — guarantees the dashboard always
+    renders something actionable. Every action references the real
+    graduation target and (where available) the token's actual metrics,
+    so the plan is grounded even though no LLM ran.
+    """
+    progress_pct = round(health.curve_progress_pct, 1) if health else 0.0
+    buy_sell = round(health.buy_sell_ratio, 2) if health else None
+    top_holder = round(health.top_holder_pct, 1) if health else None
+    holders = health.unique_buyers if health else None
+
+    gap_unit = quote_asset
+    gap_value = None
+    if health and target_amount > 0:
+        gap_value = max(0.0, target_amount - float(health.buy_volume_bnb or 0))
+
+    def _fmt_gap() -> str:
+        if gap_value is None:
+            return f"the remaining distance to {target_phrase}"
+        return f"{gap_value:.4g} {gap_unit} (of {target_phrase})"
+
+    phases = [
+        {
+            "name": "Launch (0-30 min)",
+            "actions": [
+                "Pin a launch tweet with contract address, chart link, and graduation target: " + target_phrase + ".",
+                "Seed 3-5 trusted wallets with small first buys to signal organic depth on the bonding curve.",
+                "Post to 2-3 high-signal Four.meme / BNB Chain Telegram rooms — contract + one-liner thesis, no spam.",
+            ],
+            "content_suggestions": [
+                "Launch tweet with token image, symbol, and CA.",
+                "60-second Loom walking through the token thesis and why it graduates.",
+            ],
+            "risk_checks": [
+                "Confirm LP is locked / renounced if the launch config allows it.",
+                "Watch for snipers in the first 3 blocks — block-list if concentration > 10% on any non-deployer wallet.",
+            ],
+        },
+        {
+            "name": "Nurture (1-6 hours)",
+            "actions": [
+                f"Current progress {progress_pct}% of {target_phrase} — publish a progress tracker and update it hourly.",
+                "Reply to every top-10 holder publicly to build a visible, engaged community.",
+                "Ship a second content beat (meme, chart, or quote-tweet) to stay in the Four.meme feed.",
+            ],
+            "content_suggestions": [
+                "Hourly progress update: buyers count, curve %, notable wallets.",
+                "Community call-out thread tagging the first 10 holders.",
+            ],
+            "risk_checks": [
+                f"Buy/sell ratio {buy_sell if buy_sell is not None else 'n/a'} — if it drops below 1.0 for > 30 min, pause paid promo.",
+                f"Top holder {top_holder if top_holder is not None else 'n/a'}% — escalate if any single non-deployer wallet crosses 15%.",
+            ],
+        },
+        {
+            "name": "Defend (6-24 hours)",
+            "actions": [
+                "Run a 'defender' watch: alert on any sell > 0.5 " + gap_unit + " and reply with context within 2 minutes.",
+                "Recruit 2-3 narrative allies (KOLs or aligned tokens) for reciprocal quote-tweets.",
+                "Publish a holder-growth chart — social proof that the curve is still accumulating.",
+            ],
+            "content_suggestions": [
+                "Thread: 'Why this token is still early' with concrete on-chain numbers.",
+                "Short video recap of the first 24h: holders, volume, standout buys.",
+            ],
+            "risk_checks": [
+                f"Holders {holders if holders is not None else 'n/a'} — stall if holder velocity flattens for > 2 hours.",
+                "Scan for wash-trading patterns (same-wallet round trips) and call them out publicly to protect the book.",
+            ],
+        },
+        {
+            "name": "Accelerate (24-72 hours)",
+            "actions": [
+                f"Remaining gap to graduation: {_fmt_gap()} — schedule a buy-pressure window (AMA, raid, or listing teaser) to close it.",
+                "Run one paid placement (X ad or Telegram promo) sized to ≤ 5% of remaining gap — no whale bait.",
+                "Stand up a /graduation-watch channel for the community to self-coordinate the final push.",
+            ],
+            "content_suggestions": [
+                "Countdown thread: '$X " + gap_unit + " to graduation' refreshed every 4h.",
+                "Live space or AMA covering post-graduation roadmap.",
+            ],
+            "risk_checks": [
+                "Abort paid promo if progress stalls for > 4h after the spend — do not throw good money after bad.",
+                "Verify no single buyer contributed > 20% of the final push (protects against graduation-snipe unwinds).",
+            ],
+        },
+        {
+            "name": "Post-Graduation",
+            "actions": [
+                "Publish a transparent graduation post-mortem: who bought, what worked, what failed.",
+                "Migrate liquidity / listings per Four.meme graduation flow and announce the new pool.",
+                "Open a 30-day holder-retention program: weekly updates, on-chain milestones, no new token mints.",
+            ],
+            "content_suggestions": [
+                "Graduation announcement with final metrics and thank-you to top holders.",
+                "Roadmap v1 thread with 3-5 dated milestones.",
+            ],
+            "risk_checks": [
+                "Watch for graduation-day dumps from early wallets — publish a cliff/unlock schedule if any applies.",
+                "Monitor new-pool liquidity depth for 48h; intervene if slippage on a 0.1 " + gap_unit + " trade exceeds 3%.",
+            ],
+        },
+    ]
+
+    strategy = (
+        f"Close the {_fmt_gap()} gap by pairing organic community growth with "
+        "one disciplined paid push in the 24-72h window, defended by real-time "
+        "sell-reply monitoring."
+    )
+    risk_assessment = (
+        "Primary risks: whale concentration, stalled holder velocity, and "
+        "graduation-snipe unwinds. Mitigate by capping single-wallet exposure, "
+        "tracking holder growth hourly, and staging the final push in small "
+        "tranches rather than one burst."
+    )
+
+    return {
+        "token_address": token_address,
+        "quote_asset": quote_asset,
+        "graduation_target": target_amount,
+        "phases": phases,
+        "graduation_strategy": strategy,
+        "risk_assessment": risk_assessment,
+        "source": "deterministic_fallback",
+    }
+
+
 @app.post(
     "/api/raise-plan/{token_address}",
     tags=["platform"],
@@ -2032,30 +2168,45 @@ Create a phased action plan in JSON:
 Be specific and actionable. No vague advice. Reference the actual pair-aware graduation target above. Keep each action string under 160 chars; keep the response strictly valid JSON with no trailing commentary."""
 
         # LLMs occasionally return truncated or malformed JSON despite the
-        # explicit schema above. Retry once with a terser prompt before
-        # surfacing a friendly 502 — losing judges to a parse-error stack
-        # trace is the worst demo failure mode.
+        # explicit schema above. Retry once with a terser prompt, and if that
+        # still fails, fall back to a deterministic plan built from the
+        # health data we already have. A visible plan that's honest about
+        # its source beats a 502 for a live demo.
         plan = None
         last_err = ""
+        plan_source = "llm"
         for attempt in (1, 2):
             try:
-                plan = await get_llm().chat_json([{"role": "user", "content": prompt if attempt == 1 else prompt + "\n\nReturn ONLY the JSON object, no prose, no markdown fences."}])
+                plan = await get_llm().chat_json(
+                    [{"role": "user", "content": prompt if attempt == 1 else prompt + "\n\nReturn ONLY the JSON object, no prose, no markdown fences."}],
+                    max_tokens=4000,
+                )
                 if plan:
                     break
             except Exception as e:
                 last_err = str(e)[:160]
                 continue
+
+        fallback_plan_used = False
         if not plan:
-            return JSONResponse(
-                {
-                    "error": "DGrid returned malformed JSON twice — retry in a moment.",
-                    "detail": last_err or "LLM output failed JSON validation.",
-                },
-                status_code=502,
+            plan = _deterministic_raise_plan(
+                token_address=token_address,
+                quote_asset=quote_asset,
+                target_amount=target_amount,
+                target_phrase=target_phrase,
+                health=health,
             )
+            plan_source = "deterministic_fallback"
+            fallback_plan_used = True
+
+        if isinstance(plan, dict):
+            plan.setdefault("source", plan_source)
 
         return {
             "plan": plan,
+            "plan_source": plan_source,
+            "fallback": fallback_plan_used,
+            "fallback_reason": last_err if fallback_plan_used else None,
             "quote_asset": quote_asset,
             "graduation_target": target_amount,
             "graduation_target_unit": quote_asset,

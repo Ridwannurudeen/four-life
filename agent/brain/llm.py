@@ -41,6 +41,7 @@ Engineering features that keep DGrid production-worthy:
 import asyncio
 import hashlib
 import json
+import re
 import time
 from collections import defaultdict, deque
 
@@ -704,6 +705,18 @@ class LLMClient:
 
     @staticmethod
     def _parse_json(text: str) -> dict:
+        """Best-effort JSON extraction.
+
+        Handles common LLM output defects in order of likelihood:
+          1. Markdown code fences around the JSON.
+          2. Leading prose before the actual JSON object / array.
+          3. Unescaped newlines or tabs inside string values (some models
+             return multi-line strings without escaping).
+          4. Trailing commas before `}` / `]`.
+          5. Truncated mid-string (max_tokens hit) — we close dangling
+             strings + brackets so the result is at least parseable, and
+             the caller can decide whether the partial plan is usable.
+        """
         if not text or not text.strip():
             raise ValueError("LLM returned empty response")
         cleaned = text.strip()
@@ -711,17 +724,105 @@ class LLMClient:
             lines = cleaned.split("\n")
             lines = [l for l in lines if not l.strip().startswith("```")]
             cleaned = "\n".join(lines).strip()
+
+        def _balanced(src: str, open_ch: str, close_ch: str) -> str | None:
+            start = src.find(open_ch)
+            end = src.rfind(close_ch) + 1
+            if start >= 0 and end > start:
+                return src[start:end]
+            return None
+
+        def _repair(src: str) -> str:
+            # Escape unescaped control characters (newline/tab/cr) that sit
+            # inside a JSON string. We walk the text, track whether we're
+            # inside a string, and replace raw \n / \r / \t with their
+            # escaped forms only in that region.
+            out = []
+            in_string = False
+            escape = False
+            for ch in src:
+                if escape:
+                    out.append(ch)
+                    escape = False
+                    continue
+                if ch == "\\":
+                    out.append(ch)
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    out.append(ch)
+                    continue
+                if in_string and ch == "\n":
+                    out.append("\\n")
+                elif in_string and ch == "\r":
+                    out.append("\\r")
+                elif in_string and ch == "\t":
+                    out.append("\\t")
+                else:
+                    out.append(ch)
+            repaired = "".join(out)
+            # Trailing commas: `, }` or `, ]` → `}` / `]`.
+            repaired = re.sub(r",(\s*[}\]])", r"\1", repaired)
+            return repaired
+
+        def _close_truncated(src: str) -> str:
+            # If the payload was cut mid-string by max_tokens, close the
+            # dangling string and any open brackets so json.loads succeeds.
+            in_string = False
+            escape = False
+            stack: list[str] = []
+            for ch in src:
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch in "{[":
+                    stack.append(ch)
+                elif ch in "}]" and stack:
+                    stack.pop()
+            tail = ""
+            if in_string:
+                tail += '"'
+            for ch in reversed(stack):
+                tail += "}" if ch == "{" else "]"
+            return src + tail
+
+        # Attempt 1: parse as-is.
         try:
             return json.loads(cleaned)
         except json.JSONDecodeError:
-            start = cleaned.find("{")
-            end = cleaned.rfind("}") + 1
-            if start >= 0 and end > start:
-                return json.loads(cleaned[start:end])
-            start = cleaned.find("[")
-            end = cleaned.rfind("]") + 1
-            if start >= 0 and end > start:
-                return json.loads(cleaned[start:end])
+            pass
+
+        # Attempt 2: extract balanced braces / brackets.
+        for open_ch, close_ch in (("{", "}"), ("[", "]")):
+            extracted = _balanced(cleaned, open_ch, close_ch)
+            if extracted is None:
+                continue
+            try:
+                return json.loads(extracted)
+            except json.JSONDecodeError:
+                # Attempt 3: repair control chars + trailing commas.
+                try:
+                    return json.loads(_repair(extracted))
+                except json.JSONDecodeError:
+                    # Attempt 4: close dangling strings + brackets (truncation).
+                    try:
+                        return json.loads(_close_truncated(_repair(extracted)))
+                    except json.JSONDecodeError:
+                        continue
+
+        # Last resort: try repair+truncation-close on the full cleaned text.
+        try:
+            return json.loads(_close_truncated(_repair(cleaned)))
+        except json.JSONDecodeError:
             raise
 
     @staticmethod
@@ -1155,8 +1256,7 @@ class LLMClient:
         # JWT pattern: three base64url segments separated by dots, first starts
         # with eyJ. Replace the middle + signature segments so the prefix
         # remains greppable in logs without the secret.
-        import re as _re
-        out = _re.sub(
+        out = re.sub(
             r"eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+",
             "eyJ***",
             out,
