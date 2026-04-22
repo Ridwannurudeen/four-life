@@ -27,7 +27,7 @@ def mock_agent():
     mem.total_graduations = 2
     mem.graduation_rate = 0.4
     mem.avg_peak_holders = 340
-    mem.tracked_launches = 2
+    mem.tracked_launches = 2  # internal field name; API exposes as `launches_with_activity`
     mem.global_learnings = ["Dog tokens work well", "Avoid weekend launches"]
     mem.launches = []
     mem.last_updated = 1712000000

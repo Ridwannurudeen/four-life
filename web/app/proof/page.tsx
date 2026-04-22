@@ -77,7 +77,7 @@ interface StatusResp {
   total_graduations: number;
   graduation_rate: number;
   avg_peak_holders: number | null;
-  tracked_launches: number;
+  launches_with_activity: number;
   active_tokens: number;
 }
 
@@ -121,7 +121,7 @@ export default function ProofPage() {
     total_graduations: 5,
     graduation_rate: 9.6,
     avg_peak_holders: null,
-    tracked_launches: 0,
+    launches_with_activity: 0,
     active_tokens: 1,
   });
   const [loadedAt, setLoadedAt] = useState<number>(0);

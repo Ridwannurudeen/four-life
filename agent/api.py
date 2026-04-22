@@ -544,25 +544,26 @@ async def status(authorized: bool = Depends(is_authorized)):
             "total_graduations": 0,
             "graduation_rate": 0,
             "avg_peak_holders": None,
-            "tracked_launches": 0,
+            "launches_with_activity": 0,
             "active_tokens": 0,
             "message": "Agent not configured — add keys to .env",
         }
     mem = agent.memory.memory
-    # avg_peak_holders is computed over tracked_launches only (see _update_stats).
-    # Expose it as null when no launches have been tracked so the UI renders
-    # "n/a" instead of a misleading "0" that could be read as "zero holders."
+    # avg_peak_holders is computed over launches_with_activity only (see
+    # _update_stats — launches with peak_holders > 0). Expose as null when
+    # no launches have seen trade activity so the UI renders "—" instead
+    # of a misleading "0" that could be read as "zero holders."
     avg_peak = round(mem.avg_peak_holders, 0) if mem.tracked_launches > 0 else None
     body = {
         "agent_name": "FOUR-LIFE",
         "running": agent.running,
         "agent_id": agent.identity.agent_id,
-        "total_launches": mem.total_launches,
+        "total_launches": mem.total_launches,          # every launch ever recorded
         "total_graduations": mem.total_graduations,
         "graduation_rate": round(mem.graduation_rate * 100, 1),
         "avg_peak_holders": avg_peak,
-        "tracked_launches": mem.tracked_launches,
-        "active_tokens": len(agent.active_concepts),
+        "launches_with_activity": mem.tracked_launches,  # of total_launches, subset with peak_holders > 0
+        "active_tokens": len(agent.active_concepts),   # currently under live on-chain monitoring
         "learnings_count": len(mem.global_learnings),
     }
     if authorized:
@@ -658,7 +659,7 @@ async def token_detail(address: str, authorized: bool = Depends(is_authorized)):
 )
 async def memory():
     if not agent:
-        return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": None, "tracked_launches": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
+        return {"total_launches": 0, "total_graduations": 0, "graduation_rate": 0, "avg_peak_holders": None, "launches_with_activity": 0, "best_narratives": [], "worst_narratives": [], "global_learnings": [], "launches": [], "last_updated": 0}
     mem = agent.memory.memory
     avg_peak = round(mem.avg_peak_holders, 0) if mem.tracked_launches > 0 else None
     return {
@@ -666,7 +667,7 @@ async def memory():
         "total_graduations": mem.total_graduations,
         "graduation_rate": round(mem.graduation_rate * 100, 1),
         "avg_peak_holders": avg_peak,
-        "tracked_launches": mem.tracked_launches,
+        "launches_with_activity": mem.tracked_launches,
         "best_narratives": mem.best_narratives,
         "worst_narratives": mem.worst_narratives,
         "global_learnings": mem.global_learnings,

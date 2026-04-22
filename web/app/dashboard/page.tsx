@@ -15,7 +15,7 @@ interface AgentStatus {
   total_graduations: number;
   graduation_rate: number;
   avg_peak_holders: number | null;
-  tracked_launches: number;
+  launches_with_activity: number;
   active_tokens: number;
   global_learnings: string[];
 }
@@ -1437,7 +1437,7 @@ export default function Dashboard() {
                 <StatCard label="Launches" value={status.total_launches} />
                 <StatCard label="Graduations" value={status.total_graduations} accent={status.total_graduations > 0 ? "green" : undefined} />
                 <StatCard label="Grad Rate" value={`${status.graduation_rate}%`} />
-                <StatCard label="Peak Holders" value={status.avg_peak_holders == null ? "—" : `${Math.round(status.avg_peak_holders)} (n=${status.tracked_launches})`} />
+                <StatCard label="Peak Holders" value={status.avg_peak_holders == null ? "—" : `${Math.round(status.avg_peak_holders)} (n=${status.launches_with_activity})`} />
                 <StatCard label="Active" value={status.active_tokens} accent={status.active_tokens > 0 ? "green" : undefined} />
               </div>
             )}
