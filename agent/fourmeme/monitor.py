@@ -134,13 +134,19 @@ class TokenMonitor:
         # Resolve pair-aware graduation target (falls back to low-confidence for unknown assets)
         target = await self.graduation_registry.get(quote_asset)
 
+        created_ts = launched_at if launched_at else time.time()
+        initial_age_hours = max(0.0, (time.time() - created_ts) / 3600.0)
         health = TokenHealth(
             address=token_address,
             name=name,
             symbol=symbol,
             creator=creator,
-            created_at=launched_at if launched_at else time.time(),
+            created_at=created_ts,
             created_block=created_block,
+            # Seed age_hours from the real launched_at so cold reads between
+            # track_token and the first update_token tick don't show 0.0 for
+            # a token we know is hours old.
+            age_hours=initial_age_hours,
             quote_asset=target.quote_asset,
             graduation_target=target.target_amount,
             graduation_target_unit=target.quote_asset,
