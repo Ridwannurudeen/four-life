@@ -1865,7 +1865,7 @@ async def public_health_score(token_address: str):
 
         contract_risk = await _get_contract_risk(token_address)
         crs = contract_risk.risk_score if contract_risk else 0
-        badge = badge_from_health(health, contract_risk_score=crs)
+        badge = badge_from_health(health, contract_risk_score=crs, observation_status=getattr(health, "observation_status", "full_history"))
 
         _record_history(token_address=token_address, badge=badge, data_source="live_monitor")
 
@@ -1893,6 +1893,8 @@ async def public_health_score(token_address: str):
             "risk_factors": [f["message"] for f in risk_flags],  # back-compat
             "badge": badge.to_dict(),
             "tier_source": badge.tier_source,
+            "observation_status": badge.observation_status,
+            "quote_asset_source": getattr(health, "quote_asset_source", "fourmeme_api"),
             "suggested_action": _suggested_action(health),
             "confidence_score": health.graduation_confidence,
             "fallback_used": health.graduation_source in ("fallback", "cache"),
@@ -2105,15 +2107,21 @@ async def graduation_radar(
             )
             badge_tier = radar_badge.tier
             tier_source = radar_badge.tier_source  # always "radar_estimate"
+            observation_status = radar_badge.observation_status  # "ranking_only"
             assert tier_source == SOURCE_RADAR_ESTIMATE  # invariant
             if agent and addr in agent.monitor.state.tokens:
                 try:
                     tracked = agent.monitor.state.tokens[addr]
                     risk = _peek_contract_risk(addr)
                     crs = risk.risk_score if risk else 0
-                    certified = badge_from_health(tracked, contract_risk_score=crs)
+                    certified = badge_from_health(
+                        tracked,
+                        contract_risk_score=crs,
+                        observation_status=getattr(tracked, "observation_status", "full_history"),
+                    )
                     badge_tier = certified.tier
                     tier_source = certified.tier_source
+                    observation_status = certified.observation_status
                 except Exception:
                     pass
 
@@ -2136,6 +2144,12 @@ async def graduation_radar(
                 "confidence_score": target.confidence,
                 "badge_tier": badge_tier,
                 "tier_source": tier_source,
+                "observation_status": observation_status,
+                "quote_asset_source": (
+                    getattr(agent.monitor.state.tokens.get(addr), "quote_asset_source", "fourmeme_api")
+                    if (agent and addr in agent.monitor.state.tokens)
+                    else ("fourmeme_api" if t.get("symbol") else "fallback")
+                ),
                 "status": t.get("status", ""),
                 "fourmeme_url": f"https://four.meme/token/{addr}",
             })
@@ -2186,7 +2200,7 @@ async def token_badge(token_address: str):
         if health:
             contract_risk = await _get_contract_risk(token_address)
             crs = contract_risk.risk_score if contract_risk else 0
-            badge = badge_from_health(health, contract_risk_score=crs)
+            badge = badge_from_health(health, contract_risk_score=crs, observation_status=getattr(health, "observation_status", "full_history"))
             source = "live_monitor"
         else:
             # Fall back to Four.meme ranking snapshot
@@ -2212,7 +2226,13 @@ async def token_badge(token_address: str):
                     "last_updated_at": int(time.time()),
                 }, status_code=404)
 
-            quote_asset = (info.get("symbol", "BNB") or "BNB").upper()
+            # Quote-asset provenance: if Four.meme returns the symbol field
+            # we call it fourmeme_api; if it's missing or empty we flag
+            # the default as fallback so consumers can distinguish a
+            # measured BNB pair from an assumed one.
+            raw_quote = info.get("symbol")
+            quote_asset = (raw_quote or "BNB").upper()
+            quote_asset_source = "fourmeme_api" if raw_quote else "fallback"
             target = await agent.graduation_registry.get(quote_asset)
             badge = badge_from_ranking(
                 curve_progress_pct=float(info.get("progress", 0)) * 100,
@@ -2224,10 +2244,21 @@ async def token_badge(token_address: str):
 
         _record_history(token_address=token_address, badge=badge, data_source=source)
 
+        # Observation + quote-asset provenance for the live-monitor path,
+        # populated from the tracked health snapshot.
+        if source == "live_monitor":
+            obs_status = getattr(health, "observation_status", "full_history")
+            qa_source = getattr(health, "quote_asset_source", "fourmeme_api")
+        else:
+            obs_status = badge.observation_status  # "ranking_only" from badge_from_ranking
+            qa_source = quote_asset_source         # set in the fallback branch above
+
         return {
             "token_address": token_address,
             "badge": badge.to_dict(),
             "tier_source": badge.tier_source,
+            "observation_status": obs_status,
+            "quote_asset_source": qa_source,
             "data_source": source,
             "model_version": MODEL_VERSION,
             "last_updated_at": int(time.time()),

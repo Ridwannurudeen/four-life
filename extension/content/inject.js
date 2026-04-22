@@ -155,7 +155,7 @@
   }
 
   // ── Pill rendering ─────────────────────────────────────────────────
-  function renderPill({ state, tier, label, address }) {
+  function renderPill({ state, tier, label, address, tier_source }) {
     const host = ensureHost();
     if (!host || !host.shadowRoot) return;
     const root = host.shadowRoot.getElementById("pill-wrap");
@@ -183,7 +183,7 @@
     // from "radar_estimate" (heuristic from public ranking). Brand must reflect
     // which one — the extension MUST NOT label a radar_estimate badge as
     // "Certified" on Four.meme's own token pages.
-    const tierSource = opts.tier_source || "certified";
+    const tierSource = tier_source || "certified";
     const isCertified = tierSource === "certified";
     const ariaPrefix = isCertified ? "FOUR-LIFE Certified" : "FOUR-LIFE Radar Estimate";
 

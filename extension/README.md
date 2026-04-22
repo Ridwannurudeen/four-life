@@ -36,10 +36,23 @@ The badge pill appears within ~1–2 seconds. Click it to open the detail panel.
 
 ## Permissions
 
-- `activeTab` — so the popup can open the Radar link.
-- Host permissions for `https://four.meme/*` (where the content script runs) and `https://four-life.gudman.xyz/*` (where the API lives).
+The manifest requests exactly four permissions and four host permissions. Every one is load-bearing — nothing is requested speculatively.
 
-No tracking, no analytics, no third-party calls.
+| Permission | Why |
+|---|---|
+| `activeTab` | Lets the popup route clicks to the user's current tab. |
+| `storage` | Watchlist persistence via `chrome.storage.sync` (syncs across devices). |
+| `alarms` | Wakes the service worker every 3 min to poll watched tokens for tier changes. |
+| `notifications` | Fires Chrome notifications when a watched token's tier transitions. |
+
+Host permissions:
+
+- `https://four.meme/*` — content script injects the trust badge on token pages.
+- `https://bscscan.com/*` — same content script on `/token/0x...` pages.
+- `https://pancakeswap.finance/*` — same content script on `/info/tokens/...` + `/swap?outputCurrency=...`.
+- `https://four-life.gudman.xyz/*` — public API (badge, risk-snapshot, attestation).
+
+No tracking, no analytics, no third-party calls. Watchlist stays on-device; `chrome.storage.sync` means it rides your own Google account's encrypted sync — we never see it.
 
 ---
 

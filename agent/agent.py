@@ -158,6 +158,10 @@ class FourLifeAgent:
                     # observation window. Without this a restart makes
                     # $AUNT (launched Apr 20) look like it just launched.
                     launched_at=launch.launched_at or None,
+                    # Pass the real launch block separately from the clamped
+                    # scan cursor so the monitor can mark observation_status
+                    # as partial_history when we missed pre-clamp events.
+                    real_launch_block=real_launch_block,
                 )
                 self.active_concepts[launch.token_address] = launch.concept or {
                     "name": launch.name,

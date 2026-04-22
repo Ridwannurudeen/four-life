@@ -39,6 +39,24 @@ SOURCE_RADAR_ESTIMATE = "radar_estimate"
 VERSION_CERTIFIED = "four-life-certified-v1"
 VERSION_RADAR_ESTIMATE = "four-life-radar-v1"
 
+# Observation-status discriminates HOW MUCH of the token's on-chain life we
+# actually saw — orthogonal to tier_source. A token can be tier_source=certified
+# (we're live-monitoring it) yet observation_status=partial_history (we only
+# started watching after launch, so the pre-observation events are missing).
+# Consumers can make stricter decisions by combining both:
+#   certified + full_history   = strongest claim
+#   certified + partial_history = on-chain measured but time-bounded
+#   radar_estimate + ranking_only = honest heuristic
+OBS_FULL_HISTORY = "full_history"      # agent was tracking since launch block
+OBS_PARTIAL_HISTORY = "partial_history"  # restored after launch, some events missed
+OBS_RANKING_ONLY = "ranking_only"      # no on-chain observation, public-rank only
+
+# Quote-asset provenance — did we observe the quote asset from Four.meme's
+# response, or did we fall back to a default because the field was missing /
+# empty? "fallback" means grad-target math is using an assumed BNB pair.
+QUOTE_SOURCE_API = "fourmeme_api"
+QUOTE_SOURCE_FALLBACK = "fallback"
+
 TIER_DESCRIPTIONS = {
     TIER_GRADUATED: "Reached the bonding-curve graduation threshold.",
     TIER_GRADUATION_WATCH: "On track to graduate — strong buy pressure, healthy distribution, curve past 70%.",
@@ -57,6 +75,11 @@ class Badge:
     metrics_snapshot: dict
     tier_source: str = SOURCE_CERTIFIED  # "certified" (full on-chain) or "radar_estimate" (heuristic)
     version: str = VERSION_CERTIFIED
+    # Observation scope — orthogonal to tier_source. See the module-level
+    # constants for the enum. Defaults to full_history for backwards
+    # compatibility on the compute_badge path (callers that know better —
+    # badge_from_ranking, the restore path — overwrite this explicitly).
+    observation_status: str = OBS_FULL_HISTORY
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -205,9 +228,19 @@ def compute_badge(
     )
 
 
-def badge_from_health(health, contract_risk_score: int = 0) -> Badge:
-    """Convenience: compute a badge from a TokenHealth dataclass."""
-    return compute_badge(
+def badge_from_health(
+    health,
+    contract_risk_score: int = 0,
+    observation_status: str = OBS_FULL_HISTORY,
+) -> Badge:
+    """Convenience: compute a badge from a TokenHealth dataclass.
+
+    ``observation_status`` should be set to ``OBS_PARTIAL_HISTORY`` when the
+    monitor was restored AFTER launch and had to clamp its block-scan start
+    — some pre-observation events are missing and the caller wants consumers
+    to know the certification is time-bounded.
+    """
+    badge = compute_badge(
         curve_progress_pct=health.curve_progress_pct,
         phase=health.phase,
         health_score=health.health_score,
@@ -220,6 +253,8 @@ def badge_from_health(health, contract_risk_score: int = 0) -> Badge:
         whale_count=health.whale_count,
         contract_risk_score=contract_risk_score,
     )
+    badge.observation_status = observation_status
+    return badge
 
 
 def badge_from_ranking(
@@ -284,4 +319,7 @@ def badge_from_ranking(
     # Stamp this badge as radar_estimate so integrators and UIs can discriminate.
     badge.tier_source = SOURCE_RADAR_ESTIMATE
     badge.version = VERSION_RADAR_ESTIMATE
+    # Ranking-only: no on-chain events observed at all, just the public
+    # ranking snapshot. Pairs with tier_source=radar_estimate.
+    badge.observation_status = OBS_RANKING_ONLY
     return badge

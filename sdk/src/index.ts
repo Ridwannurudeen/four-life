@@ -20,7 +20,7 @@
  */
 
 export const DEFAULT_API_BASE = "https://four-life.gudman.xyz";
-export const SDK_VERSION = "0.2.0";
+export const SDK_VERSION = "0.3.0";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -46,6 +46,19 @@ export interface BadgeRule {
  * radar_estimate badge is NOT "Certified from raw on-chain data." */
 export type TierSource = "certified" | "radar_estimate";
 
+/** Observation-scope discriminator, orthogonal to {@link TierSource}.
+ * Lets consumers distinguish a full-history certification from one
+ * bounded by when the agent started observing. Combine with tier_source:
+ *   - certified + full_history   → strongest claim
+ *   - certified + partial_history → on-chain measured but time-bounded
+ *   - radar_estimate + ranking_only → honest heuristic (never Certified) */
+export type ObservationStatus = "full_history" | "partial_history" | "ranking_only";
+
+/** Provenance of the quote-asset field — "fourmeme_api" when we observed
+ * it directly from Four.meme's response, "fallback" when we defaulted
+ * (grad-target math uses an assumed BNB pair). */
+export type QuoteAssetSource = "fourmeme_api" | "fallback";
+
 export interface Badge {
   tier: Tier;
   label: string;
@@ -53,6 +66,7 @@ export interface Badge {
   why: BadgeRule[];
   metrics_snapshot: Record<string, unknown>;
   tier_source: TierSource;
+  observation_status: ObservationStatus;
   version: string;
 }
 
@@ -60,6 +74,8 @@ export interface BadgeResponse {
   token_address: string;
   badge: Badge;
   tier_source: TierSource;
+  observation_status: ObservationStatus;
+  quote_asset_source: QuoteAssetSource;
   data_source: "live_monitor" | "ranking_snapshot" | string;
   model_version: string;
   last_updated_at: number;
@@ -141,6 +157,10 @@ export interface RadarEntry {
   badge_tier: Tier;
   /** Provenance of `badge_tier`. See {@link TierSource}. */
   tier_source: TierSource;
+  /** Observation scope for `badge_tier`. See {@link ObservationStatus}. */
+  observation_status: ObservationStatus;
+  /** Whether the quote asset was observed from Four.meme or defaulted. */
+  quote_asset_source: QuoteAssetSource;
   status: string;
   fourmeme_url: string;
 }

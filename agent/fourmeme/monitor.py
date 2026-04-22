@@ -53,10 +53,17 @@ class TokenHealth:
 
     # Pair-aware graduation metadata (sourced from Four.meme live config)
     quote_asset: str = "BNB"             # BNB | USD1 | USDT | USDC | CAKE | ...
+    quote_asset_source: str = "fourmeme_api"  # "fourmeme_api" | "fallback"
     graduation_target: float = 0.0       # e.g. 18.0 for BNB, 12000.0 for USD1
     graduation_target_unit: str = ""     # mirror of quote_asset, for display
     graduation_confidence: str = "low"   # "high" | "medium" | "low"
     graduation_source: str = ""          # "fourmeme_config" | "cache" | "fallback"
+
+    # Observation scope — full_history when the monitor has been tracking
+    # since the token's real launch block; partial_history when we started
+    # mid-life (e.g. agent restart + eth_getLogs block-range clamp).
+    observation_status: str = "full_history"
+    observation_since_block: int = 0     # the block where OUR monitor started; used for UI "tracking since" labels
 
 
 @dataclass
@@ -99,6 +106,8 @@ class TokenMonitor:
         quote_asset: str = "BNB",
         seed: dict | None = None,
         launched_at: float | None = None,
+        real_launch_block: int | None = None,
+        quote_asset_source: str = "fourmeme_api",
     ) -> None:
         """Start tracking a token. Resolves its graduation target from Four.meme's config.
 
@@ -136,6 +145,16 @@ class TokenMonitor:
 
         created_ts = launched_at if launched_at else time.time()
         initial_age_hours = max(0.0, (time.time() - created_ts) / 3600.0)
+
+        # Observation scope: full_history when our scan start matches the
+        # token's real launch block. When the caller had to clamp created_block
+        # forward (eth_getLogs 50k-block cap on restart), events before
+        # `created_block` are unobservable — flag as partial_history so
+        # downstream badges can warn consumers.
+        obs_status = "full_history"
+        if real_launch_block is not None and created_block > real_launch_block:
+            obs_status = "partial_history"
+
         health = TokenHealth(
             address=token_address,
             name=name,
@@ -148,10 +167,13 @@ class TokenMonitor:
             # a token we know is hours old.
             age_hours=initial_age_hours,
             quote_asset=target.quote_asset,
+            quote_asset_source=quote_asset_source,
             graduation_target=target.target_amount,
             graduation_target_unit=target.quote_asset,
             graduation_confidence=target.confidence,
             graduation_source=target.source,
+            observation_status=obs_status,
+            observation_since_block=created_block,
         )
         self.state.tokens[token_address] = health
         logger.info(
