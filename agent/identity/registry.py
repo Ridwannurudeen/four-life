@@ -207,22 +207,30 @@ class AgentIdentity:
 
     async def _send_tx(self, tx_func, gas: int = 300_000):
         """Build, sign, broadcast, and confirm a tx. Returns the receipt object so
-        callers can parse emitted events (e.g. the ERC-721 Transfer on register)."""
-        nonce = await self.w3.eth.get_transaction_count(self.account.address)
-        gas_price = await self.w3.eth.gas_price
-        tx = await tx_func.build_transaction({
-            "from": self.account.address,
-            "gas": gas,
-            "gasPrice": gas_price,
-            "nonce": nonce,
-            "chainId": 56,
-        })
-        signed = self.account.sign_transaction(tx)
-        tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
-        receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        if receipt["status"] != 1:
-            raise RuntimeError(f"Tx reverted: 0x{tx_hash.hex()}")
-        return receipt
+        callers can parse emitted events (e.g. the ERC-721 Transfer on register).
+
+        Serialization: acquires the shared wallet-tx lock so concurrent
+        attestation / MYX / four.meme broadcasts from the same wallet can't
+        race on nonce. Uses the "pending" nonce tag so a tx that landed right
+        before us doesn't double-spend our slot.
+        """
+        from agent.brain.attestation import get_wallet_tx_lock
+        async with get_wallet_tx_lock():
+            nonce = await self.w3.eth.get_transaction_count(self.account.address, "pending")
+            gas_price = await self.w3.eth.gas_price
+            tx = await tx_func.build_transaction({
+                "from": self.account.address,
+                "gas": gas,
+                "gasPrice": gas_price,
+                "nonce": nonce,
+                "chainId": 56,
+            })
+            signed = self.account.sign_transaction(tx)
+            tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            if receipt["status"] != 1:
+                raise RuntimeError(f"Tx reverted: 0x{tx_hash.hex()}")
+            return receipt
 
     # ── Registration ────────────────────────────────────────────────
 

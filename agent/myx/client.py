@@ -189,22 +189,31 @@ class MYXClient:
             )
 
     async def _send_tx(self, tx_func, value_wei: int = 0) -> str:
-        nonce = await self.w3.eth.get_transaction_count(self.account.address)
-        gas_price = await self.w3.eth.gas_price
-        tx = await tx_func.build_transaction({
-            "from": self.account.address,
-            "value": value_wei,
-            "gas": 500_000,
-            "gasPrice": gas_price,
-            "nonce": nonce,
-            "chainId": 56,
-        })
-        signed = self.account.sign_transaction(tx)
-        tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
-        receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        if receipt["status"] != 1:
-            raise RuntimeError(f"MYX tx reverted: 0x{tx_hash.hex()}")
-        return f"0x{tx_hash.hex()}"
+        """Sign + broadcast + await receipt under the shared wallet-tx lock.
+
+        The agent's wallet funds attestation publishing, identity registration,
+        four.meme launches AND MYX orders. Without the shared lock, two
+        concurrent broadcasts read the same nonce and BSC drops one. Uses the
+        "pending" nonce tag to avoid double-spending a freshly-submitted tx.
+        """
+        from agent.brain.attestation import get_wallet_tx_lock
+        async with get_wallet_tx_lock():
+            nonce = await self.w3.eth.get_transaction_count(self.account.address, "pending")
+            gas_price = await self.w3.eth.gas_price
+            tx = await tx_func.build_transaction({
+                "from": self.account.address,
+                "value": value_wei,
+                "gas": 500_000,
+                "gasPrice": gas_price,
+                "nonce": nonce,
+                "chainId": 56,
+            })
+            signed = self.account.sign_transaction(tx)
+            tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            if receipt["status"] != 1:
+                raise RuntimeError(f"MYX tx reverted: 0x{tx_hash.hex()}")
+            return f"0x{tx_hash.hex()}"
 
     # ── Market Data ───────────────────────────────────────────────────
 

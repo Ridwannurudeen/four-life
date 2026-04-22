@@ -94,7 +94,12 @@ export function HeroRadar({ entries }: { entries: MiniEntry[] }) {
       </div>
 
       <div className="text-[11px] uppercase tracking-[0.15em] text-white/40 mb-3">
-        FOUR-LIFE Certified — on radar
+        {/* Heading respects tier_source: entries from public ranking are
+            radar_estimates, not Certified. Only say "Certified" when every
+            visible row is live-monitored. */}
+        {visible.every((e) => e.tier_source === "certified")
+          ? "FOUR-LIFE Certified — on radar"
+          : "FOUR-LIFE — on radar"}
       </div>
 
       <div className="space-y-2">

@@ -193,7 +193,7 @@ class TestRiskSnapshotEndpoint:
 
 class TestCreatorSurvivalScore:
     def test_new_creator_returns_tracked_false(self, client):
-        resp = client.get("/api/creator/0xnever/survival-score")
+        resp = client.get("/api/creator/0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddead/survival-score")
         assert resp.status_code == 200
         data = resp.json()
         assert data["tracked"] is False

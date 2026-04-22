@@ -135,29 +135,36 @@ class FourMemeChain:
         )
 
     async def _send_tx(self, tx_func, value_wei: int = 0) -> str:
-        """Build, sign, and send a transaction. Returns tx hash."""
-        nonce = await self.w3.eth.get_transaction_count(self.account.address)
-        gas_price = await self.w3.eth.gas_price
+        """Build, sign, and send a transaction under the shared wallet-tx lock.
 
-        tx = await tx_func.build_transaction({
-            "from": self.account.address,
-            "value": value_wei,
-            "gas": 500_000,
-            "gasPrice": gas_price,
-            "nonce": nonce,
-            "chainId": 56,
-        })
+        The agent's wallet signs four.meme launches, MYX orders, identity
+        registrations and attestation publishes. Serializing here prevents
+        nonce races that would silently drop one of the competing txs.
+        """
+        from agent.brain.attestation import get_wallet_tx_lock
+        async with get_wallet_tx_lock():
+            nonce = await self.w3.eth.get_transaction_count(self.account.address, "pending")
+            gas_price = await self.w3.eth.gas_price
 
-        signed = self.account.sign_transaction(tx)
-        tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
-        hex_hash = tx_hash.hex()
-        logger.info("Tx sent: 0x{}", hex_hash)
+            tx = await tx_func.build_transaction({
+                "from": self.account.address,
+                "value": value_wei,
+                "gas": 500_000,
+                "gasPrice": gas_price,
+                "nonce": nonce,
+                "chainId": 56,
+            })
 
-        receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        if receipt["status"] != 1:
-            raise RuntimeError(f"Tx reverted: 0x{hex_hash}")
-        logger.info("Tx confirmed: 0x{}", hex_hash)
-        return f"0x{hex_hash}"
+            signed = self.account.sign_transaction(tx)
+            tx_hash = await self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            hex_hash = tx_hash.hex()
+            logger.info("Tx sent: 0x{}", hex_hash)
+
+            receipt = await self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            if receipt["status"] != 1:
+                raise RuntimeError(f"Tx reverted: 0x{hex_hash}")
+            logger.info("Tx confirmed: 0x{}", hex_hash)
+            return f"0x{hex_hash}"
 
     # ── Token Creation ────────────────────────────────────────────────
 

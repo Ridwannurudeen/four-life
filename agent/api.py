@@ -379,7 +379,10 @@ async def rate_limit_middleware(request, call_next):
 
     # Bucket key: (client IP, bucket class). Write endpoints get a stricter bucket.
     client_ip = request.client.host if request.client else "unknown"
-    is_llm_burn = request.method == "POST" and any(path.startswith(p) for p in _LLM_BURN_PREFIXES)
+    # LLM-burn bucket applies regardless of HTTP method — several LLM-triggering
+    # endpoints (e.g. /api/myx/signal) are GETs and would otherwise fall into
+    # the public 120/min bucket, a 12× higher ceiling than the LLM bucket.
+    is_llm_burn = any(path.startswith(p) for p in _LLM_BURN_PREFIXES)
     is_write = request.method == "POST" and path.startswith("/api/agent/")
     if is_llm_burn:
         bucket_class = "llm"
@@ -1203,7 +1206,12 @@ async def myx_positions(token_address: str):
     }
 
 
-@app.post("/api/myx/evaluate/{token_address}", tags=["myx"], summary="Manually trigger a hedge evaluation")
+@app.post(
+    "/api/myx/evaluate/{token_address}",
+    tags=["myx"],
+    summary="Manually trigger a hedge evaluation",
+    dependencies=[Depends(require_auth)],
+)
 async def myx_evaluate(token_address: str):
     """Manually trigger a hedge evaluation for a token."""
     if not agent or not agent.hedge_manager:
@@ -1898,7 +1906,12 @@ async def public_health_score(token_address: str):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@app.post("/api/raise-plan/{token_address}", tags=["platform"], summary="LLM-generated 72h raise plan (pair-aware target)")
+@app.post(
+    "/api/raise-plan/{token_address}",
+    tags=["platform"],
+    summary="LLM-generated 72h raise plan (pair-aware target)",
+    dependencies=[Depends(require_auth)],
+)
 async def generate_raise_plan(token_address: str):
     """Generate a 72-hour lifecycle raise plan for a token.
 
@@ -2834,12 +2847,15 @@ async def creator_survival_score(wallet: str):
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
 
-    wallet_lower = wallet.lower()
+    # Validate the wallet address format up front — prevents garbage keys from
+    # being echoed in the response and keeps path params consistent across the
+    # public API.
+    wallet_lower = _validate_address(wallet)
     launches = _launches_by_creator(agent).get(wallet_lower, [])
 
     if not launches:
         return {
-            "wallet": wallet,
+            "wallet": wallet_lower,
             "tracked": False,
             "launches_tracked": 0,
             "graduations": 0,
