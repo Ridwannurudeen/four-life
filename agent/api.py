@@ -2007,9 +2007,7 @@ Bonding Curve: {health.curve_progress_pct:.1f}% of {target_phrase}
                 f"Quote asset: {quote_asset}. Graduation target: {target_phrase}."
             )
 
-        plan = await get_llm().chat_json([{
-            "role": "user",
-            "content": f"""You are FOUR-LIFE, an AI lifecycle agent for Four.meme tokens on BNB Chain.
+        prompt = f"""You are FOUR-LIFE, an AI lifecycle agent for Four.meme tokens on BNB Chain.
 
 Generate a 72-hour Raise Plan for this token. The plan should help it graduate (reach {target_phrase} on the bonding curve).
 
@@ -2031,8 +2029,30 @@ Create a phased action plan in JSON:
   "risk_assessment": "key risks and how to mitigate them"
 }}
 
-Be specific and actionable. No vague advice. Reference the actual pair-aware graduation target above."""
-        }])
+Be specific and actionable. No vague advice. Reference the actual pair-aware graduation target above. Keep each action string under 160 chars; keep the response strictly valid JSON with no trailing commentary."""
+
+        # LLMs occasionally return truncated or malformed JSON despite the
+        # explicit schema above. Retry once with a terser prompt before
+        # surfacing a friendly 502 — losing judges to a parse-error stack
+        # trace is the worst demo failure mode.
+        plan = None
+        last_err = ""
+        for attempt in (1, 2):
+            try:
+                plan = await get_llm().chat_json([{"role": "user", "content": prompt if attempt == 1 else prompt + "\n\nReturn ONLY the JSON object, no prose, no markdown fences."}])
+                if plan:
+                    break
+            except Exception as e:
+                last_err = str(e)[:160]
+                continue
+        if not plan:
+            return JSONResponse(
+                {
+                    "error": "DGrid returned malformed JSON twice — retry in a moment.",
+                    "detail": last_err or "LLM output failed JSON validation.",
+                },
+                status_code=502,
+            )
 
         return {
             "plan": plan,
