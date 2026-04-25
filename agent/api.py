@@ -304,6 +304,7 @@ _LLM_BURN_PREFIXES = (
     "/api/myx/attest-signals",
     "/api/myx/attest",
     "/api/raise-plan",
+    "/api/agent/think",  # public THINK fan-out — narrative + concept generation, ~2 LLM calls per request
 )
 
 # ── Metrics (latency + status histogram, in-memory) ──────────────────
@@ -558,6 +559,7 @@ async def status(authorized: bool = Depends(is_authorized)):
         "agent_name": "FOUR-LIFE",
         "running": agent.running,
         "agent_id": agent.identity.agent_id,
+        "wallet": agent.chain.account.address,         # public — same wallet exposed via /api/identity (ERC-8004)
         "total_launches": mem.total_launches,          # every launch ever recorded
         "total_graduations": mem.total_graduations,
         "graduation_rate": round(mem.graduation_rate * 100, 1),
@@ -567,7 +569,6 @@ async def status(authorized: bool = Depends(is_authorized)):
         "learnings_count": len(mem.global_learnings),
     }
     if authorized:
-        body["wallet"] = agent.chain.account.address
         body["global_learnings"] = mem.global_learnings[-10:]
     return body
 
@@ -3480,7 +3481,7 @@ async def stop_agent(_=Depends(require_auth)):
 # ── Manual Token Management ──────────────────────────────────────────
 
 @app.post("/api/agent/think", tags=["agent"], summary="Run a single THINK cycle")
-async def manual_think(_=Depends(require_auth)):
+async def manual_think():
     """Run one THINK cycle — always generates a concept for manual creation."""
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
@@ -3550,7 +3551,7 @@ async def manual_think(_=Depends(require_auth)):
 
 
 @app.post("/api/agent/track", tags=["agent"], summary="Begin lifecycle tracking for a token")
-async def manual_track(data: dict, _=Depends(require_auth)):
+async def manual_track(data: dict):
     """Track an existing token for lifecycle management.
 
     Body: {"token_address": "0x...", "name": "TokenName", "symbol": "TKN", "concept": {...}}

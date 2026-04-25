@@ -1527,12 +1527,12 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* ── Auth unlock — dashboard needs API_SECRET to see wallet + learnings + write ── */}
+        {/* ── Auth unlock — wallet + think + track are PUBLIC; secret unlocks recent learnings + admin start/stop ── */}
         {!hasSecret && (
           <div className="rounded-xl border border-[#ffd641]/30 bg-[#ffd641]/[0.04] px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div className="text-[11px] text-white/70 leading-snug max-w-xl">
-              Dashboard is running in public mode. Paste <code className="text-[#ffd641]">API_SECRET</code> to unlock
-              wallet address, learnings, and write actions (think / track / start).
+              Public mode — anyone can run <code className="text-[#ffd641]">think</code> and <code className="text-[#ffd641]">track</code> (rate-limited).
+              Paste <code className="text-[#ffd641]">API_SECRET</code> to unlock recent learnings and admin start/stop.
             </div>
             <div className="flex items-center gap-2">
               <input
