@@ -1375,9 +1375,16 @@ export default function Dashboard() {
 
   const [hasSecret, setHasSecret] = useState<boolean>(false);
   const [secretDraft, setSecretDraft] = useState<string>("");
+  // Admin UI is hidden by default. Owner reveals it by visiting /dashboard?admin=1
+  // (bookmark that URL). Public visitors / judges never see the unlock banner.
+  const [showAdmin, setShowAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     const t = setTimeout(() => setHasSecret(!!getApiSecret()), 0);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setShowAdmin(params.get("admin") === "1");
+    }
     return () => clearTimeout(t);
   }, []);
 
@@ -1527,12 +1534,11 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* ── Auth unlock — wallet + think + track are PUBLIC; secret unlocks recent learnings + admin start/stop ── */}
-        {!hasSecret && (
+        {/* ── Auth unlock — only visible when /dashboard?admin=1. Owner bookmarks that URL. ── */}
+        {showAdmin && !hasSecret && (
           <div className="rounded-xl border border-[#ffd641]/30 bg-[#ffd641]/[0.04] px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div className="text-[11px] text-white/70 leading-snug max-w-xl">
-              Public mode — anyone can run <code className="text-[#ffd641]">think</code> and <code className="text-[#ffd641]">track</code> (rate-limited).
-              Paste <code className="text-[#ffd641]">API_SECRET</code> to unlock recent learnings and admin start/stop.
+              Admin mode. Paste <code className="text-[#ffd641]">API_SECRET</code> to unlock recent learnings and start/stop controls.
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -1549,7 +1555,7 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        {hasSecret && (
+        {showAdmin && hasSecret && (
           <div className="text-[10px] text-white/30 font-mono flex items-center justify-end gap-2 -mt-4">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6cff32]" /> authenticated
             <button onClick={clearSecret} className="text-white/40 hover:text-white/70 underline">
