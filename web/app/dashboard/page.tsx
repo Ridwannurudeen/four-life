@@ -1469,12 +1469,26 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-3">
             {status?.agent_id && (
-              <span className="hidden lg:inline text-[10px] text-white/25 font-mono bg-white/[0.03] px-2.5 py-1 rounded-lg">ERC-8004 #{status.agent_id}</span>
+              <a
+                href={`https://four-life.gudman.xyz/api/identity`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden lg:inline text-[10px] text-white/50 hover:text-white/80 font-mono bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1 rounded-lg transition"
+                title="ERC-8004 identity card"
+              >
+                ERC-8004 #{status.agent_id}
+              </a>
             )}
             {status?.wallet && (
-              <span className="hidden sm:inline text-[10px] text-white/20 font-mono">
-                {status.wallet.slice(0, 6)}...{status.wallet.slice(-4)}
-              </span>
+              <a
+                href={`https://bscscan.com/address/${status.wallet}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline text-[10px] text-white/50 hover:text-[#ffd641] font-mono bg-white/[0.04] hover:bg-[#ffd641]/[0.06] px-2.5 py-1 rounded-lg transition"
+                title="Agent wallet on BscScan"
+              >
+                {status.wallet.slice(0, 6)}…{status.wallet.slice(-4)}
+              </a>
             )}
             <button
               onClick={!status?.running ? startAgent : undefined}
@@ -1583,6 +1597,34 @@ export default function Dashboard() {
                     <span key={t} className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-full text-[11px] text-white/50 font-medium">{t}</span>
                   ))}
                 </div>
+                {status?.wallet && (
+                  <div className="mt-7 flex flex-wrap items-center gap-3 text-[11px] font-mono">
+                    <span className="text-white/30">Agent</span>
+                    <a
+                      href={`https://bscscan.com/address/${status.wallet}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-[#ffd641]/[0.08] border border-white/[0.06] hover:border-[#ffd641]/30 text-white/70 hover:text-[#ffd641] transition"
+                      title="View agent wallet on BscScan"
+                    >
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#6cff32]" />
+                      {status.wallet}
+                      <span className="text-white/30">↗</span>
+                    </a>
+                    {status?.agent_id && (
+                      <a
+                        href={`https://four-life.gudman.xyz/api/identity`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-white/70 hover:text-white transition"
+                        title="ERC-8004 agent card"
+                      >
+                        ERC-8004 #{status.agent_id}
+                        <span className="text-white/30">↗</span>
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
