@@ -283,15 +283,15 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
               roots are anchored on-chain.
             </p>
             <p className="text-white/50 text-sm md:text-base mb-8 max-w-2xl font-mono">
-              Latest published roots anchor 1,573 DGrid LLM calls + 518 MYX decisions · 6 attestation txs · $AUNT launched by the agent on Apr 20
+              Latest published roots anchor 5,024 DGrid LLM calls + 13,689 MYX decisions · 8 attestation txs · $AUNT launched by the agent on Apr 20
             </p>
 
             <div className="flex flex-wrap gap-2 mb-7 text-[11px] font-mono">
-              <a href="https://bscscan.com/tx/0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20">
-                DGrid root · 0xab32…a636 ↗
+              <a href="https://bscscan.com/tx/0x94f597923ee4186b40827f6780604365d80e23ef930726958dedd493b7f749a7" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20">
+                DGrid root · 0x94f5…49a7 ↗
               </a>
-              <a href="https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20">
-                MYX root · 0xeda2…2026 ↗
+              <a href="https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20">
+                MYX root · 0x5b53…2488 ↗
               </a>
               <a href="https://bscscan.com/tx/0x80ff903ca947448ec50927b866067b67e5bdd69a667f9d0f1b3af8f0c74869d2" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#6cff32]/40 bg-[#6cff32]/10 text-[#6cff32] hover:bg-[#6cff32]/20">
                 $AUNT launch · 0x80ff…69d2 ↗

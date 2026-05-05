@@ -62,7 +62,7 @@ This is the integrity line judges should attack. Untracked-token badge response 
 | **Circuit breaker + transient retry + multi-provider fallback** (DGrid primary → OpenAI fallback; Anthropic slot wired and activates when `ANTHROPIC_API_KEY` is set) | Production-grade resilience; every fallback event is traced and counted, live on `/api/dgrid/trace` |
 | **Multi-model consensus via DGrid** (`/api/dgrid/consensus`) | 3 models vote in parallel on a JSON field — **wired into the DEFEND phase of every token's lifecycle**. Impossible without a unified gateway. |
 | **Chaos toggle** (`/api/dgrid/chaos`, admin-authed) | Flip DGrid to fail → fallback chain engages → flip back → breaker resets and next call tries DGrid |
-| **On-chain Merkle attestation** | Every successful DGrid call folded into a SHA-256 hash chain. **3 roots published on BNB Chain** (see below). |
+| **On-chain Merkle attestation** | Every successful DGrid call folded into a SHA-256 hash chain. **4 roots published on BNB Chain** (see below). |
 | **Independent verifier** | Pure-Python `verify_chain(calls, expected_root, expected_count=…)` + public log at `/api/dgrid/audit/calls` with deterministic `next_offset` / `has_more` pagination. Judges can re-derive the chain without trusting our server. |
 | **Log-first attestation invariant** | The audit log entry is durably persisted (fsynced) **before** the chain tip advances. If the log write fails, the chain does not move — `verify_chain` always reconstructs `current_root` from the log. |
 | **Cost tracking** | Per-model USD rate table; per-task / per-model breakdown visible on `/dgrid` |
@@ -76,6 +76,7 @@ This is the integrity line judges should attack. Untracked-token badge response 
 | DGrid attestation #1 | 15 DGrid calls | [`0xcf42283a…`](https://bscscan.com/tx/0xcf42283acebfc97657e87393684eedee40a21e98ba9c0b6b7480fa6c711a5c7c) |
 | DGrid attestation #2 | 25 DGrid calls | [`0x047c2f58…`](https://bscscan.com/tx/0x047c2f58e77d349f98eac8305080970c391c0e39c378816c22e69fc0d6b18fe9) |
 | DGrid attestation #3 | 1573 DGrid calls | [`0xab323590…`](https://bscscan.com/tx/0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636) |
+| DGrid attestation #4 | 5,024 DGrid calls | [`0x94f59792…`](https://bscscan.com/tx/0x94f597923ee4186b40827f6780604365d80e23ef930726958dedd493b7f749a7) |
 
 **Verify in 4 steps:** (1) read `current_root` + `num_calls_chained` from `/api/dgrid/audit`; (2) page `/api/dgrid/audit/calls` using `next_offset`/`has_more` until done; (3) call `verify_chain(log, current_root, expected_count=num_calls_chained)` locally; (4) compare against the tx `data` field on BscScan. Four independent paths to the same hash.
 
@@ -101,7 +102,7 @@ POST /api/dgrid/attest         — publish Merkle root on BNB Chain (admin)
 
 ## What we built on MYX V2
 
-**A decision-attestation layer for agent hedging on MYX V2, with every production BSC address wired from the official SDK. 452 hedge decisions cryptographically committed on BNB Chain at root [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026). Order execution is gated behind a one-line env flag pending broker-signer onboarding — the MYX SDK's permissioned architecture requires an integrator broker address issued by the MYX team, which we have publicly requested.**
+**A decision-attestation layer for agent hedging on MYX V2, with every production BSC address wired from the official SDK. 13,689 hedge decisions cryptographically committed on BNB Chain at root [`0x5b53ba4e…`](https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488). Order execution is gated behind a one-line env flag pending broker-signer onboarding — the MYX SDK's permissioned architecture requires an integrator broker address issued by the MYX team, which we have publicly requested.**
 
 The framing difference matters: most attempts at "agent trading" hide the decisions and commit only executions. We commit the **decisions** — what the agent decided, how the DGrid consensus voted, and with what inputs — so the cryptographic audit trail is complete even before trades can fire.
 
@@ -147,8 +148,9 @@ All addresses are hardcoded in `agent/config.py` and wired into `agent/myx/clien
 | MYX decision attestation #1 | 2 hedge decisions | [`0x0d43051c…`](https://bscscan.com/tx/0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698) |
 | MYX decision attestation #2 | 452 hedge decisions | [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026) |
 | MYX decision attestation #3 | 518 hedge decisions | [`0x5c5b9876…`](https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af) |
+| MYX decision attestation #4 | 13,689 hedge decisions | [`0x5b53ba4e…`](https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488) |
 
-Three decision-attestation roots prove the agent is continuously making real hedge decisions on MYX via a cryptographic chain — the latest published root covers 518 decisions, each carrying the action, confidence, size %, reasoning hash, and (for consensus-backed decisions) per-model vote metadata.
+Four decision-attestation roots prove the agent is continuously making real hedge decisions on MYX via a cryptographic chain — the latest published root covers 13,689 decisions, each carrying the action, confidence, size %, reasoning hash, and (for consensus-backed decisions) per-model vote metadata.
 
 ### MYX capabilities we shipped
 
@@ -156,7 +158,7 @@ Three decision-attestation roots prove the agent is continuously making real hed
 |---|---|
 | **Live connection to MYX V2** — 37 perp markets fetched from `api.myx.finance` | Real integration, not mocked |
 | **Phase-aware hedge signals** | Per token, every 5 min: action (long/short/close/hold) + confidence + size_pct + reasoning |
-| **DGrid consensus on DEFEND** | 3 DGrid models vote in parallel on every high-stakes hedge decision. 452 such votes are covered by the published MYX root `0xeda29cc6…`. |
+| **DGrid consensus on DEFEND** | 3 DGrid models vote in parallel on every high-stakes hedge decision. The signal history is covered by the latest published MYX root `0x5b53ba4e…`. |
 | **Signal attestation chain** (separate from trade chain) | Cryptographic commitment to every decision, publishable on-chain before execution |
 | **Shape-preview calldata** (`/api/myx/calldata/{token}`) | Unsigned `createIncreaseOrder` tx against MYX V2's struct — decode locally to verify struct packing. Production orders route through the broker-signer pattern. |
 | **Live consensus demo** (`/api/myx/consensus/{token}`) | Click-button fan-out across 3 DGrid models; returns per-model verdicts + majority vote |
@@ -188,7 +190,7 @@ POST /api/myx/attest-signals     — publish signal root on BNB Chain (admin)
 Submitting for the MYX bounty on the basis of decision-attestation depth plus production-ready infrastructure. Three things judges can verify independently:
 
 1. **The architecture is correctly reverse-engineered** — every BSC mainnet address in our config matches the official MYX SDK (`TRADING_ROUTER`, `ORDER_MANAGER`, `POSITION_MANAGER`, `POOL_MANAGER`, base + quote pools, oracle, forwarder).
-2. **The decision-attestation layer is live** — 452 DEFEND-phase hedge decisions are covered by a Merkle root published on BNB Chain at `0xeda29cc6…`. Every decision carries the action, confidence, size percent, reasoning hash, and (for consensus-backed decisions) the per-model vote metadata. An independent verifier can paginate `/api/myx/signal-attestation` and fold each digest to reproduce the published root.
+2. **The decision-attestation layer is live** — 13,689 hedge decisions are covered by the latest Merkle root published on BNB Chain at `0x5b53ba4e…`. Every decision carries the action, confidence, size percent, reasoning hash, and (for consensus-backed decisions) the per-model vote metadata. An independent verifier can paginate `/api/myx/signal-attestation` and fold each digest to reproduce the published root.
 3. **The remaining execution gap is a protocol design choice, not a tooling gap** — MYX V2 gates brokers by design (per the official SDK's `brokerAddress: "Get from MYX team"` requirement) and onboarding is a manual conversation with the MYX team. We have reached out publicly on multiple channels. The moment a broker address is issued, `MYX_EXECUTION_ENABLED=true` + `MYX_BROKER_ADDRESS=0x…` unlocks execution — everything downstream is already wired.
 
 We submit this to the MYX bounty on decision-attestation depth: the cryptographic audit trail of hedge decisions, with published BNB Chain roots verifiable by anyone, and independent of when (or whether) orders eventually fire.
@@ -201,8 +203,8 @@ We submit this to the MYX bounty on decision-attestation depth: the cryptographi
 - **Agent wallet:** `0x695E492398A51D2Ef5c699818e9616718aaEd1c1` — [BscScan](https://bscscan.com/address/0x695E492398A51D2Ef5c699818e9616718aaEd1c1)
 - **ERC-8004 Agent ID 20** — [registration tx](https://bscscan.com/tx/0x62a1a43d9e782686b833ed44eee7ea95a9ee3370f2f372334dc7bbf85cc14762), [agent card](https://four-life.gudman.xyz/.well-known/agent-registration.json)
 - **$AUNT launched by agent** — [token](https://bscscan.com/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444) · [launch tx](https://bscscan.com/tx/0x80ff903ca947448ec50927b866067b67e5bdd69a667f9d0f1b3af8f0c74869d2) · [Four.meme](https://four.meme/en/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444)
-- **6 on-chain attestation txs** (links above): 3 DGrid + 3 MYX decision roots
-- **373 tests passing** across agent/badge/consensus/history/MYX/webhooks/protection/notifications/SDK
+- **8 on-chain attestation txs** (links above): 4 DGrid + 4 MYX decision roots
+- **415 tests passing** across agent/badge/consensus/history/MYX/webhooks/protection/notifications/SDK
 - **Tech stack:** Python 3.12 / FastAPI / web3.py / viem / Next.js 16 (static export) / nginx + systemd / SQLite + JSONL chains
 - **API surface:** 50+ routes across DGrid (11), MYX (13), platform primitives, webhooks, protection, notifications, creators, contract analyzer, identity, radar
 - **SDKs:** TypeScript (`@gudman/four-life-sdk` v0.2.0) + Python (`four-life`) + Chrome MV3 extension
@@ -222,7 +224,7 @@ We submit this to the MYX bounty on decision-attestation depth: the cryptographi
 
 ## The pitch in one paragraph
 
-FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's cryptographically provable. The agent launches meme tokens on Four.meme, manages their full lifecycle (posts, defense, hedging), hash-chains every decision, and anchors published roots on BNB Chain via Merkle chains anyone can verify without trusting us. The truth-boundary is honest: a "Certified" tier requires full on-chain data; public-ranking heuristics are returned as "Radar Estimate" with a distinct version string and explicit UI treatment. Six on-chain attestation transactions back the "did the agent actually do what you say?" question with BscScan URLs.
+FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's cryptographically provable. The agent launches meme tokens on Four.meme, manages their full lifecycle (posts, defense, hedging), hash-chains every decision, and anchors published roots on BNB Chain via Merkle chains anyone can verify without trusting us. The truth-boundary is honest: a "Certified" tier requires full on-chain data; public-ranking heuristics are returned as "Radar Estimate" with a distinct version string and explicit UI treatment. Eight on-chain attestation transactions back the "did the agent actually do what you say?" question with BscScan URLs.
 
 ---
 
@@ -231,7 +233,7 @@ FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's crypt
 | Criterion | Weight | How FOUR-LIFE delivers |
 |---|---|---|
 | **Innovation** | 30% | On-chain Merkle attestation of every LLM call across a token's full lifecycle. Multi-model DGrid consensus wired into every DEFEND-phase hedge decision — the unified gateway makes this a single fan-out, not per-provider plumbing. Explicit Certified-vs-Radar-Estimate split with per-surface enforcement (SDK, embed, webhooks, notifications, history) — the trust boundary is enforced, not claimed. |
-| **Technical Implementation** | 30% | 373 tests passing. Production-deployed. Real on-chain txs (agent launch, ERC-8004 registration, 6 Merkle attestations). Circuit breaker + multi-provider fallback + chaos-testable. Log-first attestation invariant (no ghost-hash scenario). Wallet-signing serialized + receipt-awaited. Full OpenAPI spec + independent pure-Python verifier. |
+| **Technical Implementation** | 30% | 415 tests passing. Production-deployed. Real on-chain txs (agent launch, ERC-8004 registration, 8 Merkle attestations). Circuit breaker + multi-provider fallback + chaos-testable. Log-first attestation invariant (no ghost-hash scenario). Wallet-signing serialized + receipt-awaited. Full OpenAPI spec + independent pure-Python verifier. |
 | **Practical Value** | 20% | Addresses Four.meme's top operational problem (~98% death rate) with infrastructure Four.meme-adjacent projects can adopt today: SDKs, embeddable badge with honest radar-estimate labelling, signed webhooks, Chrome extension. $AUNT is a real token the agent is managing — not slideware. |
 | **Presentation** | 20% | Landing page with live data on every panel. Dedicated showcase pages for DGrid and MYX with live Merkle tips, chaos toggle, consensus demo. Every claim in this document traces to a specific URL, BscScan tx, or source file. |
 

@@ -126,9 +126,11 @@ const ATTESTATIONS = [
   { kind: "DGrid #1", calls: 15, tx: "0xcf42283acebfc97657e87393684eedee40a21e98ba9c0b6b7480fa6c711a5c7c" },
   { kind: "DGrid #2", calls: 25, tx: "0x047c2f58e77d349f98eac8305080970c391c0e39c378816c22e69fc0d6b18fe9" },
   { kind: "DGrid #3", calls: 1573, tx: "0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636" },
+  { kind: "DGrid #4", calls: 5024, tx: "0x94f597923ee4186b40827f6780604365d80e23ef930726958dedd493b7f749a7" },
   { kind: "MYX decisions #1", calls: 2, tx: "0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698" },
   { kind: "MYX decisions #2", calls: 452, tx: "0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" },
   { kind: "MYX decisions #3", calls: 518, tx: "0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af" },
+  { kind: "MYX decisions #4", calls: 13689, tx: "0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488" },
 ];
 
 export default function ProofPage() {
@@ -138,11 +140,12 @@ export default function ProofPage() {
   // them with live state as soon as the client hydrates.
   const [badge, setBadge] = useState<BadgeResp | null>(null);
   const [audit, setAudit] = useState<AuditResp | null>({
-    current_root: "f57edb6fba94f8fd295d8c25b7f51bdebf1fa7e545239daeb3d1bd35179bacac",
-    num_calls_chained: 1573,
-    last_published_root: "f57edb6fba94f8fd295d8c25b7f51bdebf1fa7e545239daeb3d1bd35179bacac",
-    last_published_txhash: "0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636",
-    last_published_count: 1573,
+    current_root: "a4300dba550bdfa798604ea4520cadbef828fd6eafa510e24f7a18713f507e2e",
+    num_calls_chained: 5024,
+    last_published_root: "a4300dba550bdfa798604ea4520cadbef828fd6eafa510e24f7a18713f507e2e",
+    last_published_txhash: "0x94f597923ee4186b40827f6780604365d80e23ef930726958dedd493b7f749a7",
+    last_published_count: 5024,
+    unpublished_calls: 0,
     genesis: "",
   });
   const [trace, setTrace] = useState<Trace[]>([]);
@@ -150,14 +153,20 @@ export default function ProofPage() {
     agent_name: "FOUR-LIFE",
     running: true,
     agent_id: 20,
-    total_launches: 52,
+    total_launches: 32,
     total_graduations: 5,
-    graduation_rate: 9.6,
+    graduation_rate: 15.6,
     avg_peak_holders: null,
     launches_with_activity: 0,
     active_tokens: 1,
   });
-  const [myx, setMyx] = useState<MyxAttestResp | null>(null);
+  const [myx, setMyx] = useState<MyxAttestResp | null>({
+    current_root: "d0609ae864cea8d8edc529ce84a841617d6d8725a915a9ea0657ea69acac4eb8",
+    num_signals_chained: 13689,
+    last_published_count: 13689,
+    last_published_txhash: "0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488",
+    unpublished_signals: 0,
+  });
   const [grads, setGrads] = useState<GradRow[]>([]);
   const [loadedAt, setLoadedAt] = useState<number>(0);
 
@@ -396,7 +405,7 @@ export default function ProofPage() {
         {/* Section 4: On-chain evidence */}
         <section className="mb-10 rounded-xl border border-white/10 bg-black/30 p-6">
           <h2 className="text-[11px] uppercase tracking-[0.15em] text-white/40 mb-4">
-            4. On-chain Merkle attestations — 6 independent txs
+            4. On-chain Merkle attestations — 8 independent txs
           </h2>
           <div className="space-y-2">
             {ATTESTATIONS.map((a) => (

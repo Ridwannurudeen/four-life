@@ -13,7 +13,7 @@ Hey MYX team — I'm submitting FOUR-LIFE to Four.meme AI Sprint, deadline 23:59
 
 Built a full MYX V2 signal + attestation integration on BSC mainnet:
 - Every production BSC mainnet address wired from your SDK (TRADING_ROUTER, ORDER_MANAGER, POSITION_MANAGER, pools, oracle, forwarder)
-- 452+ hedge signals cryptographically committed on BNB Chain at Merkle root 0xeda29cc6...2026 (independently verifiable via /api/myx/audit)
+- 13,689 hedge signals cryptographically committed on BNB Chain at Merkle root 0x5b53ba4e...2488 (independently verifiable via /api/myx/signal-attestation)
 - 3-DGrid-model consensus on every DEFEND-phase decision
 - Live calldata viewer against your V2 struct
 - Ready to flip MYX_EXECUTION_ENABLED=true the second we have a broker address
@@ -37,7 +37,7 @@ If onboarding is same-week, even a post-deadline broker address would let us dem
 Find their newest post. Reply:
 
 ```
-Submitted FOUR-LIFE to the @four_meme_ AI Sprint — 452+ MYX hedge signals attested on BNB Chain at root 0xeda29cc6, consensus-backed DEFEND decisions across 3 DGrid models, every production address wired from your SDK. DM open for broker onboarding 🙏
+Submitted FOUR-LIFE to the @four_meme_ AI Sprint — 13,689 MYX hedge signals attested on BNB Chain at root 0x5b53ba4e, consensus-backed DEFEND decisions across 3 DGrid models, every production address wired from your SDK. DM open for broker onboarding 🙏
 
 https://four-life.gudman.xyz/myx
 ```
@@ -55,7 +55,7 @@ Hi team, hackathon finalist here — FOUR-LIFE, submitting to Four.meme AI Sprin
 
 Built full MYX V2 signal + attestation infrastructure on BSC mainnet:
 - 13 MYX endpoints live at four-life.gudman.xyz/myx
-- 452+ signals cryptographically committed on-chain (root 0xeda29cc6...2026)
+- 13,689 signals cryptographically committed on-chain (root 0x5b53ba4e...2488)
 - 3-DGrid-model consensus voting on every DEFEND-phase hedge decision
 - Every production BSC address wired from @myx-trade/sdk
 
@@ -76,12 +76,12 @@ Check their X bio for Telegram link. Probably `t.me/myxtrade` or similar.
 ```
 Hi — MYX hackathon integration question, urgent.
 
-FOUR-LIFE submission to Four.meme AI Sprint (closes 23:59 UTC today). Full MYX V2 signal infra on BSC mainnet, 452+ signals attested on-chain, ready to execute — just need broker onboarding.
+FOUR-LIFE submission to Four.meme AI Sprint. Full MYX V2 signal infra on BSC mainnet, 13,689 signals attested on-chain, ready to execute — just need broker onboarding.
 
 One-line check: can someone issue a broker address to 0x695E492398A51D2Ef5c699818e9616718aaEd1c1 before deadline, or any same-week option?
 
 Demo: https://four-life.gudman.xyz/myx
-Signal attestation tx: https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026
+Signal attestation tx: https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488
 ```
 
 ---
@@ -102,7 +102,7 @@ Our MYX V2 integration is complete on BSC mainnet:
 - TRADING_ROUTER / ORDER_MANAGER / POSITION_MANAGER / POOL_MANAGER / BASE_POOL / QUOTE_POOL / ORACLE / FORWARDER — every production address wired from your SDK
 - `@myx-trade/sdk` patterns followed in `agent/myx/client.py`
 - Phase-aware hedge signals (NURTURE / DEFEND / ACCELERATE / GRADUATED) firing every 5 min per tracked token
-- 452+ signals committed to an on-chain Merkle chain: [tx 0xeda29cc6…](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026)
+- 13,689 signals committed to an on-chain Merkle chain: [tx 0x5b53ba4e…](https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488)
 - 3-model consensus (via DGrid) on every DEFEND-phase decision
 - Live showcase at https://four-life.gudman.xyz/myx
 
@@ -138,7 +138,7 @@ Check https://myx.finance footer / Contact page for email. If `partnerships@myx.
 Search LinkedIn for "MYX Finance" employees. Usually 3-5 show up. Send each a connection request with this note:
 
 ```
-Hi [name], hackathon finalist here with a time-sensitive MYX broker onboarding ask for tonight's Four.meme AI Sprint deadline. Full MYX V2 signal integration complete on BSC mainnet (452+ signals attested on-chain). Would love a 60-second look: four-life.gudman.xyz/myx. Thank you 🙏
+Hi [name], hackathon finalist here with a time-sensitive MYX broker onboarding ask for the Four.meme AI Sprint. Full MYX V2 signal integration complete on BSC mainnet (13,689 signals attested on-chain). Would love a 60-second look: four-life.gudman.xyz/myx. Thank you 🙏
 ```
 
 LinkedIn often gets faster replies than X for B2B because it's where work happens.
@@ -155,8 +155,8 @@ FOUR-LIFE is my Four.meme AI Sprint submission — the Phase 4 lifecycle agent t
 Only 1.34% of Four.meme tokens graduate. We built the missing layer:
 
 ✓ $AUNT launched by the agent ($AUNT tx)
-✓ 1,573 LLM calls attested on BNB Chain
-✓ 452 MYX hedge signals on-chain
+✓ 5,024 LLM calls attested on BNB Chain
+✓ 13,689 MYX hedge signals on-chain
 ✓ 5 Merkle roots you can verify
 
 https://four-life.gudman.xyz/proof

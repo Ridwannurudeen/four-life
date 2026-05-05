@@ -384,12 +384,12 @@ export default function MYXPage() {
             reputation verifiable independent of the permissioned broker-signer gate.
           </div>
           <a
-            href="https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af"
+            href="https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-full border border-[#00d4ff]/40 bg-[#00d4ff]/10 text-[#00d4ff] hover:bg-[#00d4ff]/20 text-[11px] font-mono"
           >
-            518 decisions committed · latest root 0x5c5b9876…37af ↗
+            13,689 decisions committed · latest root 0x5b53ba4e…2488 ↗
           </a>
         </div>
         <div className="grid md:grid-cols-2 gap-3">
@@ -443,8 +443,8 @@ export default function MYXPage() {
         <div className="eyebrow mb-3">Live consensus demo · DGrid × MYX synergy</div>
         <p className="text-xs text-white/50 mb-4 max-w-2xl">
           Click any tracked token to fan the current hedge prompt across 3 DGrid models in parallel.
-          Majority vote decides the action. 452 DEFEND-phase signals attested on-chain at root{" "}
-          <a href="https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026" target="_blank" rel="noopener noreferrer" className="text-[#00d4ff] hover:underline font-mono">0xeda29cc6</a>.
+          Majority vote decides the action. 13,689 hedge signals are covered by the latest published root{" "}
+          <a href="https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488" target="_blank" rel="noopener noreferrer" className="text-[#00d4ff] hover:underline font-mono">0x5b53ba4e</a>.
         </p>
         <div className="flex gap-2 flex-wrap">
           {(portfolio?.token_summaries || []).map((t) => (

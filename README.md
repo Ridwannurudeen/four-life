@@ -7,7 +7,7 @@
 The autonomous lifecycle agent that grades every Four.meme token with pure on-chain rules (zero LLM in the trust path) and Merkle-commits every operational LLM decision to BNB Chain.
 
 [![License](https://img.shields.io/badge/license-MIT-a1a1aa.svg?style=flat-square)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-373_passing-6cff32.svg?style=flat-square)](#tests)
+[![Tests](https://img.shields.io/badge/tests-415_passing-6cff32.svg?style=flat-square)](#tests)
 [![Live](https://img.shields.io/badge/live-four--life.gudman.xyz-00d4ff.svg?style=flat-square)](https://four-life.gudman.xyz)
 [![Chrome Extension](https://img.shields.io/badge/extension-v1.5.3-6cff32.svg?style=flat-square)](./extension)
 [![ERC-8004](https://img.shields.io/badge/ERC--8004-Agent_%2320-a855f7.svg?style=flat-square)](https://bscscan.com/tx/0x62a1a43d9e782686b833ed44eee7ea95a9ee3370f2f372334dc7bbf85cc14762)
@@ -72,14 +72,14 @@ An autonomous agent (ERC-8004 Agent #20 on BNB Chain) that produces four verifia
 Agent wallet     0x695E492398A51D2Ef5c699818e9616718aaEd1c1
 ERC-8004 ID      #20
 Launches          32          Graduations     5 (15.6% vs platform 1.34%)
-DGrid chained    1,573        MYX chained     518
-Attestation txs  6            Certified live  8
+DGrid chained    5,024        MYX chained     13,689
+Attestation txs  8            Certified live  8
 ```
 
 **BNB-Chain Merkle-root transactions you can open on BscScan right now:**
 
-- DGrid: [`0xab323590…`](https://bscscan.com/tx/0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636) (latest, 1,573 calls committed) · [`0x047c2f58…`](https://bscscan.com/tx/0x047c2f58e77d349f98eac8305080970c391c0e39c378816c22e69fc0d6b18fe9) · [`0xcf42283a…`](https://bscscan.com/tx/0xcf42283acebfc97657e87393684eedee40a21e98ba9c0b6b7480fa6c711a5c7c)
-- MYX: [`0x5c5b9876…`](https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af) (latest, 518 decisions committed) · [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026) · [`0x0d43051c…`](https://bscscan.com/tx/0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698)
+- DGrid: [`0x94f59792…`](https://bscscan.com/tx/0x94f597923ee4186b40827f6780604365d80e23ef930726958dedd493b7f749a7) (latest, 5,024 calls committed) · [`0xab323590…`](https://bscscan.com/tx/0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636) · [`0x047c2f58…`](https://bscscan.com/tx/0x047c2f58e77d349f98eac8305080970c391c0e39c378816c22e69fc0d6b18fe9) · [`0xcf42283a…`](https://bscscan.com/tx/0xcf42283acebfc97657e87393684eedee40a21e98ba9c0b6b7480fa6c711a5c7c)
+- MYX: [`0x5b53ba4e…`](https://bscscan.com/tx/0x5b53ba4e28f3f3294044cf407c4e6d11988fd83bfd9789d5724e022da5e92488) (latest, 13,689 decisions committed) · [`0x5c5b9876…`](https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af) · [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026) · [`0x0d43051c…`](https://bscscan.com/tx/0x0d43051c24fd59359317d12ce3137512a1c7cb032528bf813d506545fcf06698)
 
 **Graduated tokens deployed by the agent** (all at 100% curve, BscScan-verifiable on `/proof`):
 [BIDUDU](https://bscscan.com/token/0x8846437a9231a3523558e36068b2ad1d3a2c4444) · [HOPE](https://bscscan.com/token/0xae7500a58857f04de0c63c633d408c618f3a4444) · [DRONE](https://bscscan.com/token/0x93a791d7da59a437c951cb6dcb2ea89eb71f4444) · [MLM](https://bscscan.com/token/0xbddd91e164a25dc9bde0feff0b9e7264a5064444)
@@ -224,7 +224,7 @@ Click **Swap ↗** on an at-risk token → instead of opening PancakeSwap, a red
            │  • BRC-8004 IdentityRegistry (Agent ID 20)        │
            │  • BRC-8004 ReputationRegistry                    │
            │  • MYX V2 Pool (pair-index resolution)            │
-           │  • 3 DGrid root txs + 3 MYX root txs (6 total)    │
+           │  • 4 DGrid root txs + 4 MYX root txs (8 total)    │
            └──────────────────────────────────────────────────┘
 
                          5 consumer surfaces read the same primitives:
@@ -361,7 +361,7 @@ Every operational LLM decision routes through [DGrid](https://dgrid.ai). Built t
 - **Chaos toggle** — `POST /api/dgrid/chaos {enabled: true}` forces DGrid to fail so judges can watch the fallback chain engage live on stage. Deterministic recovery when disabled.
 - **Cost tracking** — per-model USD rate table; every trace entry carries `cost_usd`; stats roll up by task / model / provider.
 - **Hardened JSON parser** — 4-stage cascade (parse → balanced-bracket extract → unescaped-control-char repair → mid-string truncation close) so the agent survives LLM output corruption that kills naive integrations.
-- **On-chain Merkle attestation** — every successful DGrid call is hashed into a rolling SHA-256 chain. Published tips are anchored on BNB Chain as self-transactions with the root in the tx `data` field. **3 DGrid roots on-chain, latest published root covers 1,573 calls.** Anyone can download the full log via `/api/dgrid/audit/calls` and verify locally — **zero server trust**.
+- **On-chain Merkle attestation** — every successful DGrid call is hashed into a rolling SHA-256 chain. Published tips are anchored on BNB Chain as self-transactions with the root in the tx `data` field. **4 DGrid roots on-chain, latest published root covers 5,024 calls.** Anyone can download the full log via `/api/dgrid/audit/calls` and verify locally — **zero server trust**.
 - **Per-response provenance** — every public LLM-backed response carries an `llm_provider` field identifying which provider served that specific decision.
 
 ---
@@ -373,7 +373,7 @@ Phase-aware hedge signals with every decision cryptographically attested — ind
 - **Live connection** — 37 perp markets fetched live from `api.myx.finance`. `getPairIndex(WBNB, USDT)` resolves on-chain against the verified MYX V2 Pool `0x22cEc08111BBae24D0b80BDA2a6503EaB9BA704b`.
 - **Phase-aware hedging** — NURTURE=monitor, DEFEND=short hedge (consensus-backed), ACCELERATE=scale, GRADUATED=close all.
 - **DGrid consensus on DEFEND** — the highest-stakes decision (opening a short when a token shows weakness) fans across 3 DGrid models and takes a majority vote. Consensus metadata (method, tally, per-model verdict) preserved in every signal.
-- **Two independent Merkle chains** — **trade attestation** chains every open/close position event; **signal attestation** chains every agent decision. Both publishable on-chain. **3 MYX roots on-chain, 518 decisions committed.**
+- **Two independent Merkle chains** — **trade attestation** chains every open/close position event; **signal attestation** chains every agent decision. Both publishable on-chain. **4 MYX roots on-chain, 13,689 decisions committed.**
 - **Every production BSC mainnet address wired** — TRADING_ROUTER, ORDER_MANAGER, POSITION_MANAGER, BASE_POOL, QUOTE_POOL, ORACLE, FORWARDER, sourced from the official MYX SDK.
 - **Execution: signal-only (broker-gated upstream).** MYX V2 routes orders through a permissioned **BrokerSigner** contract issued per integrator by the MYX team. Fork-simulation confirmed the broker gate reverts with `"disabled"` for any caller without a signed allowance. We shipped the complete infrastructure wired to the correct addresses; flipping `MYX_EXECUTION_ENABLED=true` + setting `MYX_BROKER_ADDRESS` is the single change needed to go live once MYX whitelists us. **Every decision is hash-chained regardless of whether the order executes, and published roots anchor those decisions on-chain — that's the product.**
 
@@ -430,7 +430,7 @@ Full list in [`.env.example`](./.env.example).
 
 ```bash
 # Python core + SDK
-python -m pytest tests/                 # 373 tests
+python -m pytest tests/                 # 375 tests
 python -m pytest sdk-python/tests       # SDK contract tests
 
 # TypeScript SDK
@@ -440,7 +440,7 @@ cd sdk && npm test                      # contract tests
 cd web && npm run lint && npx tsc --noEmit && npm run build
 ```
 
-**Last green run:** 373 Python tests passing · TypeScript strict build clean · `npm audit` reports 0 vulnerabilities · Chrome extension JS syntax-checked.
+**Last green run:** 375 core Python tests + 32 Python SDK tests + 8 TypeScript SDK tests passing · TypeScript strict build clean · `npm audit` reports 0 vulnerabilities · Chrome extension JS syntax-checked.
 
 Coverage includes: truth-boundary invariants across every surface, DGrid circuit-breaker state machine, transient retry classification, chaos-injection + recovery, cost-by-model accumulation, attestation-chain determinism + re-derivation + tamper detection, trace ordering, MYX signal-log pagination + trade+signal attestation chains, webhook SSRF guard, rate-limit enforcement, extension route patterns.
 
@@ -471,7 +471,7 @@ four-life/
 │   ├── popup/            # toolbar dashboard
 │   ├── onboarding/       # 6-step tour
 │   └── background.js     # watchlist · notifications · context menu
-├── tests/                # 373-test Python suite
+├── tests/                # 375-test Python suite
 ├── deploy/               # systemd unit · nginx · setup.sh
 └── docs/                 # screenshots
 ```

@@ -235,16 +235,16 @@ function Stat({ label, value, sub, accent }: { label: string; value: string | nu
 // reads as a broken simulation. These defaults paint the correct state
 // immediately and get overwritten by live data on hydration.
 const INITIAL_AUDIT: AuditResp = {
-  current_root: "f57edb6fba94f8fd295d8c25b7f51bdebf1fa7e545239daeb3d1bd35179bacac",
-  num_calls_chained: 1573,
-  last_published_root: "f57edb6fba94f8fd295d8c25b7f51bdebf1fa7e545239daeb3d1bd35179bacac",
-  last_published_txhash: "0xab323590f4aaa1013960ac77a89a215690ce731f72405c6b10f7bcd75973a636",
-  last_published_at: 1776832980,
-  last_published_count: 1573,
+  current_root: "a4300dba550bdfa798604ea4520cadbef828fd6eafa510e24f7a18713f507e2e",
+  num_calls_chained: 5024,
+  last_published_root: "a4300dba550bdfa798604ea4520cadbef828fd6eafa510e24f7a18713f507e2e",
+  last_published_txhash: "0x94f597923ee4186b40827f6780604365d80e23ef930726958dedd493b7f749a7",
+  last_published_at: 1777983479,
+  last_published_count: 5024,
   unpublished_calls: 0,
   genesis: "",
-  dgrid_calls_seen_by_client: 1573,
-  full_log_count: 1573,
+  dgrid_calls_seen_by_client: 5024,
+  full_log_count: 5024,
   dgrid_images_disabled: false,
 };
 

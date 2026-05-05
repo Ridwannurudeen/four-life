@@ -168,7 +168,7 @@ flow.append(PageBreak())
 flow.extend(beat(
     3, "0:45 &rarr; 1:15",
     "The Proof &mdash; /proof",
-    "Here's the agent's record. Thirty-two launches deployed, five graduated &mdash; that's fifteen point six percent, more than eleven times the platform average. Every operational LLM call the agent makes &mdash; narrative picks, hedge decisions &mdash; is Merkle-committed on BNB Chain. One thousand five hundred seventy-three DGrid calls chained. Five hundred eighteen MYX decisions chained. Six transactions, all verifiable on BscScan.",
+    "Here's the agent's record. Thirty-two launches deployed, five graduated &mdash; that's fifteen point six percent, more than eleven times the platform average. Every operational LLM call the agent makes &mdash; narrative picks, hedge decisions &mdash; is hash-chained, and published roots are anchored on BNB Chain. Five thousand twenty-four DGrid calls and thirteen thousand six hundred eighty-nine MYX decisions are covered by the latest roots. Eight transactions, all verifiable on BscScan.",
     [
         "Point at <b>Section 0 &ldquo;The ledger&rdquo;</b> &mdash; the 5 big stat numbers light up live",
         "Click any of the 4 link cards (agent wallet / ERC-8004 / DGrid root / MYX root) &rarr; BscScan opens &rarr; close the tab",

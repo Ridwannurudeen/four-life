@@ -6,13 +6,13 @@ Copy-paste ready text for the BUIDL fields. Three lengths below — pick the one
 
 ## Short (tagline — ≤200 chars)
 
-Verifiably-autonomous lifecycle agent for Four.meme. Launches tokens, manages the full lifecycle, and anchors every LLM call + hedge signal on BNB Chain. Five attestation txs you can verify now.
+Verifiably-autonomous lifecycle agent for Four.meme. Launches tokens, manages the full lifecycle, and anchors every LLM call + hedge signal on BNB Chain. Eight attestation txs you can verify now.
 
 ---
 
 ## Medium (≤500 chars)
 
-Four.meme's Agentic Mode creates tokens — then ~98% die within 72h because nothing manages them after launch. FOUR-LIFE is the Phase-4 lifecycle agent: launches tokens on Four.meme end-to-end, manages them via a THINK → BIRTH → RAISE → LEARN loop, hedges on MYX, and commits every decision to on-chain Merkle chains. 6 attestation txs live (3 DGrid + 3 MYX decision roots). 367 tests. Real token ($AUNT) under management. Judges verify claims by BscScan, not trust.
+Four.meme's Agentic Mode creates tokens — then ~98% die within 72h because nothing manages them after launch. FOUR-LIFE is the Phase-4 lifecycle agent: launches tokens on Four.meme end-to-end, manages them via a THINK → BIRTH → RAISE → LEARN loop, hedges on MYX, and commits every decision to on-chain Merkle chains. 8 attestation txs live (4 DGrid + 4 MYX decision roots). 415 tests. Real token ($AUNT) under management. Judges verify claims by BscScan, not trust.
 
 ---
 
@@ -25,10 +25,10 @@ What's live on `four-life.gudman.xyz`:
 - **Real token under management.** $AUNT — launched on Four.meme end-to-end by the agent (concept via DGrid, art via DALL-E, signed create-token tx). Launch tx `0x80ff903c…`.
 - **Strict truth-boundary.** "FOUR-LIFE Certified" is only issued when we have full on-chain data. Public-ranking tokens get a "Radar Estimate" with `tier_source: "radar_estimate"` and a distinct version. Embed, webhooks, notifications, and SDK all enforce the split — never pretend a heuristic is Certified.
 - **DGrid is the brain.** Every LLM call routes through it. Three-model consensus voting wired into every token's DEFEND phase — a capability single-provider agents literally cannot replicate. Circuit breaker + multi-provider fallback (DGrid primary → OpenAI; Anthropic slot activates when configured) + chaos toggle + on-chain cost accounting.
-- **Five on-chain attestation txs.** 3 DGrid roots (committing 1,573 LLM calls) + 2 MYX signal roots (452 signals). Anyone can page `/api/dgrid/audit/calls`, run `verify_chain()` locally, and confirm each root.
+- **Eight on-chain attestation txs.** 4 DGrid roots (latest covers 5,024 LLM calls) + 4 MYX signal roots (latest covers 13,689 signals). Anyone can page `/api/dgrid/audit/calls`, run `verify_chain()` locally, and confirm each root.
 - **MYX V2 signal infrastructure.** Every production BSC address wired. Phase-aware hedge signals attested on-chain. Signal-only by honest design — execution waits on MYX broker onboarding.
 
-367 tests. ERC-8004 Agent ID 20. Every claim traces to a BscScan URL or source file.
+415 tests. ERC-8004 Agent ID 20. Every claim traces to a BscScan URL or source file.
 
 **FOUR-LIFE is the first Four.meme agent where "autonomous" isn't marketing — it's cryptographically provable.**
 
@@ -55,7 +55,7 @@ What's live on `four-life.gudman.xyz`:
 
 - Four.meme solved creation (Agentic Mode). FOUR-LIFE is the lifecycle layer — Phase 4: Agent Lifecycle Operations.
 - The differentiator isn't "AI agent for meme tokens" (generic) — it's **on-chain cryptographic attestation of every decision in a token's life**, from insider-phase launch through public-phase graduation.
-- The concrete proof: 1,573 LLM calls + 452 MYX signals committed to Merkle chains published on BNB Chain. 5 BscScan tx hashes anyone can click.
+- The concrete proof: 5,024 LLM calls + 13,689 MYX signals committed to Merkle chains published on BNB Chain. 8 BscScan tx hashes anyone can click.
 
 **One-liner to use in spoken judging:**
 
