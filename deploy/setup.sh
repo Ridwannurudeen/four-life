@@ -26,7 +26,9 @@ else
 fi
 
 # 2. Python deps
-pip3 install -r requirements.txt --quiet
+# The VPS runs the API from system Python. Newer Debian/Ubuntu releases enforce
+# PEP 668 for system installs, so allow this deployment-managed environment.
+PIP_BREAK_SYSTEM_PACKAGES=1 pip3 install -r requirements.txt --quiet
 
 # 3. Data dirs for SQLite + memory snapshots (writable by the service user)
 mkdir -p data/logs data/memory
