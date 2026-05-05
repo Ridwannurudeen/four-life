@@ -279,10 +279,11 @@ function Hero({ metrics }: { metrics: LiveMetrics }) {
             <p className="text-white/70 text-lg md:text-2xl leading-[1.45] max-w-2xl mb-4 font-light">
               The autonomous lifecycle agent for Four.meme tokens on BNB Chain.
               Trust grades are deterministic (pure on-chain rules, zero LLM). Operational
-              decisions go through an LLM gateway and every call is Merkle-committed on-chain.
+              decisions go through an LLM gateway, are hash-chained locally, and published
+              roots are anchored on-chain.
             </p>
             <p className="text-white/50 text-sm md:text-base mb-8 max-w-2xl font-mono">
-              1,573 DGrid LLM calls + 518 MYX decisions committed to on-chain Merkle roots · 6 attestation txs · $AUNT launched by the agent on Apr 20
+              Latest published roots anchor 1,573 DGrid LLM calls + 518 MYX decisions · 6 attestation txs · $AUNT launched by the agent on Apr 20
             </p>
 
             <div className="flex flex-wrap gap-2 mb-7 text-[11px] font-mono">
@@ -579,7 +580,7 @@ function Primitives() {
           <code className="font-mono text-white/80 bg-white/5 px-1.5 py-0.5 rounded">why[]</code> rule trace.
           No LLM is used to decide if a token is safe — anyone can reproduce any grade from the raw data.
           The agent&apos;s operational LLM calls (narrative picks, post content, hedge signals) go through a
-          gateway that commits every call to an on-chain Merkle root.
+          gateway that hash-chains every call and periodically anchors Merkle roots on-chain.
         </p>
       </div>
 
@@ -647,7 +648,7 @@ function DemoVideo() {
             <div className="mt-5 text-sm font-bold text-white">Walkthrough video arriving soon</div>
             <div className="mt-1 text-xs text-white/45 max-w-sm">
               Watch the agent launch a Four.meme token, grade it deterministically,
-              defend it through its lifecycle, and commit every decision on-chain.
+              defend it through its lifecycle, and anchor published Merkle roots on-chain.
             </div>
             <div className="mt-4 flex flex-wrap gap-2 justify-center">
               <Link href="/proof" className="text-[11px] px-3 py-1.5 rounded-md border border-white/15 text-white/75 hover:bg-white/5 hover:text-white">
@@ -678,8 +679,8 @@ function Architecture() {
         <p className="text-white/55 text-base md:text-lg">
           A Four.meme token enters on the left. The autonomous agent runs a
           three-phase lifecycle loop. Every trust grade is deterministic
-          (no LLM); every operational LLM call is committed to an on-chain
-          Merkle root. Four consumer surfaces read the same primitives.
+          (no LLM); every operational LLM call is hash-chained and periodically
+          anchored to an on-chain Merkle root. Four consumer surfaces read the same primitives.
         </p>
       </div>
 
@@ -744,7 +745,7 @@ function Architecture() {
             <text x="840" y="240" textAnchor="middle" fontSize="10" fontWeight="700" letterSpacing="1.8" fill="#a855f7">ON-CHAIN ATTESTATION · BNB CHAIN</text>
             <text x="840" y="268" textAnchor="middle" fontSize="16" fontWeight="800" fill="#fff">Merkle-root txs</text>
             <text x="840" y="290" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">DGrid LLM calls · MYX decisions</text>
-            <text x="840" y="308" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">every call committed, verifiable</text>
+            <text x="840" y="308" textAnchor="middle" fontSize="12" fill="rgba(255,255,255,0.65)">published roots verifiable</text>
           </g>
 
           {/* Arrows 3 — to consumer surfaces */}

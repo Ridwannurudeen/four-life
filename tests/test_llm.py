@@ -26,10 +26,18 @@ def _mock_openai_response(text: str):
 def _make_client(*, dgrid=True, anthropic=True):
     """Build an LLMClient instance with deterministic settings for testing."""
     from agent.brain.llm import LLMClient
-    with patch("agent.brain.llm.settings") as mock_settings:
+    with (
+        patch("agent.brain.llm.settings") as mock_settings,
+        patch("agent.brain.llm.AsyncOpenAI") as mock_openai,
+        patch("agent.brain.llm.AsyncAnthropic") as mock_anthropic,
+    ):
         mock_settings.dgrid_api_key = "sk-test-dgrid" if dgrid else ""
         mock_settings.anthropic_api_key = "sk-ant-test" if anthropic else ""
+        mock_settings.openai_api_key = ""
         mock_settings.dgrid_model = "google/gemini-2.5-flash"
+        mock_settings.dgrid_task_overrides = ""
+        mock_openai.return_value = MagicMock()
+        mock_anthropic.return_value = MagicMock()
         client = LLMClient()
     # Swap clients for mocks to avoid real network
     if dgrid:
@@ -281,11 +289,18 @@ class TestTaskRouting:
         """OpenAI fallback keeps its configured model even with task routing."""
         from unittest.mock import patch as _patch
         from agent.brain.llm import LLMClient
-        with _patch("agent.brain.llm.settings") as mock_settings:
+        with (
+            _patch("agent.brain.llm.settings") as mock_settings,
+            _patch("agent.brain.llm.AsyncOpenAI") as mock_openai,
+            _patch("agent.brain.llm.AsyncAnthropic") as mock_anthropic,
+        ):
             mock_settings.dgrid_api_key = "sk-test"
             mock_settings.anthropic_api_key = ""
             mock_settings.openai_api_key = "sk-openai"
             mock_settings.dgrid_model = "google/gemini-2.5-flash"
+            mock_settings.dgrid_task_overrides = ""
+            mock_openai.return_value = MagicMock()
+            mock_anthropic.return_value = MagicMock()
             client = LLMClient()
         client._dgrid = AsyncMock()
         client._dgrid.chat = MagicMock()

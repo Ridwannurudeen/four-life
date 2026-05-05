@@ -249,14 +249,14 @@ const INITIAL_AUDIT: AuditResp = {
 };
 
 const INITIAL_HEALTH: Health = {
-  status: "green",
+  status: "amber",
   dgrid_configured: true,
   primary_model: "google/gemini-2.5-flash",
-  last_dgrid_success_ts: Math.floor(Date.now() / 1000),
-  last_provider: "dgrid",
+  last_dgrid_success_ts: null,
+  last_provider: "checking",
   last_dgrid_error: null,
-  dgrid_calls: 1573,
-  dgrid_share: 1.0,
+  dgrid_calls: 0,
+  dgrid_share: 0,
   fallback_events: 0,
 };
 
@@ -416,6 +416,8 @@ export default function DGridPage() {
   const sharePct = useMemo(() => Math.round((stats?.dgrid_share || 0) * 100), [stats]);
   const healthStyle = health ? HEALTH_STYLE[health.status] : HEALTH_STYLE.red;
   const breakerStyle = stats?.breaker ? BREAKER_STYLE[stats.breaker.state] : BREAKER_STYLE.closed;
+  const dgridDegraded = health?.status !== "green" || sharePct === 0 || Boolean(stats?.last_dgrid_error || health?.last_dgrid_error);
+  const dgridError = stats?.last_dgrid_error || health?.last_dgrid_error;
 
   return (
     <main className="max-w-5xl mx-auto px-5 py-14">
@@ -428,10 +430,9 @@ export default function DGridPage() {
         <div className="eyebrow mb-3">Powered by DGrid AI Gateway</div>
         <h1 className="text-4xl md:text-5xl font-bold mb-3">FOUR-LIFE runs on DGrid.</h1>
         <p className="text-white/60 leading-relaxed text-lg">
-          Every LLM decision the agent makes — narrative, content, risk, vision, consensus, image — routes through{" "}
-          <span className="text-[#6cff32] font-semibold">DGrid&apos;s unified AI Gateway</span>. One API, one auth, one
-          audit trail, across every model. A circuit breaker + multi-provider fallback keeps the agent alive even
-          when DGrid hiccups — but DGrid always leads.
+          DGrid is the agent&apos;s primary LLM path for narrative, content, risk, vision, consensus, and image work.
+          The live rail below shows whether DGrid is serving now or whether the fallback chain is carrying traffic.
+          Every successful DGrid call is hash-chained and periodically anchored on BNB Chain.
         </p>
       </div>
 
@@ -484,6 +485,33 @@ export default function DGridPage() {
           </div>
         )}
       </Card>
+
+      {dgridDegraded && (
+        <Card className="mb-6 border-[#ffd641]/35 bg-[#ffd641]/[0.04]">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="eyebrow mb-2 border-[#ffd641]/30 bg-[#ffd641]/10 text-[#ffd641]">Live DGrid status needs attention</div>
+              <div className="text-sm text-white/70 max-w-2xl">
+                Judges should see a green DGrid rail before the demo. Current traffic is degraded or falling back, so the
+                DGrid bounty story depends on restoring credits/connectivity and then publishing a fresh Merkle root.
+              </div>
+              {dgridError && (
+                <div className="mt-2 rounded-md border border-white/10 bg-black/30 px-3 py-2 text-[11px] font-mono text-[#ffd641] break-all">
+                  {dgridError}
+                </div>
+              )}
+            </div>
+            <a
+              href={`${API}/api/dgrid/health`}
+              target="_blank"
+              rel="noopener"
+              className="btn-pill text-xs bg-[#ffd641]/10 text-[#ffd641] border border-[#ffd641]/30 hover:bg-[#ffd641]/20"
+            >
+              open health JSON
+            </a>
+          </div>
+        </Card>
+      )}
 
       {/* Core stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -579,8 +607,8 @@ export default function DGridPage() {
           <div>
             <div className="eyebrow mb-1">On-chain attestation · cryptographic proof of DGrid usage</div>
             <div className="text-xs text-white/60 max-w-xl">
-              Every successful DGrid call is folded into a SHA-256 hash chain. The tip is published on BNB Chain as a
-              self-transaction — anyone can verify the commitment without trusting us.
+              Every successful DGrid call is folded into a SHA-256 hash chain. Published tips are anchored on BNB Chain as
+              self-transactions, while newer calls remain visibly counted as unpublished until the next anchor.
             </div>
           </div>
         </div>

@@ -3481,7 +3481,7 @@ async def stop_agent(_=Depends(require_auth)):
 # ── Manual Token Management ──────────────────────────────────────────
 
 @app.post("/api/agent/think", tags=["agent"], summary="Run a single THINK cycle")
-async def manual_think():
+async def manual_think(_=Depends(require_auth)):
     """Run one THINK cycle — always generates a concept for manual creation."""
     if not agent:
         return JSONResponse({"error": "Agent not configured"}, status_code=503)
@@ -3551,7 +3551,7 @@ async def manual_think():
 
 
 @app.post("/api/agent/track", tags=["agent"], summary="Begin lifecycle tracking for a token")
-async def manual_track(data: dict):
+async def manual_track(data: dict, _=Depends(require_auth)):
     """Track an existing token for lifecycle management.
 
     Body: {"token_address": "0x...", "name": "TokenName", "symbol": "TKN", "concept": {...}}

@@ -657,3 +657,27 @@ class TestDGridConsensus:
     def test_consensus_rejects_empty_prompt(self, client):
         resp = client.post("/api/dgrid/consensus", json={"prompt": "   "})
         assert resp.status_code == 400
+
+
+class TestAgentWriteAuth:
+    @pytest.fixture(autouse=True)
+    def _require_prod_auth(self, monkeypatch):
+        from agent.config import settings
+
+        monkeypatch.setenv("AGENT_ENV", "prod")
+        monkeypatch.setattr(settings, "api_secret", "unit-secret")
+
+    def test_think_requires_bearer_auth(self, client):
+        resp = client.post("/api/agent/think")
+        assert resp.status_code == 401
+
+    def test_track_requires_bearer_auth(self, client):
+        resp = client.post(
+            "/api/agent/track",
+            json={
+                "token_address": "0x568bf737887053ffa8aa4e82d8859ca4a9a14444",
+                "name": "AuntieCoin",
+                "symbol": "AUNT",
+            },
+        )
+        assert resp.status_code == 401

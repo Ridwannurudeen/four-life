@@ -38,7 +38,7 @@ An autonomous agent (ERC-8004 Agent #20 on BNB Chain) that produces four verifia
 |---|---|---|---|
 | 1 | **Certified badge** | Deterministic 5-tier grade with full `why[]` rule trace. Zero LLM in the trust path — anyone can reproduce it. | `/api/token/{addr}/badge`, extension pill, `/radar` |
 | 2 | **Creator survival score** | Aggregate track record per deployer wallet — launches / graduations / trust tier. | `/api/creator/{wallet}/survival-score`, extension panel |
-| 3 | **MYX hedge signal** | DGrid-consensus DEFEND decision per tracked token. Execution is broker-gated upstream; **every decision is Merkle-committed on-chain**. | `/api/myx/signal/{addr}`, `/myx` |
+| 3 | **MYX hedge signal** | DGrid-consensus DEFEND decision per tracked token. Execution is broker-gated upstream; every decision is hash-chained locally and published roots are anchored on-chain. | `/api/myx/signal/{addr}`, `/myx` |
 | 4 | **On-chain attestation log** | Every operational LLM call routes through DGrid; digest + chain tip is hashed, folded into a rolling SHA-256 root, published as a BNB Chain transaction. | `/api/dgrid/audit`, `/proof` |
 
 > **No off-chain oracles for trust. No LLM-graded trust scores. Every claim has a BscScan transaction behind it.**
@@ -361,7 +361,7 @@ Every operational LLM decision routes through [DGrid](https://dgrid.ai). Built t
 - **Chaos toggle** — `POST /api/dgrid/chaos {enabled: true}` forces DGrid to fail so judges can watch the fallback chain engage live on stage. Deterministic recovery when disabled.
 - **Cost tracking** — per-model USD rate table; every trace entry carries `cost_usd`; stats roll up by task / model / provider.
 - **Hardened JSON parser** — 4-stage cascade (parse → balanced-bracket extract → unescaped-control-char repair → mid-string truncation close) so the agent survives LLM output corruption that kills naive integrations.
-- **On-chain Merkle attestation** — every successful DGrid call is hashed into a rolling SHA-256 chain. The tip is published on BNB Chain as a self-transaction with the root in the tx `data` field. **3 DGrid roots on-chain, 1,573 calls committed.** Anyone can download the full log via `/api/dgrid/audit/calls` and verify locally — **zero server trust**.
+- **On-chain Merkle attestation** — every successful DGrid call is hashed into a rolling SHA-256 chain. Published tips are anchored on BNB Chain as self-transactions with the root in the tx `data` field. **3 DGrid roots on-chain, latest published root covers 1,573 calls.** Anyone can download the full log via `/api/dgrid/audit/calls` and verify locally — **zero server trust**.
 - **Per-response provenance** — every public LLM-backed response carries an `llm_provider` field identifying which provider served that specific decision.
 
 ---
@@ -375,7 +375,7 @@ Phase-aware hedge signals with every decision cryptographically attested — ind
 - **DGrid consensus on DEFEND** — the highest-stakes decision (opening a short when a token shows weakness) fans across 3 DGrid models and takes a majority vote. Consensus metadata (method, tally, per-model verdict) preserved in every signal.
 - **Two independent Merkle chains** — **trade attestation** chains every open/close position event; **signal attestation** chains every agent decision. Both publishable on-chain. **3 MYX roots on-chain, 518 decisions committed.**
 - **Every production BSC mainnet address wired** — TRADING_ROUTER, ORDER_MANAGER, POSITION_MANAGER, BASE_POOL, QUOTE_POOL, ORACLE, FORWARDER, sourced from the official MYX SDK.
-- **Execution: signal-only (broker-gated upstream).** MYX V2 routes orders through a permissioned **BrokerSigner** contract issued per integrator by the MYX team. Fork-simulation confirmed the broker gate reverts with `"disabled"` for any caller without a signed allowance. We shipped the complete infrastructure wired to the correct addresses; flipping `MYX_EXECUTION_ENABLED=true` + setting `MYX_BROKER_ADDRESS` is the single change needed to go live once MYX whitelists us. **Every decision is on-chain attested regardless of whether the order executes — that's the product.**
+- **Execution: signal-only (broker-gated upstream).** MYX V2 routes orders through a permissioned **BrokerSigner** contract issued per integrator by the MYX team. Fork-simulation confirmed the broker gate reverts with `"disabled"` for any caller without a signed allowance. We shipped the complete infrastructure wired to the correct addresses; flipping `MYX_EXECUTION_ENABLED=true` + setting `MYX_BROKER_ADDRESS` is the single change needed to go live once MYX whitelists us. **Every decision is hash-chained regardless of whether the order executes, and published roots anchor those decisions on-chain — that's the product.**
 
 ---
 

@@ -10,11 +10,11 @@ Everything below traces to a live URL, BscScan tx, source file, or the running A
 
 ## One-line tagline
 
-An AI agent that launches meme tokens on Four.meme and manages them post-launch — with every decision committed to a cryptographic chain and anchored on BNB Chain.
+An AI agent that launches meme tokens on Four.meme and manages them post-launch — with every decision committed to a cryptographic chain and published roots anchored on BNB Chain.
 
 ## Short description (150 chars)
 
-Autonomous lifecycle agent for Four.meme: trust grading, phase-aware posts, MYX signals, DGrid consensus, on-chain Merkle attestation of every decision.
+Autonomous lifecycle agent for Four.meme: trust grading, phase-aware posts, MYX signals, DGrid consensus, and published on-chain Merkle roots for the decision chains.
 
 ---
 
@@ -32,7 +32,7 @@ A production-deployed autonomous agent that runs the full lifecycle of a Four.me
 
 1. **Launches tokens on Four.meme** end-to-end — concept generated via DGrid, art via DALL-E (through DGrid), signs the Four.meme create-token tx, registers with the lifecycle engine. Example: **$AUNT (AuntieCoin)** — launched April 20, 2026, [tx `0x80ff903c…`](https://bscscan.com/tx/0x80ff903ca947448ec50927b866067b67e5bdd69a667f9d0f1b3af8f0c74869d2), [token on Four.meme](https://four.meme/en/token/0x568bf737887053ffa8aa4e82d8859ca4a9a14444).
 2. **Manages the full lifecycle** — THINK (narrative analysis) → BIRTH (launch) → RAISE (nurture / defend / accelerate) → LEARN (persist outcomes). Two tokens live right now: $AUNT + KICAU. Real insider-phase / public-phase state transitions, not a simulator.
-3. **Makes every decision verifiable** — every LLM call + every hedge signal is hashed into rolling Merkle chains; the tips are published on BNB Chain. Anyone can re-derive the chain locally and check our claims. **Lifecycle-wide attestation, not single-action**: we commit to the *sequence* of decisions across the full token life, not just individual trades.
+3. **Makes every decision verifiable** — every LLM call + every hedge signal is hashed into rolling Merkle chains; published tips are anchored on BNB Chain. Anyone can re-derive the chain locally and check the latest published root. **Lifecycle-wide attestation, not single-action**: we commit to the *sequence* of decisions across the full token life, not just individual trades.
 4. **Four cross-partner integrations composed** — DGrid (cost-aware multi-model routing), MYX V2 (signal infrastructure), ERC-8004 (on-chain identity + reputation), Unibase (memory). DGrid's unified gateway enables 3-model consensus voting — a capability a single-provider agent literally cannot replicate.
 
 ---
@@ -148,7 +148,7 @@ All addresses are hardcoded in `agent/config.py` and wired into `agent/myx/clien
 | MYX decision attestation #2 | 452 hedge decisions | [`0xeda29cc6…`](https://bscscan.com/tx/0xeda29cc60bc8ca9bb3b3d8f78cf0200cd39cd50a3b80cbb0f411d25025232026) |
 | MYX decision attestation #3 | 518 hedge decisions | [`0x5c5b9876…`](https://bscscan.com/tx/0x5c5b9876cc85d54e01b69d03ee8709d32370fe64374a02ddf1ac521ddc0437af) |
 
-Three decision-attestation roots prove the agent is continuously making real hedge decisions on MYX via a cryptographic chain — 518 decisions committed on BNB Chain as of the latest publish, each carrying the action, confidence, size %, reasoning hash, and (for consensus-backed decisions) per-model vote metadata.
+Three decision-attestation roots prove the agent is continuously making real hedge decisions on MYX via a cryptographic chain — the latest published root covers 518 decisions, each carrying the action, confidence, size %, reasoning hash, and (for consensus-backed decisions) per-model vote metadata.
 
 ### MYX capabilities we shipped
 
@@ -156,7 +156,7 @@ Three decision-attestation roots prove the agent is continuously making real hed
 |---|---|
 | **Live connection to MYX V2** — 37 perp markets fetched from `api.myx.finance` | Real integration, not mocked |
 | **Phase-aware hedge signals** | Per token, every 5 min: action (long/short/close/hold) + confidence + size_pct + reasoning |
-| **DGrid consensus on DEFEND** | 3 DGrid models vote in parallel on every high-stakes hedge decision. 452 such votes already committed on-chain at root `0xeda29cc6…`. |
+| **DGrid consensus on DEFEND** | 3 DGrid models vote in parallel on every high-stakes hedge decision. 452 such votes are covered by the published MYX root `0xeda29cc6…`. |
 | **Signal attestation chain** (separate from trade chain) | Cryptographic commitment to every decision, publishable on-chain before execution |
 | **Shape-preview calldata** (`/api/myx/calldata/{token}`) | Unsigned `createIncreaseOrder` tx against MYX V2's struct — decode locally to verify struct packing. Production orders route through the broker-signer pattern. |
 | **Live consensus demo** (`/api/myx/consensus/{token}`) | Click-button fan-out across 3 DGrid models; returns per-model verdicts + majority vote |
@@ -188,10 +188,10 @@ POST /api/myx/attest-signals     — publish signal root on BNB Chain (admin)
 Submitting for the MYX bounty on the basis of decision-attestation depth plus production-ready infrastructure. Three things judges can verify independently:
 
 1. **The architecture is correctly reverse-engineered** — every BSC mainnet address in our config matches the official MYX SDK (`TRADING_ROUTER`, `ORDER_MANAGER`, `POSITION_MANAGER`, `POOL_MANAGER`, base + quote pools, oracle, forwarder).
-2. **The decision-attestation layer is live** — 452 DEFEND-phase hedge decisions committed to a Merkle chain published on BNB Chain at root `0xeda29cc6…`. Every decision carries the action, confidence, size percent, reasoning hash, and (for consensus-backed decisions) the per-model vote metadata. An independent verifier can paginate `/api/myx/signal-attestation` and fold each digest to reproduce the published root.
+2. **The decision-attestation layer is live** — 452 DEFEND-phase hedge decisions are covered by a Merkle root published on BNB Chain at `0xeda29cc6…`. Every decision carries the action, confidence, size percent, reasoning hash, and (for consensus-backed decisions) the per-model vote metadata. An independent verifier can paginate `/api/myx/signal-attestation` and fold each digest to reproduce the published root.
 3. **The remaining execution gap is a protocol design choice, not a tooling gap** — MYX V2 gates brokers by design (per the official SDK's `brokerAddress: "Get from MYX team"` requirement) and onboarding is a manual conversation with the MYX team. We have reached out publicly on multiple channels. The moment a broker address is issued, `MYX_EXECUTION_ENABLED=true` + `MYX_BROKER_ADDRESS=0x…` unlocks execution — everything downstream is already wired.
 
-We submit this to the MYX bounty on decision-attestation depth: the cryptographic audit trail of every hedge decision the agent has ever made, published on BNB Chain, verifiable by anyone, and independent of when (or whether) orders eventually fire.
+We submit this to the MYX bounty on decision-attestation depth: the cryptographic audit trail of hedge decisions, with published BNB Chain roots verifiable by anyone, and independent of when (or whether) orders eventually fire.
 
 ---
 
@@ -222,7 +222,7 @@ We submit this to the MYX bounty on decision-attestation depth: the cryptographi
 
 ## The pitch in one paragraph
 
-FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's cryptographically provable. The agent launches meme tokens on Four.meme, manages their full lifecycle (posts, defense, hedging), and anchors every decision on BNB Chain via Merkle chains anyone can verify without trusting us. The truth-boundary is honest: a "Certified" tier requires full on-chain data; public-ranking heuristics are returned as "Radar Estimate" with a distinct version string and explicit UI treatment. Six on-chain attestation transactions back the "did the agent actually do what you say?" question with BscScan URLs.
+FOUR-LIFE is a Four.meme agent where "autonomous" isn't marketing — it's cryptographically provable. The agent launches meme tokens on Four.meme, manages their full lifecycle (posts, defense, hedging), hash-chains every decision, and anchors published roots on BNB Chain via Merkle chains anyone can verify without trusting us. The truth-boundary is honest: a "Certified" tier requires full on-chain data; public-ranking heuristics are returned as "Radar Estimate" with a distinct version string and explicit UI treatment. Six on-chain attestation transactions back the "did the agent actually do what you say?" question with BscScan URLs.
 
 ---
 
@@ -290,6 +290,6 @@ Ridwan Nurudeen ([@gudman](https://github.com/Ridwannurudeen)) — solo builder.
 | Project name | `FOUR-LIFE` |
 | Track | Autonomous Workflows |
 | Is this BUIDL an AI Agent | Yes |
-| Tagline | Verifiably-autonomous lifecycle agent for Four.meme with on-chain Merkle attestation of every decision |
+| Tagline | Verifiably-autonomous lifecycle agent for Four.meme with hash-chained decisions and published on-chain Merkle roots |
 | Repo URL | `https://github.com/Ridwannurudeen/four-life` |
 | Demo URL | `https://four-life.gudman.xyz` |

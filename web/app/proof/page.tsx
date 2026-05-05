@@ -54,6 +54,7 @@ interface AuditResp {
   last_published_root: string | null;
   last_published_txhash: string | null;
   last_published_count: number;
+  unpublished_calls?: number;
   genesis: string;
 }
 
@@ -86,6 +87,7 @@ interface MyxAttestResp {
   num_signals_chained: number;
   last_published_count: number;
   last_published_txhash: string | null;
+  unpublished_signals?: number;
 }
 
 interface GradRow {
@@ -185,6 +187,12 @@ export default function ProofPage() {
   const tierClass = TIER_COLOR[tier];
   const source = badge?.tier_source ?? badge?.badge?.tier_source ?? "certified";
   const isCertified = source === "certified";
+  const dgridChained = audit?.num_calls_chained ?? 0;
+  const dgridPublished = audit?.last_published_count ?? 0;
+  const dgridUnpublished = audit?.unpublished_calls ?? Math.max(0, dgridChained - dgridPublished);
+  const myxChained = myx?.num_signals_chained ?? 0;
+  const myxPublished = myx?.last_published_count ?? 0;
+  const myxUnpublished = myx?.unpublished_signals ?? Math.max(0, myxChained - myxPublished);
 
   return (
     <div className="min-h-screen bg-[#0f1012] text-white">
@@ -193,9 +201,9 @@ export default function ProofPage() {
           <Link href="/" className="text-xs text-white/40 hover:text-white/70 uppercase tracking-[0.15em]">← FOUR-LIFE</Link>
           <h1 className="text-3xl md:text-5xl font-bold mt-4 tracking-tight">Proof of autonomy</h1>
           <p className="text-white/60 mt-3 max-w-2xl text-sm md:text-base">
-            The agent&apos;s record, end-to-end. Launches it deployed, tokens it graduated, LLM calls committed
-            to Merkle roots on BNB Chain, and a live badge on a running token — every field cross-checkable
-            against BscScan. Reload this page in 10 minutes and you&apos;ll see what the agent sees <em>then</em>.
+            The agent&apos;s record, end-to-end. Launches it deployed, tokens it graduated, LLM calls and MYX decisions
+            hash-chained locally, published roots anchored on BNB Chain, and a live badge on a running token — every field
+            cross-checkable against BscScan. Reload this page in 10 minutes and you&apos;ll see what the agent sees <em>then</em>.
             That&apos;s the point of a deterministic system.
           </p>
           {loadedAt > 0 && (
@@ -234,15 +242,15 @@ export default function ProofPage() {
               color="text-[#6cff32]"
             />
             <LedgerStat
-              value={audit?.num_calls_chained?.toLocaleString() ?? "—"}
-              label="DGrid chained"
-              sub="LLM calls committed"
+              value={dgridChained.toLocaleString()}
+              label="DGrid hash-chain"
+              sub={`${dgridPublished.toLocaleString()} anchored on-chain`}
               color="text-[#00d4ff]"
             />
             <LedgerStat
-              value={myx?.num_signals_chained?.toLocaleString() ?? "—"}
-              label="MYX chained"
-              sub="decisions committed"
+              value={myxChained.toLocaleString()}
+              label="MYX hash-chain"
+              sub={`${myxPublished.toLocaleString()} anchored on-chain`}
               color="text-[#ffd641]"
             />
           </div>
@@ -379,7 +387,8 @@ export default function ProofPage() {
               Current chain tip: <span className="text-white/80 break-all">{audit.current_root}</span>
               <br />
               Chained calls: <span className="text-white/80">{audit.num_calls_chained}</span> ·
-              Last published at: <span className="text-white/80">{audit.last_published_count}</span>
+              Anchored on-chain: <span className="text-white/80">{audit.last_published_count}</span> ·
+              Unpublished since last anchor: <span className={dgridUnpublished > 0 ? "text-[#ffd641]" : "text-white/80"}>{dgridUnpublished}</span>
             </div>
           )}
         </section>
@@ -387,7 +396,7 @@ export default function ProofPage() {
         {/* Section 4: On-chain evidence */}
         <section className="mb-10 rounded-xl border border-white/10 bg-black/30 p-6">
           <h2 className="text-[11px] uppercase tracking-[0.15em] text-white/40 mb-4">
-            4. On-chain Merkle attestations — 5 independent txs
+            4. On-chain Merkle attestations — 6 independent txs
           </h2>
           <div className="space-y-2">
             {ATTESTATIONS.map((a) => (
@@ -405,6 +414,13 @@ export default function ProofPage() {
             ))}
           </div>
           <p className="text-[11px] text-white/40 mt-4">
+            Current live tips may be ahead of the latest BNB Chain anchor. Right now DGrid has{" "}
+            <span className={dgridUnpublished > 0 ? "text-[#ffd641]" : "text-white/60"}>{dgridUnpublished.toLocaleString()}</span>{" "}
+            unpublished calls and MYX has{" "}
+            <span className={myxUnpublished > 0 ? "text-[#ffd641]" : "text-white/60"}>{myxUnpublished.toLocaleString()}</span>{" "}
+            unpublished decisions since the latest published roots.
+          </p>
+          <p className="text-[11px] text-white/40 mt-2">
             Verify locally: <code className="text-white/60">pip install four-life</code>, then{" "}
             <code className="text-white/60">from four_life.verify import verify_chain</code>. Page{" "}
             <code className="text-white/60">/api/dgrid/audit/calls</code> via <code className="text-white/60">next_offset</code>/

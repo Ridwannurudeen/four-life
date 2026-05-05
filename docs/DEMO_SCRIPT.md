@@ -59,7 +59,7 @@
 **Tab:** Proof (`four-life.gudman.xyz/proof`)
 
 **Voiceover:**
-> "Here's the agent's record. Thirty-two launches deployed, five graduated — that's fifteen point six percent, more than eleven times the platform average. Every operational LLM call the agent makes — narrative picks, hedge decisions — is Merkle-committed on BNB Chain. One thousand five hundred seventy-three DGrid calls chained. Five hundred eighteen MYX decisions chained. Six transactions, all verifiable on BscScan."
+> "Here's the agent's record. Thirty-two launches deployed, five graduated — that's fifteen point six percent, more than eleven times the platform average. Every operational LLM call the agent makes — narrative picks, hedge decisions — is hash-chained, and published roots are anchored on BNB Chain. The latest published roots cover one thousand five hundred seventy-three DGrid calls and five hundred eighteen MYX decisions. Six transactions, all verifiable on BscScan."
 
 **On-screen actions:**
 - Point at **Section 0 "The ledger"** — the 5 big stat numbers light up live

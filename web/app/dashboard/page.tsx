@@ -1380,11 +1380,13 @@ export default function Dashboard() {
   const [showAdmin, setShowAdmin] = useState<boolean>(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setHasSecret(!!getApiSecret()), 0);
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      setShowAdmin(params.get("admin") === "1");
-    }
+    const t = setTimeout(() => {
+      setHasSecret(!!getApiSecret());
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        setShowAdmin(params.get("admin") === "1");
+      }
+    }, 0);
     return () => clearTimeout(t);
   }, []);
 
